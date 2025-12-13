@@ -19,12 +19,13 @@
 
 ## 系统架构
 
-项目采用双进程架构：
+项目采用三进程架构：
 
 - **GUI 进程** (`BS2PRO-Controller.exe`)：提供用户界面，使用 Wails 框架
 - **核心服务** (`BS2PRO-Core.exe`)：后台运行，负责设备通信和温度监控
+- **温度桥接进程** (`TempBridge.exe`)：通过 C# 程序获取系统温度数据
 
-两个进程通过 IPC (进程间通信) 进行数据交互。
+三个进程通过 IPC (进程间通信) 进行数据交互。
 
 ## 技术栈
 
@@ -70,7 +71,7 @@ cd BS2PRO-Controller
 
 #### 安装 Go 依赖
 ```bash
-go mod download
+go mod tidy
 ```
 
 #### 安装前端依赖
@@ -116,6 +117,8 @@ BS2PRO-Controller/
 ├── wails.json             # Wails 配置文件
 ├── build.bat              # Windows 构建脚本
 ├── build_bridge.bat       # 桥接程序构建脚本
+├── lib/
+│   └── LibreHardwareMonitorLib.dll  # 温度监控核心库
 │
 ├── cmd/
 │   └── core/              # 核心服务程序
@@ -179,10 +182,7 @@ BS2PRO-Controller/
 程序支持多种温度监控方式：
 
 1. **TempBridge**：通过 C# 桥接程序获取系统温度
-2. **AIDA64**：读取 AIDA64 共享内存数据（需安装 AIDA64）
-3. **HWINFO**：读取 HWiNFO 共享内存数据（需安装 HWiNFO）
 
-可在设置中选择温度数据源。
 
 ### 系统托盘
 
