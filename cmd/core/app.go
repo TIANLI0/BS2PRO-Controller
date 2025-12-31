@@ -514,10 +514,12 @@ func (a *CoreApp) onFanDataUpdate(fanData *types.FanData) {
 	cfg := a.configManager.Get()
 
 	// 检查工作模式变化
+	// 如果开启了"断连保持配置模式"，则忽略设备状态变化，避免误判
 	if fanData.WorkMode == "挡位工作模式" &&
 		cfg.AutoControl &&
 		a.lastDeviceMode == "自动模式(实时转速)" &&
-		!a.userSetAutoControl {
+		!a.userSetAutoControl &&
+		!cfg.IgnoreDeviceOnReconnect {
 
 		a.logInfo("检测到设备从自动模式切换到挡位工作模式，自动关闭智能变频")
 		cfg.AutoControl = false
@@ -536,6 +538,12 @@ func (a *CoreApp) onFanDataUpdate(fanData *types.FanData) {
 		if a.ipcServer != nil {
 			a.ipcServer.BroadcastEvent(ipc.EventConfigUpdate, cfg)
 		}
+	} else if fanData.WorkMode == "挡位工作模式" &&
+		cfg.AutoControl &&
+		a.lastDeviceMode == "自动模式(实时转速)" &&
+		!a.userSetAutoControl &&
+		cfg.IgnoreDeviceOnReconnect {
+		a.logInfo("检测到设备模式变化，但已开启断连保持配置模式，保持APP配置不变")
 	}
 
 	a.lastDeviceMode = fanData.WorkMode
@@ -608,6 +616,14 @@ func (a *CoreApp) scheduleReconnect() {
 		a.logInfo("尝试第 %d 次重连设备...", i+1)
 		if a.ConnectDevice() {
 			a.logInfo("设备重连成功")
+
+			// 如果开启了断连保持配置模式，重新应用APP配置
+			cfg := a.configManager.Get()
+			if cfg.IgnoreDeviceOnReconnect {
+				a.logInfo("断连保持配置模式已开启，重新应用APP配置")
+				a.reapplyConfigAfterReconnect()
+			}
+
 			return
 		}
 		a.logError("第 %d 次重连失败", i+1)
@@ -655,6 +671,39 @@ func (a *CoreApp) DisconnectDevice() {
 
 	if a.ipcServer != nil {
 		a.ipcServer.BroadcastEvent(ipc.EventDeviceDisconnected, nil)
+	}
+}
+
+// reapplyConfigAfterReconnect 重连后重新应用APP配置
+func (a *CoreApp) reapplyConfigAfterReconnect() {
+	cfg := a.configManager.Get()
+
+	// 重新应用智能变频配置
+	if cfg.AutoControl {
+		a.logInfo("重新启动智能变频")
+		go a.startTemperatureMonitoring()
+	} else if cfg.CustomSpeedEnabled {
+		// 重新应用自定义转速
+		a.logInfo("重新应用自定义转速: %d RPM", cfg.CustomSpeedRPM)
+		if !a.deviceManager.SetCustomFanSpeed(cfg.CustomSpeedRPM) {
+			a.logError("重新应用自定义转速失败")
+		}
+	}
+
+	// 重新应用挡位灯配置
+	if cfg.GearLight {
+		a.logInfo("重新开启挡位灯")
+		if !a.deviceManager.SetGearLight(true) {
+			a.logError("重新开启挡位灯失败")
+		}
+	}
+
+	// 重新应用通电自启动配置
+	if cfg.PowerOnStart {
+		a.logInfo("重新开启通电自启动")
+		if !a.deviceManager.SetPowerOnStart(true) {
+			a.logError("重新开启通电自启动失败")
+		}
 	}
 }
 

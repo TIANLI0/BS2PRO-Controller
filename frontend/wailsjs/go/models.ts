@@ -31,6 +31,7 @@ export namespace types {
 	    guiMonitoring: boolean;
 	    customSpeedEnabled: boolean;
 	    customSpeedRPM: number;
+	    ignoreDeviceOnReconnect: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new AppConfig(source);
@@ -54,6 +55,7 @@ export namespace types {
 	        this.guiMonitoring = source["guiMonitoring"];
 	        this.customSpeedEnabled = source["customSpeedEnabled"];
 	        this.customSpeedRPM = source["customSpeedRPM"];
+	        this.ignoreDeviceOnReconnect = source["ignoreDeviceOnReconnect"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

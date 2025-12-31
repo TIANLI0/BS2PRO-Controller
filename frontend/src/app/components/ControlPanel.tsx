@@ -213,6 +213,17 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
     }
   }, [config, onConfigChange]);
 
+  // 断连保持配置模式
+  const handleIgnoreDeviceOnReconnectChange = useCallback(async (enabled: boolean) => {
+    try {
+      const newConfig = types.AppConfig.createFrom({ ...config, ignoreDeviceOnReconnect: enabled });
+      await apiService.updateConfig(newConfig);
+      onConfigChange(newConfig);
+    } catch (error) {
+      console.error('设置断连保持配置模式失败:', error);
+    }
+  }, [config, onConfigChange]);
+
   // 智能启停控制
   const handleSmartStartStopChange = useCallback(async (mode: string) => {
     if (!isConnected) return;
@@ -531,6 +542,41 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
                 enabled={config.windowsAutoStart}
                 onChange={handleWindowsAutoStartChange}
                 loading={loadingStates.windowsAutoStart}
+                color="green"
+              />
+            </div>
+          </div>
+
+          {/* 断连保持配置模式 */}
+          <div className="py-4 px-4 -mx-4 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all duration-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className={clsx(
+                  'p-2.5 rounded-xl transition-all duration-300',
+                  (config as any).ignoreDeviceOnReconnect 
+                    ? 'bg-emerald-100 dark:bg-emerald-900/30 scale-105' 
+                    : 'bg-gray-100 dark:bg-gray-700'
+                )}>
+                  <ClockIcon className={clsx(
+                    'w-5 h-5 transition-colors duration-300',
+                    (config as any).ignoreDeviceOnReconnect 
+                      ? 'text-emerald-600 dark:text-emerald-400' 
+                      : 'text-gray-500 dark:text-gray-400'
+                  )} />
+                </div>
+                <div>
+                  <div className="font-medium text-gray-900 dark:text-white">断连保持配置</div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                    设备断开重连后继续使用APP配置，而不是设备默认状态
+                  </div>
+                  <div className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">
+                    推荐开启，防止设备异常断连导致进入手动模式
+                  </div>
+                </div>
+              </div>
+              <ToggleSwitch
+                enabled={(config as any).ignoreDeviceOnReconnect ?? true}
+                onChange={handleIgnoreDeviceOnReconnectChange}
                 color="green"
               />
             </div>
