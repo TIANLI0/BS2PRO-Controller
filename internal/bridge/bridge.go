@@ -27,6 +27,10 @@ type Manager struct {
 	logger   types.Logger
 }
 
+const (
+	bridgeCommandTimeout = 3 * time.Second
+)
+
 // NewManager 创建新的桥接程序管理器
 func NewManager(logger types.Logger) *Manager {
 	return &Manager{
@@ -46,6 +50,12 @@ func (m *Manager) EnsureRunning() error {
 			return nil // 连接正常
 		}
 		m.logger.Warn("桥接程序连接异常，重新启动: %v", err)
+		m.stopUnsafe()
+	}
+
+	// 状态不一致（仅有进程或仅有连接）时进行自愈清理，避免后续阻塞
+	if m.conn != nil || m.cmd != nil {
+		m.logger.Warn("检测到桥接程序状态不一致，执行清理后重启")
 		m.stopUnsafe()
 	}
 
@@ -181,6 +191,13 @@ func (m *Manager) sendCommandUnsafe(cmdType, data string) (*types.BridgeResponse
 		return nil, fmt.Errorf("桥接程序未连接")
 	}
 
+	if err := m.conn.SetDeadline(time.Now().Add(bridgeCommandTimeout)); err != nil {
+		m.logger.Debug("设置桥接命令超时失败: %v", err)
+	}
+	defer func() {
+		_ = m.conn.SetDeadline(time.Time{})
+	}()
+
 	cmd := types.BridgeCommand{
 		Type: cmdType,
 		Data: data,
@@ -195,12 +212,14 @@ func (m *Manager) sendCommandUnsafe(cmdType, data string) (*types.BridgeResponse
 	// 发送命令
 	_, err = m.conn.Write(append(cmdBytes, '\n'))
 	if err != nil {
+		m.closeConnUnsafe()
 		return nil, fmt.Errorf("发送命令失败: %v", err)
 	}
 
 	reader := bufio.NewReader(m.conn)
 	responseBytes, err := reader.ReadBytes('\n')
 	if err != nil {
+		m.closeConnUnsafe()
 		return nil, fmt.Errorf("读取响应失败: %v", err)
 	}
 
@@ -211,6 +230,14 @@ func (m *Manager) sendCommandUnsafe(cmdType, data string) (*types.BridgeResponse
 	}
 
 	return &response, nil
+}
+
+// closeConnUnsafe 关闭并清理当前连接（不加锁）
+func (m *Manager) closeConnUnsafe() {
+	if m.conn != nil {
+		_ = m.conn.Close()
+		m.conn = nil
+	}
 }
 
 // Stop 停止桥接程序
@@ -225,8 +252,7 @@ func (m *Manager) stopUnsafe() {
 	if m.conn != nil {
 		// 发送退出命令
 		m.sendCommandUnsafe("Exit", "")
-		m.conn.Close()
-		m.conn = nil
+		m.closeConnUnsafe()
 	}
 
 	if m.cmd != nil && m.cmd.Process != nil {
