@@ -401,7 +401,7 @@ func (m *Manager) SetFanSpeed(rpm int) bool {
 		return false
 	}
 
-	m.logInfo("设置风扇转速: %d RPM", rpm)
+	m.logDebug("已设置风扇转速: %d RPM", rpm)
 	return true
 }
 
@@ -667,5 +667,11 @@ func (m *Manager) logError(format string, v ...any) {
 func (m *Manager) logWarn(format string, v ...any) {
 	if m.logger != nil {
 		m.logger.Warn(format, v...)
+	}
+}
+
+func (m *Manager) logDebug(format string, v ...any) {
+	if m.logger != nil {
+		m.logger.Debug(format, v...)
 	}
 }

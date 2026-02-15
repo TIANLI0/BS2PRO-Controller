@@ -17,6 +17,7 @@ type Manager struct {
 	initialized  int32 // atomic: 0=未初始化, 1=已初始化
 	readyState   int32 // atomic: 0=未就绪, 1=就绪
 	mutex        sync.Mutex
+	uiMutex      sync.Mutex
 	done         chan struct{} // 关闭此通道以通知所有 goroutine 退出
 	iconData     []byte
 	menuItems    *MenuItems
@@ -78,7 +79,7 @@ func (m *Manager) Init() {
 	defer m.mutex.Unlock()
 
 	// 检查是否已经初始化
-	if atomic.LoadInt32(&m.initialized) == 1 {
+	if !atomic.CompareAndSwapInt32(&m.initialized, 0, 1) {
 		m.logDebug("托盘已经初始化，跳过重复初始化")
 		return
 	}
@@ -90,6 +91,7 @@ func (m *Manager) Init() {
 			if r := recover(); r != nil {
 				m.logError("托盘初始化过程中发生panic: %v", r)
 				atomic.StoreInt32(&m.initialized, 0)
+				atomic.StoreInt32(&m.readyState, 0)
 			}
 		}()
 
@@ -109,10 +111,11 @@ func (m *Manager) onTrayReady() {
 
 	m.logInfo("托盘回调函数已启动")
 
-	// 设置托盘初始化标志
-	atomic.StoreInt32(&m.initialized, 1)
 	if err := m.setupIcon(); err != nil {
 		m.logError("设置托盘图标失败: %v", err)
+		atomic.StoreInt32(&m.readyState, 0)
+		atomic.StoreInt32(&m.initialized, 0)
+		systray.Quit()
 		return
 	}
 
@@ -120,6 +123,9 @@ func (m *Manager) onTrayReady() {
 	menuItems, err := m.createMenu()
 	if err != nil {
 		m.logError("创建托盘菜单失败: %v", err)
+		atomic.StoreInt32(&m.readyState, 0)
+		atomic.StoreInt32(&m.initialized, 0)
+		systray.Quit()
 		return
 	}
 	m.menuItems = menuItems
@@ -140,13 +146,19 @@ func (m *Manager) onTrayReady() {
 }
 
 // setupIcon 设置托盘图标
-func (m *Manager) setupIcon() error {
+func (m *Manager) setupIcon() (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			m.logError("设置托盘图标时发生panic: %v", r)
+			err = fmt.Errorf("设置托盘图标时发生panic: %v", r)
 		}
 	}()
 
+	if len(m.iconData) == 0 {
+		return fmt.Errorf("托盘图标数据为空")
+	}
+
+	m.uiMutex.Lock()
+	defer m.uiMutex.Unlock()
 	systray.SetIcon(m.iconData)
 	systray.SetTitle("BS2PRO 控制器")
 	systray.SetTooltip("BS2PRO 风扇控制器 - 运行中")
@@ -154,14 +166,17 @@ func (m *Manager) setupIcon() error {
 }
 
 // createMenu 创建托盘菜单
-func (m *Manager) createMenu() (*MenuItems, error) {
+func (m *Manager) createMenu() (items *MenuItems, err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			m.logError("创建托盘菜单时发生panic: %v", r)
+			err = fmt.Errorf("创建托盘菜单时发生panic: %v", r)
 		}
 	}()
 
-	items := &MenuItems{}
+	m.uiMutex.Lock()
+	defer m.uiMutex.Unlock()
+
+	items = &MenuItems{}
 
 	items.Show = systray.AddMenuItem("显示主窗口", "显示控制器主窗口")
 	systray.AddSeparator()
@@ -199,6 +214,11 @@ func (m *Manager) handleMenuEvents() {
 		}
 	}()
 
+	if m.menuItems == nil || m.menuItems.Show == nil || m.menuItems.AutoControl == nil || m.menuItems.Quit == nil {
+		m.logError("托盘菜单未正确初始化，无法处理菜单事件")
+		return
+	}
+
 	for {
 		select {
 		case <-m.menuItems.Show.ClickedCh:
@@ -211,11 +231,13 @@ func (m *Manager) handleMenuEvents() {
 			if m.onToggleAuto != nil {
 				newState := m.onToggleAuto()
 				// 立即更新UI状态
+				m.uiMutex.Lock()
 				if newState {
 					m.menuItems.AutoControl.Check()
 				} else {
 					m.menuItems.AutoControl.Uncheck()
 				}
+				m.uiMutex.Unlock()
 			}
 		case <-m.menuItems.Quit.ClickedCh:
 			m.logInfo("托盘菜单: 用户请求退出应用")
@@ -261,6 +283,8 @@ func (m *Manager) updateMenuStatus() {
 				}
 
 				status := m.getStatus()
+				m.uiMutex.Lock()
+				defer m.uiMutex.Unlock()
 
 				// 更新设备状态
 				if status.Connected {
@@ -363,7 +387,15 @@ func (m *Manager) refreshTrayIcon() {
 		}
 	}()
 
-	// 重新设置图标和 tooltip，确保 Explorer 重启后图标恢复
+	m.uiMutex.Lock()
+	defer m.uiMutex.Unlock()
+
+	if len(m.iconData) == 0 {
+		atomic.AddInt32(&m.consecutiveFails, 1)
+		m.logError("刷新托盘图标失败: 图标数据为空")
+		return
+	}
+
 	systray.SetIcon(m.iconData)
 	systray.SetTooltip("BS2PRO 风扇控制器 - 运行中")
 
