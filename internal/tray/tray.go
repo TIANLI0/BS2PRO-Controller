@@ -7,8 +7,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"fyne.io/systray"
 	"github.com/TIANLI0/BS2PRO-Controller/internal/types"
-	"github.com/getlantern/systray"
 )
 
 // Manager 系统托盘管理器
@@ -118,6 +118,14 @@ func (m *Manager) onTrayReady() {
 		systray.Quit()
 		return
 	}
+
+	// 左键单击托盘图标：显示主窗口；右键保持默认行为（打开托盘菜单）
+	systray.SetOnTapped(func() {
+		m.logDebug("托盘图标左键点击: 显示主窗口")
+		if m.onShowWindow != nil {
+			m.onShowWindow()
+		}
+	})
 
 	// 创建托盘菜单
 	menuItems, err := m.createMenu()
