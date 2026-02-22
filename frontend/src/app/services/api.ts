@@ -16,6 +16,7 @@ import {
   SetPowerOnStart,
   SetSmartStartStop,
   SetBrightness,
+  SetLightStrip,
   GetTemperature,
   GetCurrentFanData,
   TestTemperatureReading,
@@ -104,6 +105,10 @@ class ApiService {
 
   async setBrightness(percentage: number): Promise<boolean> {
     return await SetBrightness(percentage);
+  }
+
+  async setLightStrip(config: types.LightStripConfig): Promise<void> {
+    return await SetLightStrip(config);
   }
 
   // Windows自启动相关

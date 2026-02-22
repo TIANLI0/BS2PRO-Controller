@@ -56,6 +56,8 @@ export function SetFanCurve(arg1:Array<types.FanCurvePoint>):Promise<void>;
 
 export function SetGearLight(arg1:boolean):Promise<boolean>;
 
+export function SetLightStrip(arg1:types.LightStripConfig):Promise<void>;
+
 export function SetManualGear(arg1:string,arg2:string):Promise<boolean>;
 
 export function SetPowerOnStart(arg1:boolean):Promise<boolean>;

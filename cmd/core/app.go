@@ -128,6 +128,13 @@ func (a *CoreApp) Start() error {
 	// 加载配置
 	a.logInfo("开始加载配置文件")
 	cfg := a.configManager.Load(a.isAutoStartLaunch)
+	if normalizedLight, changed := normalizeLightStripConfig(cfg.LightStrip); changed {
+		cfg.LightStrip = normalizedLight
+		a.configManager.Set(cfg)
+		if err := a.configManager.Save(); err != nil {
+			a.logError("保存灯带默认配置失败: %v", err)
+		}
+	}
 	a.logInfo("配置加载完成，配置路径: %s", cfg.ConfigPath)
 
 	// 同步调试模式配置
@@ -394,6 +401,16 @@ func (a *CoreApp) handleIPCRequest(req ipc.Request) ipc.Response {
 		success := a.SetBrightness(params.Value)
 		return a.successResponse(success)
 
+	case ipc.ReqSetLightStrip:
+		var params ipc.SetLightStripParams
+		if err := json.Unmarshal(req.Data, &params); err != nil {
+			return a.errorResponse("解析参数失败: " + err.Error())
+		}
+		if err := a.SetLightStrip(params.Config); err != nil {
+			return a.errorResponse(err.Error())
+		}
+		return a.successResponse(true)
+
 	// 温度相关
 	case ipc.ReqGetTemperature:
 		a.mutex.RLock()
@@ -645,6 +662,9 @@ func (a *CoreApp) ConnectDevice() bool {
 		}
 
 		cfg := a.configManager.Get()
+		if err := a.applyConfiguredLightStrip(); err != nil {
+			a.logError("应用灯带配置失败: %v", err)
+		}
 		if cfg.AutoControl {
 			go a.startTemperatureMonitoring()
 		}
@@ -705,6 +725,10 @@ func (a *CoreApp) reapplyConfigAfterReconnect() {
 			a.logError("重新开启通电自启动失败")
 		}
 	}
+
+	if err := a.applyConfiguredLightStrip(); err != nil {
+		a.logError("重连后重新应用灯带配置失败: %v", err)
+	}
 }
 
 // GetDeviceStatus 获取设备状态
@@ -726,6 +750,7 @@ func (a *CoreApp) UpdateConfig(cfg types.AppConfig) error {
 	defer a.mutex.Unlock()
 
 	oldCfg := a.configManager.Get()
+	cfg.LightStrip, _ = normalizeLightStripConfig(cfg.LightStrip)
 
 	if cfg.AutoControl && !a.monitoringTemp && a.isConnected {
 		go a.startTemperatureMonitoring()
@@ -919,6 +944,69 @@ func (a *CoreApp) SetBrightness(percentage int) bool {
 		a.ipcServer.BroadcastEvent(ipc.EventConfigUpdate, cfg)
 	}
 	return true
+}
+
+// SetLightStrip 设置灯带
+func (a *CoreApp) SetLightStrip(lightCfg types.LightStripConfig) error {
+	lightCfg, _ = normalizeLightStripConfig(lightCfg)
+
+	cfg := a.configManager.Get()
+	cfg.LightStrip = lightCfg
+	a.configManager.Set(cfg)
+	if err := a.configManager.Save(); err != nil {
+		return err
+	}
+
+	if a.isConnected {
+		if err := a.deviceManager.SetLightStrip(lightCfg); err != nil {
+			return err
+		}
+	}
+
+	if a.ipcServer != nil {
+		a.ipcServer.BroadcastEvent(ipc.EventConfigUpdate, cfg)
+	}
+
+	return nil
+}
+
+func (a *CoreApp) applyConfiguredLightStrip() error {
+	cfg := a.configManager.Get()
+	lightCfg, changed := normalizeLightStripConfig(cfg.LightStrip)
+
+	if changed {
+		cfg.LightStrip = lightCfg
+		a.configManager.Set(cfg)
+		if err := a.configManager.Save(); err != nil {
+			a.logError("保存灯带默认配置失败: %v", err)
+		}
+	}
+
+	return a.deviceManager.SetLightStrip(lightCfg)
+}
+
+func normalizeLightStripConfig(cfg types.LightStripConfig) (types.LightStripConfig, bool) {
+	defaults := types.GetDefaultLightStripConfig()
+	changed := false
+
+	if cfg.Mode == "" {
+		cfg.Mode = defaults.Mode
+		changed = true
+	}
+	if cfg.Speed == "" {
+		cfg.Speed = defaults.Speed
+		changed = true
+	}
+	if cfg.Brightness < 0 || cfg.Brightness > 100 {
+		cfg.Brightness = defaults.Brightness
+		changed = true
+	}
+	if len(cfg.Colors) == 0 {
+		cfg.Colors = defaults.Colors
+		changed = true
+	}
+
+	return cfg, changed
 }
 
 // SetWindowsAutoStart 设置Windows自启动

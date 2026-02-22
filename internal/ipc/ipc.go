@@ -46,6 +46,7 @@ const (
 	ReqSetPowerOnStart   RequestType = "SetPowerOnStart"
 	ReqSetSmartStartStop RequestType = "SetSmartStartStop"
 	ReqSetBrightness     RequestType = "SetBrightness"
+	ReqSetLightStrip     RequestType = "SetLightStrip"
 
 	// 温度相关
 	ReqGetTemperature         RequestType = "GetTemperature"
@@ -535,4 +536,9 @@ type SetIntParams struct {
 type SetAutoStartWithMethodParams struct {
 	Enable bool   `json:"enable"`
 	Method string `json:"method"`
+}
+
+// SetLightStripParams 设置灯带参数
+type SetLightStripParams struct {
+	Config types.LightStripConfig `json:"config"`
 }

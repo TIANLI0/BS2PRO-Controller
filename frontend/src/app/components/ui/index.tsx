@@ -164,7 +164,7 @@ export function Select<T extends string | number>({
         >
           <ListboxOptions
             className={clsx(
-              'absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-lg',
+              'immersive-select-panel immersive-scrollbar absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-xl',
               'bg-white dark:bg-gray-800 py-1',
               'border border-gray-200 dark:border-gray-600',
               'shadow-lg ring-1 ring-black/5 dark:ring-white/5',

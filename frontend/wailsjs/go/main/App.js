@@ -110,6 +110,10 @@ export function SetGearLight(arg1) {
   return window['go']['main']['App']['SetGearLight'](arg1);
 }
 
+export function SetLightStrip(arg1) {
+  return window['go']['main']['App']['SetLightStrip'](arg1);
+}
+
 export function SetManualGear(arg1, arg2) {
   return window['go']['main']['App']['SetManualGear'](arg1, arg2);
 }

@@ -63,25 +63,55 @@ type BridgeResponse struct {
 	Data    *BridgeTemperatureData `json:"data"`
 }
 
+// RGBColor RGB 颜色
+type RGBColor struct {
+	R byte `json:"r"`
+	G byte `json:"g"`
+	B byte `json:"b"`
+}
+
+// LightStripConfig 灯带配置
+type LightStripConfig struct {
+	Mode       string     `json:"mode"`       // smart_temp/static_single/static_multi/rotation/flowing/breathing
+	Speed      string     `json:"speed"`      // fast/medium/slow
+	Brightness int        `json:"brightness"` // 0-100
+	Colors     []RGBColor `json:"colors"`     // 颜色列表
+}
+
 // AppConfig 应用配置
 type AppConfig struct {
-	AutoControl             bool            `json:"autoControl"`             // 智能变频开关
-	FanCurve                []FanCurvePoint `json:"fanCurve"`                // 风扇曲线
-	GearLight               bool            `json:"gearLight"`               // 挡位灯
-	PowerOnStart            bool            `json:"powerOnStart"`            // 通电自启动
-	WindowsAutoStart        bool            `json:"windowsAutoStart"`        // Windows开机自启动
-	SmartStartStop          string          `json:"smartStartStop"`          // 智能启停
-	Brightness              int             `json:"brightness"`              // 亮度
-	TempUpdateRate          int             `json:"tempUpdateRate"`          // 温度更新频率(秒)
-	TempSampleCount         int             `json:"tempSampleCount"`         // 温度采样次数(用于平均)
-	ConfigPath              string          `json:"configPath"`              // 配置文件路径
-	ManualGear              string          `json:"manualGear"`              // 手动挡位设置
-	ManualLevel             string          `json:"manualLevel"`             // 手动挡位级别(低中高)
-	DebugMode               bool            `json:"debugMode"`               // 调试模式
-	GuiMonitoring           bool            `json:"guiMonitoring"`           // GUI监控开关
-	CustomSpeedEnabled      bool            `json:"customSpeedEnabled"`      // 自定义转速开关
-	CustomSpeedRPM          int             `json:"customSpeedRPM"`          // 自定义转速值(无上下限)
-	IgnoreDeviceOnReconnect bool            `json:"ignoreDeviceOnReconnect"` // 断连后忽略设备状态(保持APP配置)
+	AutoControl             bool             `json:"autoControl"`             // 智能变频开关
+	FanCurve                []FanCurvePoint  `json:"fanCurve"`                // 风扇曲线
+	GearLight               bool             `json:"gearLight"`               // 挡位灯
+	PowerOnStart            bool             `json:"powerOnStart"`            // 通电自启动
+	WindowsAutoStart        bool             `json:"windowsAutoStart"`        // Windows开机自启动
+	SmartStartStop          string           `json:"smartStartStop"`          // 智能启停
+	Brightness              int              `json:"brightness"`              // 亮度
+	TempUpdateRate          int              `json:"tempUpdateRate"`          // 温度更新频率(秒)
+	TempSampleCount         int              `json:"tempSampleCount"`         // 温度采样次数(用于平均)
+	ConfigPath              string           `json:"configPath"`              // 配置文件路径
+	ManualGear              string           `json:"manualGear"`              // 手动挡位设置
+	ManualLevel             string           `json:"manualLevel"`             // 手动挡位级别(低中高)
+	DebugMode               bool             `json:"debugMode"`               // 调试模式
+	GuiMonitoring           bool             `json:"guiMonitoring"`           // GUI监控开关
+	CustomSpeedEnabled      bool             `json:"customSpeedEnabled"`      // 自定义转速开关
+	CustomSpeedRPM          int              `json:"customSpeedRPM"`          // 自定义转速值(无上下限)
+	IgnoreDeviceOnReconnect bool             `json:"ignoreDeviceOnReconnect"` // 断连后忽略设备状态(保持APP配置)
+	LightStrip              LightStripConfig `json:"lightStrip"`              // 灯带配置
+}
+
+// GetDefaultLightStripConfig 获取默认灯带配置
+func GetDefaultLightStripConfig() LightStripConfig {
+	return LightStripConfig{
+		Mode:       "smart_temp",
+		Speed:      "medium",
+		Brightness: 100,
+		Colors: []RGBColor{
+			{R: 255, G: 0, B: 0},
+			{R: 0, G: 255, B: 0},
+			{R: 0, G: 128, B: 255},
+		},
+	}
 }
 
 // Logger 日志记录器接口
@@ -160,5 +190,6 @@ func GetDefaultConfig(isAutoStart bool) AppConfig {
 		CustomSpeedEnabled:      false,
 		CustomSpeedRPM:          2000,
 		IgnoreDeviceOnReconnect: true, // 默认开启，防止断连后误判用户手动切换
+		LightStrip:              GetDefaultLightStripConfig(),
 	}
 }

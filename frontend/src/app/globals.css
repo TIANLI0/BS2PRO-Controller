@@ -94,3 +94,55 @@ body {
   animation: pulse-ring 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
+/* Immersive select dropdown and scrollbar styles (WebView-friendly) */
+.immersive-select-panel {
+  backdrop-filter: blur(8px);
+  background: color-mix(in srgb, var(--background) 92%, transparent);
+}
+
+.immersive-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.7) transparent;
+}
+
+.immersive-scrollbar::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.immersive-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 9999px;
+}
+
+.immersive-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(148, 163, 184, 0.75), rgba(100, 116, 139, 0.75));
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.immersive-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(96, 165, 250, 0.85), rgba(59, 130, 246, 0.85));
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+@media (prefers-color-scheme: dark) {
+  .immersive-scrollbar {
+    scrollbar-color: rgba(71, 85, 105, 0.85) transparent;
+  }
+
+  .immersive-scrollbar::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, rgba(71, 85, 105, 0.85), rgba(51, 65, 85, 0.85));
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+
+  .immersive-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, rgba(96, 165, 250, 0.85), rgba(59, 130, 246, 0.85));
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+}
+

@@ -20,6 +20,7 @@ import {
   FireIcon,
   ClockIcon,
   ChartBarIcon,
+  SparklesIcon,
 } from '@heroicons/react/24/outline';
 import { apiService } from '../services/api';
 import { types } from '../../../wailsjs/go/models';
@@ -34,6 +35,76 @@ interface ControlPanelProps {
   isConnected: boolean;
   fanData: types.FanData | null;
   temperature: types.TemperatureData | null;
+}
+
+function getDefaultLightStripConfig(): types.LightStripConfig {
+  return types.LightStripConfig.createFrom({
+    mode: 'smart_temp',
+    speed: 'medium',
+    brightness: 100,
+    colors: [
+      { r: 255, g: 0, b: 0 },
+      { r: 0, g: 255, b: 0 },
+      { r: 0, g: 128, b: 255 },
+    ],
+  });
+}
+
+function normalizeLightStripConfig(config: types.AppConfig): types.LightStripConfig {
+  const defaults = getDefaultLightStripConfig();
+  const raw = (config as any).lightStrip;
+
+  if (!raw) {
+    return defaults;
+  }
+
+  const normalized = types.LightStripConfig.createFrom({
+    mode: raw.mode || defaults.mode,
+    speed: raw.speed || defaults.speed,
+    brightness: typeof raw.brightness === 'number' ? Math.max(0, Math.min(100, raw.brightness)) : defaults.brightness,
+    colors: Array.isArray(raw.colors) && raw.colors.length > 0 ? raw.colors : defaults.colors,
+  });
+
+  if ((normalized.colors || []).length < 3) {
+    const merged = [...(normalized.colors || [])];
+    while (merged.length < 3) {
+      merged.push(defaults.colors[merged.length]);
+    }
+    normalized.colors = merged;
+  }
+
+  return normalized;
+}
+
+function rgbToHex(color: types.RGBColor): string {
+  const toHex = (value: number) => value.toString(16).padStart(2, '0');
+  return `#${toHex(color.r || 0)}${toHex(color.g || 0)}${toHex(color.b || 0)}`;
+}
+
+function hexToRgb(hex: string): types.RGBColor {
+  const clean = hex.replace('#', '');
+  const bigint = Number.parseInt(clean, 16);
+  return types.RGBColor.createFrom({
+    r: (bigint >> 16) & 255,
+    g: (bigint >> 8) & 255,
+    b: bigint & 255,
+  });
+}
+
+function getRequiredColorCount(mode: string): number {
+  switch (mode) {
+    case 'static_single':
+      return 1;
+    case 'smart_temp':
+    case 'flowing':
+      return 0;
+    case 'static_multi':
+      return 3;
+    case 'rotation':
+    case 'breathing':
+    default:
+      return 3;
+  }
 }
 
 // 设置项组件
@@ -109,6 +180,9 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
   
   // iframe 状态
   const [iframeLoaded, setIframeLoaded] = useState(false);
+
+  // 灯带配置状态
+  const [lightStripConfig, setLightStripConfig] = useState<types.LightStripConfig>(() => normalizeLightStripConfig(config));
 
   // 辅助函数
   const setLoading = (key: string, value: boolean) => {
@@ -285,6 +359,10 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
       .catch(() => setAppVersion(''));
   }, []);
 
+  useEffect(() => {
+    setLightStripConfig(normalizeLightStripConfig(config));
+  }, [config]);
+
   // 智能启停选项
   const smartStartStopOptions = [
     { value: 'off', label: '关闭', description: '禁用智能启停功能' },
@@ -311,6 +389,86 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
       console.error('设置温度采样次数失败:', error);
     }
   }, [config, onConfigChange]);
+
+  const lightModeOptions = [
+    { value: 'smart_temp', label: '智能温控', description: '根据温度自动切换灯效' },
+    { value: 'static_single', label: '单色常亮', description: '固定单色显示' },
+    { value: 'static_multi', label: '多色常亮', description: '三色静态分区' },
+    { value: 'rotation', label: '多色旋转', description: '颜色循环旋转' },
+    { value: 'flowing', label: '流光', description: '预设流光效果' },
+    { value: 'breathing', label: '呼吸', description: '多色呼吸变化' },
+  ];
+
+  const lightSpeedOptions = [
+    { value: 'fast', label: '快速' },
+    { value: 'medium', label: '中速' },
+    { value: 'slow', label: '慢速' },
+  ];
+
+  const lightColorPresets = [
+    {
+      name: '霓虹',
+      colors: [
+        { r: 255, g: 0, b: 128 },
+        { r: 0, g: 255, b: 255 },
+        { r: 128, g: 0, b: 255 },
+      ],
+    },
+    {
+      name: '森林',
+      colors: [
+        { r: 86, g: 169, b: 84 },
+        { r: 161, g: 210, b: 106 },
+        { r: 44, g: 120, b: 115 },
+      ],
+    },
+    {
+      name: '冰川',
+      colors: [
+        { r: 80, g: 170, b: 255 },
+        { r: 116, g: 214, b: 255 },
+        { r: 200, g: 240, b: 255 },
+      ],
+    },
+  ];
+
+  const requiredColorCount = getRequiredColorCount(lightStripConfig.mode);
+
+  const handleLightColorChange = useCallback((index: number, hex: string) => {
+    setLightStripConfig((prev) => {
+      const colors = [...(prev.colors || [])];
+      while (colors.length < 3) {
+        colors.push(types.RGBColor.createFrom({ r: 255, g: 255, b: 255 }));
+      }
+      colors[index] = hexToRgb(hex);
+      return types.LightStripConfig.createFrom({ ...prev, colors });
+    });
+  }, []);
+
+  const handleApplyLightStrip = useCallback(async () => {
+    setLoading('lightStrip', true);
+    try {
+      const normalizedColors = [...(lightStripConfig.colors || [])];
+      if (requiredColorCount > 0) {
+        while (normalizedColors.length < requiredColorCount) {
+          normalizedColors.push(types.RGBColor.createFrom({ r: 255, g: 255, b: 255 }));
+        }
+      }
+
+      const submitConfig = types.LightStripConfig.createFrom({
+        ...lightStripConfig,
+        colors: requiredColorCount > 0 ? normalizedColors.slice(0, Math.max(requiredColorCount, 3)) : normalizedColors,
+      });
+
+      await apiService.setLightStrip(submitConfig);
+      onConfigChange(types.AppConfig.createFrom({ ...config, lightStrip: submitConfig }));
+    } catch (error) {
+      console.error('设置灯带失败:', error);
+      alert(`设置灯带失败: ${error}`);
+    } finally {
+      setLoading('lightStrip', false);
+    }
+  }, [lightStripConfig, config, onConfigChange, requiredColorCount]);
 
   return (
     <>
@@ -365,6 +523,95 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
 
         {/* 设置项列表 */}
         <div className="divide-y divide-gray-100 dark:divide-gray-700/50">
+          {/* 灯带设置（优先） */}
+          <div className="py-4 px-4 -mx-4 rounded-xl bg-gradient-to-r from-pink-50/70 via-purple-50/70 to-indigo-50/70 dark:from-pink-900/10 dark:via-purple-900/10 dark:to-indigo-900/10 border border-pink-200/70 dark:border-pink-800/40 transition-all duration-200">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="p-2.5 rounded-xl bg-pink-100 dark:bg-pink-900/30">
+                <SparklesIcon className="w-5 h-5 text-pink-600 dark:text-pink-400" />
+              </div>
+              <div className="flex-1">
+                <div className="font-semibold text-gray-900 dark:text-white">灯带效果（重点）</div>
+                <div className="text-sm text-gray-500 dark:text-gray-400">先选模式，再调亮度和颜色，最后一键应用到设备</div>
+              </div>
+              <Badge variant="info" size="sm">优先功能</Badge>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+              <Select
+                value={lightStripConfig.mode}
+                onChange={(value) => setLightStripConfig(types.LightStripConfig.createFrom({ ...lightStripConfig, mode: value as string }))}
+                options={lightModeOptions}
+                size="sm"
+                label="效果模式"
+              />
+              <Select
+                value={lightStripConfig.speed}
+                onChange={(value) => setLightStripConfig(types.LightStripConfig.createFrom({ ...lightStripConfig, speed: value as string }))}
+                options={lightSpeedOptions}
+                size="sm"
+                label="动画速度"
+                disabled={lightStripConfig.mode === 'smart_temp' || lightStripConfig.mode === 'static_single' || lightStripConfig.mode === 'static_multi'}
+              />
+            </div>
+
+            <div className="mb-3">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">亮度 ({lightStripConfig.brightness}%)</label>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={1}
+                value={lightStripConfig.brightness}
+                onChange={(e) => setLightStripConfig(types.LightStripConfig.createFrom({ ...lightStripConfig, brightness: Number(e.target.value) }))}
+                className="w-full slider-thumb"
+              />
+            </div>
+
+            {requiredColorCount > 0 && (
+              <>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {lightColorPresets.map((preset) => (
+                    <button
+                      key={preset.name}
+                      type="button"
+                      onClick={() => setLightStripConfig(types.LightStripConfig.createFrom({ ...lightStripConfig, colors: preset.colors }))}
+                      className="px-3 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      {preset.name}
+                    </button>
+                  ))}
+                </div>
+
+                <div className={clsx('grid gap-3 mb-3', requiredColorCount === 1 ? 'grid-cols-1' : 'grid-cols-3')}>
+                  {Array.from({ length: requiredColorCount }).map((_, index) => (
+                    <div key={index}>
+                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">颜色 {index + 1}</label>
+                      <input
+                        type="color"
+                        value={rgbToHex((lightStripConfig.colors || [])[index] || types.RGBColor.createFrom({ r: 255, g: 255, b: 255 }))}
+                        onChange={(e) => handleLightColorChange(index, e.target.value)}
+                        className="w-full h-10 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 cursor-pointer"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            <div className="flex items-center justify-between">
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                {isConnected ? '已连接设备，应用后立即生效' : '设备未连接，配置会在下次连接时自动生效'}
+              </div>
+              <Button
+                variant="primary"
+                onClick={handleApplyLightStrip}
+                loading={loadingStates.lightStrip}
+              >
+                应用灯带设置
+              </Button>
+            </div>
+          </div>
+
           {/* 智能变频 */}
           <SettingItem
             icon={config.autoControl ? 
@@ -605,6 +852,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
               />
             </div>
           </div>
+
         </div>
 
         {/* 离线提示 */}

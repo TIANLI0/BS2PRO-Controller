@@ -344,6 +344,18 @@ func (a *App) SetBrightness(percentage int) bool {
 	return success
 }
 
+// SetLightStrip 设置灯带
+func (a *App) SetLightStrip(cfg types.LightStripConfig) error {
+	resp, err := a.sendRequest(ipc.ReqSetLightStrip, ipc.SetLightStripParams{Config: cfg})
+	if err != nil {
+		return err
+	}
+	if !resp.Success {
+		return fmt.Errorf("%s", resp.Error)
+	}
+	return nil
+}
+
 // GetTemperature 获取当前温度
 func (a *App) GetTemperature() TemperatureData {
 	resp, err := a.sendRequest(ipc.ReqGetTemperature, nil)
