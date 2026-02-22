@@ -9,6 +9,8 @@ import { Button as ShadcnButton } from '@/components/ui/button';
 import { Card as ShadcnCard } from '@/components/ui/card';
 import { Badge as ShadcnBadge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
+import { Slider as ShadcnSlider } from '@/components/ui/slider';
+import { ScrollArea as ShadcnScrollArea } from '@/components/ui/scroll-area';
 import {
   Select as ShadcnSelect,
   SelectContent,
@@ -81,9 +83,9 @@ interface SelectProps<T = string> {
 }
 
 const selectTriggerSize: Record<'sm' | 'md' | 'lg', string> = {
-  sm: 'h-8 text-sm',
-  md: 'h-9 text-sm',
-  lg: 'h-10 text-base',
+  sm: 'min-h-10 text-sm',
+  md: 'min-h-11 text-sm',
+  lg: 'min-h-12 text-base',
 };
 
 export function Select<T extends string | number>({
@@ -96,6 +98,7 @@ export function Select<T extends string | number>({
   size = 'md',
 }: SelectProps<T>) {
   const isNumberValue = typeof value === 'number';
+  const hasDescription = options.some((option) => Boolean(option.description));
 
   return (
     <div className="min-w-[120px]">
@@ -105,8 +108,13 @@ export function Select<T extends string | number>({
         onValueChange={(raw) => onChange((isNumberValue ? Number(raw) : raw) as T)}
         disabled={disabled}
       >
-        <SelectTrigger className={selectTriggerSize[size]}>
-          <SelectValue placeholder={placeholder} />
+        <SelectTrigger
+          className={clsx(
+            selectTriggerSize[size],
+            hasDescription && 'h-auto py-2 [&>span]:whitespace-normal [&>span]:leading-tight'
+          )}
+        >
+          <SelectValue placeholder={placeholder} className={clsx(hasDescription && 'whitespace-normal leading-tight')} />
         </SelectTrigger>
         <SelectContent>
           {options.map((option) => (
@@ -207,7 +215,7 @@ interface SliderProps {
   onChangeEnd?: () => void;
 }
 
-export const Slider = forwardRef<HTMLInputElement, SliderProps>(
+export const Slider = forwardRef<React.ElementRef<typeof ShadcnSlider>, SliderProps>(
   ({
     value,
     onChange,
@@ -221,8 +229,6 @@ export const Slider = forwardRef<HTMLInputElement, SliderProps>(
     onChangeStart,
     onChangeEnd,
   }, ref) => {
-    const percentage = ((value - min) / (max - min)) * 100;
-
     return (
       <div className="w-full">
         {(label || showValue) && (
@@ -231,33 +237,38 @@ export const Slider = forwardRef<HTMLInputElement, SliderProps>(
             {showValue && <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">{valueFormatter(value)}</span>}
           </div>
         )}
-        <input
+        <ShadcnSlider
           ref={ref}
-          type="range"
           min={min}
           max={max}
           step={step}
-          value={value}
-          onChange={(e) => onChange(Number(e.target.value))}
-          onMouseDown={onChangeStart}
-          onTouchStart={onChangeStart}
-          onMouseUp={onChangeEnd}
-          onTouchEnd={onChangeEnd}
+          value={[value]}
+          onValueChange={(next) => onChange(next[0] ?? value)}
+          onPointerDown={onChangeStart}
+          onPointerUp={onChangeEnd}
           disabled={disabled}
           className={clsx(
-            'slider-thumb h-2 w-full cursor-pointer appearance-none rounded-full',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2',
-            disabled && 'cursor-not-allowed opacity-50'
+            'w-full',
+            disabled && 'opacity-50'
           )}
-          style={{
-            background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${percentage}%, #e5e7eb ${percentage}%, #e5e7eb 100%)`,
-          }}
         />
       </div>
     );
   }
 );
 Slider.displayName = 'Slider';
+
+interface ScrollAreaProps extends React.ComponentPropsWithoutRef<typeof ShadcnScrollArea> {
+  children: React.ReactNode;
+}
+
+export function ScrollArea({ children, className, ...props }: ScrollAreaProps) {
+  return (
+    <ShadcnScrollArea className={className} {...props}>
+      {children}
+    </ShadcnScrollArea>
+  );
+}
 
 interface NumberInputProps {
   value: number;

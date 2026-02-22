@@ -14,10 +14,10 @@
     !define INFO_PRODUCTNAME "BS2PRO-Controller"
 !endif
 !ifndef INFO_PRODUCTVERSION
-    !define INFO_PRODUCTVERSION "2.5.0"
+    !define INFO_PRODUCTVERSION "2.6.0"
 !endif
 !ifndef INFO_COPYRIGHT
-    !define INFO_COPYRIGHT "Copyright © 2025 TIANLI0"
+    !define INFO_COPYRIGHT "Copyright © 2026 TIANLI0"
 !endif
 !ifndef PRODUCT_EXECUTABLE
     !define PRODUCT_EXECUTABLE "${INFO_PROJECTNAME}.exe"

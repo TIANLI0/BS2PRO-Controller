@@ -25,7 +25,7 @@ import { apiService } from '../services/api';
 import { types } from '../../../wailsjs/go/models';
 import { BrowserOpenURL } from '../../../wailsjs/runtime/runtime';
 import { DebugInfo } from '../types/app';
-import { ToggleSwitch, RadioGroup, Card, Badge, Button, Select } from './ui/index';
+import { ToggleSwitch, RadioGroup, Card, Badge, Button, Select, ScrollArea, Slider } from './ui/index';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import clsx from 'clsx';
 
@@ -532,9 +532,8 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
               </div>
               <div className="flex-1">
                 <div className="font-semibold text-gray-900 dark:text-white">灯带效果</div>
-                <div className="text-sm text-gray-500 dark:text-gray-400">先选模式，再调亮度和颜色，最后一键应用到设备</div>
+                <div className="text-sm text-gray-500 dark:text-gray-400">个性化你的散热器灯光！</div>
               </div>
-              <Badge variant="info" size="sm">优先功能</Badge>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
@@ -556,15 +555,16 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
             </div>
 
             <div className="mb-3">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">亮度 ({lightStripConfig.brightness}%)</label>
-              <input
-                type="range"
+              <Slider
                 min={0}
                 max={100}
                 step={1}
                 value={lightStripConfig.brightness}
-                onChange={(e) => setLightStripConfig(types.LightStripConfig.createFrom({ ...lightStripConfig, brightness: Number(e.target.value) }))}
-                className="w-full slider-thumb"
+                onChange={(nextValue) =>
+                  setLightStripConfig(types.LightStripConfig.createFrom({ ...lightStripConfig, brightness: nextValue }))
+                }
+                label="亮度"
+                valueFormatter={(v) => `${v}%`}
               />
             </div>
 
@@ -639,9 +639,9 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
                     <BarChart3 className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
                   </div>
                   <div>
-                    <div className="font-medium text-gray-900 dark:text-white">平滑曲线模式</div>
+                    <div className="font-medium text-gray-900 dark:text-white">采样时间</div>
                     <div className="text-sm text-gray-500 dark:text-gray-400">
-                      通过多次采样取平均值，减少温度波动对风扇转速的影响，防止频繁调整噪音
+                      控制采样频率，降低频繁调整带来的轴噪
                     </div>
                   </div>
                 </div>
@@ -839,7 +839,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
               <div>
                 <div className="font-medium text-gray-900 dark:text-white">智能启停</div>
                 <div className="text-sm text-gray-500 dark:text-gray-400">
-                  根据系统负载智能控制风扇启停
+                  控制在系统关闭后何时停止散热器
                 </div>
               </div>
             </div>
@@ -991,9 +991,11 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
 
                     {/* 调试信息显示 */}
                     {debugInfo && (
-                      <pre className="p-3 rounded-xl bg-gray-900 text-green-400 text-xs overflow-auto max-h-60">
-                        {JSON.stringify(debugInfo, null, 2)}
-                      </pre>
+                      <ScrollArea className="max-h-60 rounded-xl bg-gray-900">
+                        <pre className="p-3 text-xs text-green-400">
+                          {JSON.stringify(debugInfo, null, 2)}
+                        </pre>
+                      </ScrollArea>
                     )}
                 </div>
               </CollapsibleContent>

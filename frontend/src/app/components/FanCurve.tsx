@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { apiService } from '../services/api';
 import { types } from '../../../wailsjs/go/models';
-import { ToggleSwitch, Select, Button, Badge, Card } from './ui/index';
+import { ToggleSwitch, Select, Button, Badge, Card, Slider } from './ui/index';
 import clsx from 'clsx';
 
 interface FanCurveProps {
@@ -710,21 +710,15 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
               />
               
               <div className="mt-2">
-                <input
-                  type="range"
+                <Slider
                   value={point.rpm}
-                  onChange={(e) => updatePoint(index, Number(e.target.value))}
-                  onMouseDown={() => setIsInteracting(true)}
-                  onMouseUp={() => setTimeout(() => setIsInteracting(false), 100)}
-                  onTouchStart={() => setIsInteracting(true)}
-                  onTouchEnd={() => setTimeout(() => setIsInteracting(false), 100)}
+                  onChange={(nextValue) => updatePoint(index, nextValue)}
+                  onChangeStart={() => setIsInteracting(true)}
+                  onChangeEnd={() => setTimeout(() => setIsInteracting(false), 100)}
                   min={rpmRange.min}
                   max={rpmRange.max}
                   step={50}
-                  className="w-full h-1.5 rounded-full appearance-none cursor-pointer slider-thumb"
-                  style={{
-                    background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${((point.rpm - rpmRange.min) / (rpmRange.max - rpmRange.min)) * 100}%, #e5e7eb ${((point.rpm - rpmRange.min) / (rpmRange.max - rpmRange.min)) * 100}%, #e5e7eb 100%)`
-                  }}
+                  showValue={false}
                 />
               </div>
             </div>
