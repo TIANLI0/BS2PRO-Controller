@@ -3,13 +3,13 @@
 import React, { useState, useEffect, useCallback, memo, useMemo, useRef } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { 
-  ArrowPathIcon, 
-  CheckIcon,
-  InformationCircleIcon,
-} from '@heroicons/react/24/outline';
+  RotateCw,
+  Check,
+  Info,
+} from 'lucide-react';
 import { apiService } from '../services/api';
 import { types } from '../../../wailsjs/go/models';
-import { ToggleSwitch, Select, Button, Badge, Card } from './ui';
+import { ToggleSwitch, Select, Button, Badge, Card } from './ui/index';
 import clsx from 'clsx';
 
 interface FanCurveProps {
@@ -521,7 +521,7 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
             variant="secondary"
             size="sm"
             onClick={resetCurve}
-            icon={<ArrowPathIcon className="w-4 h-4" />}
+            icon={<RotateCw className="w-4 h-4" />}
           >
             重置
           </Button>
@@ -531,7 +531,7 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
             onClick={saveCurve}
             disabled={!hasUnsavedChanges}
             loading={isSaving}
-            icon={<CheckIcon className="w-4 h-4" />}
+            icon={<Check className="w-4 h-4" />}
           >
             保存
           </Button>
@@ -735,7 +735,7 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
       {/* 说明卡片 */}
       <div className="p-4 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800">
         <div className="flex gap-3">
-          <InformationCircleIcon className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+          <Info className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
           <div className="text-sm text-blue-800 dark:text-blue-200 space-y-2">
             <p className="font-medium">使用说明</p>
             <ul className="space-y-1 text-blue-700 dark:text-blue-300">

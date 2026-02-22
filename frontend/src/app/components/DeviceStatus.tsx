@@ -2,21 +2,18 @@
 
 import React, { memo } from 'react';
 import { 
-  ExclamationTriangleIcon,
-  CpuChipIcon,
-  BoltIcon,
-  ArrowPathIcon,
-  ComputerDesktopIcon,
-  WifiIcon,
-  SignalIcon,
-  CogIcon,
-} from '@heroicons/react/24/outline';
-import {
-  CheckCircleIcon,
-} from '@heroicons/react/24/solid';
+  Cpu,
+  Zap,
+  RotateCw,
+  Monitor,
+  Wifi,
+  Signal,
+  Settings,
+  CheckCircle2,
+} from 'lucide-react';
 import { types } from '../../../wailsjs/go/models';
 import { apiService } from '../services/api';
-import { ToggleSwitch, Card, Badge, Button } from './ui';
+import { ToggleSwitch, Card, Badge, Button } from './ui/index';
 import clsx from 'clsx';
 
 interface DeviceStatusProps {
@@ -195,7 +192,7 @@ export default function DeviceStatus({
                   ? 'bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/30' 
                   : 'bg-gray-100 dark:bg-gray-700/50'
               )}>
-                <ComputerDesktopIcon className={clsx(
+                <Monitor className={clsx(
                   'w-7 h-7 transition-colors',
                   isConnected ? 'text-white' : 'text-gray-500 dark:text-gray-400'
                 )} />
@@ -208,7 +205,7 @@ export default function DeviceStatus({
                   : 'bg-gray-400 dark:bg-gray-500'
               )}>
                 {isConnected ? (
-                  <CheckCircleIcon className="w-5 h-5 text-white" />
+                  <CheckCircle2 className="w-5 h-5 text-white" />
                 ) : (
                   <span className="w-2 h-2 rounded-full bg-white" />
                 )}
@@ -233,9 +230,9 @@ export default function DeviceStatus({
                       config.autoControl ? 'text-blue-600 dark:text-blue-400' : 'text-orange-600 dark:text-orange-400'
                     )}>
                       {config.autoControl ? (
-                        <BoltIcon className="w-4 h-4" />
+                        <Zap className="w-4 h-4" />
                       ) : (
-                        <CogIcon className="w-4 h-4" />
+                        <Settings className="w-4 h-4" />
                       )}
                       <span className="font-medium">
                         {config.autoControl ? '智能变频运行中' : '手动控制模式'}
@@ -267,7 +264,7 @@ export default function DeviceStatus({
               variant={isConnected ? 'secondary' : 'primary'}
               size="sm"
               onClick={isConnected ? onDisconnect : onConnect}
-              icon={isConnected ? undefined : <ArrowPathIcon className="w-4 h-4" />}
+              icon={isConnected ? undefined : <RotateCw className="w-4 h-4" />}
             >
               {isConnected ? '断开连接' : '连接设备'}
             </Button>
@@ -282,7 +279,7 @@ export default function DeviceStatus({
           <Card className="p-5" hover>
             <div className="flex items-center gap-2 mb-4">
               <div className="p-2 rounded-lg bg-orange-50 dark:bg-orange-900/20">
-                <CpuChipIcon className="w-5 h-5 text-orange-500" />
+                <Cpu className="w-5 h-5 text-orange-500" />
               </div>
               <span className="text-sm font-medium text-gray-600 dark:text-gray-400">CPU 温度</span>
             </div>
@@ -314,7 +311,7 @@ export default function DeviceStatus({
           <Card className="p-5" hover>
             <div className="flex items-center gap-2 mb-4">
               <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20">
-                <SignalIcon className="w-5 h-5 text-blue-500" />
+                <Signal className="w-5 h-5 text-blue-500" />
               </div>
               <span className="text-sm font-medium text-gray-600 dark:text-gray-400">风扇转速</span>
             </div>
@@ -333,7 +330,7 @@ export default function DeviceStatus({
         <Card className="p-8">
           <div className="text-center">
             <div className="w-16 h-16 mx-auto mb-4 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
-              <WifiIcon className="w-8 h-8 text-gray-400" />
+              <Wifi className="w-8 h-8 text-gray-400" />
             </div>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
               设备未连接
@@ -341,7 +338,7 @@ export default function DeviceStatus({
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 max-w-xs mx-auto">
               请将 BS2/BS2PRO 散热器通过 蓝牙 连接到电脑
             </p>
-            <Button onClick={onConnect} icon={<ArrowPathIcon className="w-4 h-4" />}>
+            <Button onClick={onConnect} icon={<RotateCw className="w-4 h-4" />}>
               连接设备
             </Button>
           </div>
@@ -352,7 +349,7 @@ export default function DeviceStatus({
       {isConnected && (
         <Card className="p-4">
           <div className="flex items-center gap-2 mb-4">
-            <BoltIcon className="w-4 h-4 text-gray-500" />
+            <Zap className="w-4 h-4 text-gray-500" />
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white">运行详情</h3>
           </div>
           

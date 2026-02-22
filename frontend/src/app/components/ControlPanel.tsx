@@ -1,32 +1,32 @@
 'use client';
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { Disclosure, Transition } from '@headlessui/react';
 import { 
-  PlayIcon, 
-  PauseIcon, 
-  CogIcon,
-  LightBulbIcon,
-  PowerIcon,
-  BoltIcon,
-  ComputerDesktopIcon,
-  BugAntIcon,
-  EyeIcon,
-  EyeSlashIcon,
-  ExclamationTriangleIcon,
-  CheckCircleIcon,
-  ChevronDownIcon,
-  InformationCircleIcon,
-  FireIcon,
-  ClockIcon,
-  ChartBarIcon,
-  SparklesIcon,
-} from '@heroicons/react/24/outline';
+  Play,
+  Pause,
+  Settings,
+  Lightbulb,
+  Power,
+  Zap,
+  Monitor,
+  Bug,
+  Eye,
+  EyeOff,
+  TriangleAlert,
+  CheckCircle2,
+  ChevronDown,
+  Info,
+  Flame,
+  Clock3,
+  BarChart3,
+  Sparkles,
+} from 'lucide-react';
 import { apiService } from '../services/api';
 import { types } from '../../../wailsjs/go/models';
 import { BrowserOpenURL } from '../../../wailsjs/runtime/runtime';
 import { DebugInfo } from '../types/app';
-import { ToggleSwitch, RadioGroup, Card, Badge, Button, Select } from './ui';
+import { ToggleSwitch, RadioGroup, Card, Badge, Button, Select } from './ui/index';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import clsx from 'clsx';
 
 interface ControlPanelProps {
@@ -170,6 +170,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
   // 调试面板状态
   const [debugInfo, setDebugInfo] = useState<DebugInfo | null>(null);
   const [debugInfoLoading, setDebugInfoLoading] = useState(false);
+  const [debugPanelOpen, setDebugPanelOpen] = useState(false);
   
   // 自定义转速相关状态
   const [showCustomSpeedWarning, setShowCustomSpeedWarning] = useState(false);
@@ -476,7 +477,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
         {/* 标题 */}
         <div className="flex items-center gap-3 mb-6">
           <div className="p-2 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600">
-            <CogIcon className="w-6 h-6 text-white" />
+            <Settings className="w-6 h-6 text-white" />
           </div>
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">控制面板</h2>
         </div>
@@ -527,10 +528,10 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
           <div className="py-4 px-4 -mx-4 rounded-xl bg-gradient-to-r from-pink-50/70 via-purple-50/70 to-indigo-50/70 dark:from-pink-900/10 dark:via-purple-900/10 dark:to-indigo-900/10 border border-pink-200/70 dark:border-pink-800/40 transition-all duration-200">
             <div className="flex items-center gap-4 mb-4">
               <div className="p-2.5 rounded-xl bg-pink-100 dark:bg-pink-900/30">
-                <SparklesIcon className="w-5 h-5 text-pink-600 dark:text-pink-400" />
+                <Sparkles className="w-5 h-5 text-pink-600 dark:text-pink-400" />
               </div>
               <div className="flex-1">
-                <div className="font-semibold text-gray-900 dark:text-white">灯带效果（重点）</div>
+                <div className="font-semibold text-gray-900 dark:text-white">灯带效果</div>
                 <div className="text-sm text-gray-500 dark:text-gray-400">先选模式，再调亮度和颜色，最后一键应用到设备</div>
               </div>
               <Badge variant="info" size="sm">优先功能</Badge>
@@ -539,14 +540,14 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
               <Select
                 value={lightStripConfig.mode}
-                onChange={(value) => setLightStripConfig(types.LightStripConfig.createFrom({ ...lightStripConfig, mode: value as string }))}
+                onChange={(value: string | number) => setLightStripConfig(types.LightStripConfig.createFrom({ ...lightStripConfig, mode: value as string }))}
                 options={lightModeOptions}
                 size="sm"
                 label="效果模式"
               />
               <Select
                 value={lightStripConfig.speed}
-                onChange={(value) => setLightStripConfig(types.LightStripConfig.createFrom({ ...lightStripConfig, speed: value as string }))}
+                onChange={(value: string | number) => setLightStripConfig(types.LightStripConfig.createFrom({ ...lightStripConfig, speed: value as string }))}
                 options={lightSpeedOptions}
                 size="sm"
                 label="动画速度"
@@ -615,8 +616,8 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
           {/* 智能变频 */}
           <SettingItem
             icon={config.autoControl ? 
-              <PlayIcon className="w-5 h-5 text-green-600 dark:text-green-400" /> : 
-              <PauseIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+              <Play className="w-5 h-5 text-green-600 dark:text-green-400" /> : 
+              <Pause className="w-5 h-5 text-gray-500 dark:text-gray-400" />
             }
             iconBgActive="bg-green-100 dark:bg-green-900/30"
             iconBgInactive="bg-gray-100 dark:bg-gray-700"
@@ -635,7 +636,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className="p-2.5 rounded-xl bg-cyan-100 dark:bg-cyan-900/30">
-                    <ChartBarIcon className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
+                    <BarChart3 className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
                   </div>
                   <div>
                     <div className="font-medium text-gray-900 dark:text-white">平滑曲线模式</div>
@@ -646,7 +647,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
                 </div>
                 <Select
                   value={(config as any).tempSampleCount || 1}
-                  onChange={(val) => handleSampleCountChange(val as number)}
+                  onChange={(val: string | number) => handleSampleCountChange(val as number)}
                   options={sampleCountOptions}
                   size="sm"
                 />
@@ -670,7 +671,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
                       ? 'bg-orange-100 dark:bg-orange-900/30 scale-105' 
                       : 'bg-gray-100 dark:bg-gray-700'
                   )}>
-                    <FireIcon className={clsx(
+                    <Flame className={clsx(
                       'w-5 h-5 transition-colors duration-300',
                       (config as any).customSpeedEnabled 
                         ? 'text-orange-600 dark:text-orange-400' 
@@ -726,7 +727,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
 
           {/* 挡位灯 */}
           <SettingItem
-            icon={<LightBulbIcon className={clsx(
+            icon={<Lightbulb className={clsx(
               'w-5 h-5 transition-colors duration-300',
               config.gearLight ? 'text-yellow-500' : 'text-gray-500 dark:text-gray-400'
             )} />}
@@ -743,7 +744,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
 
           {/* 通电自启动 */}
           <SettingItem
-            icon={<PowerIcon className={clsx(
+            icon={<Power className={clsx(
               'w-5 h-5 transition-colors duration-300',
               config.powerOnStart ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'
             )} />}
@@ -768,7 +769,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
                     ? 'bg-green-100 dark:bg-green-900/30 scale-105' 
                     : 'bg-gray-100 dark:bg-gray-700'
                 )}>
-                  <ComputerDesktopIcon className={clsx(
+                  <Monitor className={clsx(
                     'w-5 h-5 transition-colors duration-300',
                     config.windowsAutoStart 
                       ? 'text-green-600 dark:text-green-400' 
@@ -804,7 +805,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
                     ? 'bg-emerald-100 dark:bg-emerald-900/30 scale-105' 
                     : 'bg-gray-100 dark:bg-gray-700'
                 )}>
-                  <ClockIcon className={clsx(
+                  <Clock3 className={clsx(
                     'w-5 h-5 transition-colors duration-300',
                     (config as any).ignoreDeviceOnReconnect 
                       ? 'text-emerald-600 dark:text-emerald-400' 
@@ -833,7 +834,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
           <div className="py-4">
             <div className="flex items-center gap-4 mb-4">
               <div className="p-2.5 rounded-xl bg-purple-100 dark:bg-purple-900/30">
-                <BoltIcon className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                <Zap className="w-5 h-5 text-purple-600 dark:text-purple-400" />
               </div>
               <div>
                 <div className="font-medium text-gray-900 dark:text-white">智能启停</div>
@@ -859,7 +860,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
         {!isConnected && (
           <div className="mt-6 p-4 rounded-xl bg-gray-100 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600">
             <div className="flex items-center gap-3 text-gray-600 dark:text-gray-400">
-              <ExclamationTriangleIcon className="w-5 h-5" />
+              <TriangleAlert className="w-5 h-5" />
               <span className="text-sm">设备未连接，部分功能不可用</span>
             </div>
           </div>
@@ -876,7 +877,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
             <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <InformationCircleIcon className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                  <Info className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                   <span className="font-medium text-gray-900 dark:text-white">关于 & 更新</span>
                 </div>
                 <button
@@ -925,33 +926,27 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
           </div>
 
           {/* 调试面板 */}
-          <Disclosure as="div" className="mt-6">
-            {({ open }) => (
-              <div className="rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-                <Disclosure.Button className="w-full px-4 py-3 flex items-center justify-between bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-600/50 transition-colors">
+          <Collapsible open={debugPanelOpen} onOpenChange={setDebugPanelOpen} className="mt-6">
+            <div className="rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+              <CollapsibleTrigger asChild>
+                <button type="button" className="w-full px-4 py-3 flex items-center justify-between bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-600/50 transition-colors">
                   <div className="flex items-center gap-3">
-                    <BugAntIcon className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                    <Bug className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
                     <span className="font-medium text-gray-900 dark:text-white">调试面板</span>
                   </div>
-                  <ChevronDownIcon className={clsx(
+                  <ChevronDown className={clsx(
                     'w-5 h-5 text-gray-500 transition-transform duration-200',
-                    open && 'rotate-180'
+                    debugPanelOpen && 'rotate-180'
                   )} />
-                </Disclosure.Button>
-                
-                <Transition
-                  enter="transition duration-100 ease-out"
-                  enterFrom="transform scale-95 opacity-0"
-                  enterTo="transform scale-100 opacity-100"
-                  leave="transition duration-75 ease-out"
-                  leaveFrom="transform scale-100 opacity-100"
-                  leaveTo="transform scale-95 opacity-0"
-                >
-                  <Disclosure.Panel className="p-4 space-y-4">
+                </button>
+              </CollapsibleTrigger>
+
+              <CollapsibleContent>
+                <div className="p-4 space-y-4">
                     {/* 调试模式 */}
                     <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-gray-700/50">
                       <div className="flex items-center gap-3">
-                        <BugAntIcon className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                        <Bug className="w-5 h-5 text-gray-600 dark:text-gray-400" />
                         <div>
                           <div className="font-medium text-gray-900 dark:text-white">调试模式</div>
                           <div className="text-xs text-gray-500 dark:text-gray-400">启用详细日志输出</div>
@@ -968,9 +963,9 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
                     <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-gray-700/50">
                       <div className="flex items-center gap-3">
                         {config.guiMonitoring ? (
-                          <EyeIcon className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                          <Eye className="w-5 h-5 text-gray-600 dark:text-gray-400" />
                         ) : (
-                          <EyeSlashIcon className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                          <EyeOff className="w-5 h-5 text-gray-600 dark:text-gray-400" />
                         )}
                         <div>
                           <div className="font-medium text-gray-900 dark:text-white">GUI 监控</div>
@@ -1000,11 +995,10 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
                         {JSON.stringify(debugInfo, null, 2)}
                       </pre>
                     )}
-                  </Disclosure.Panel>
-                </Transition>
-              </div>
-            )}
-          </Disclosure>
+                </div>
+              </CollapsibleContent>
+            </div>
+          </Collapsible>
         </div>
       </Card>
 
@@ -1014,7 +1008,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6">
             <div className="flex justify-center mb-4">
               <div className="w-16 h-16 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center">
-                <ExclamationTriangleIcon className="w-10 h-10 text-orange-600 dark:text-orange-400" />
+                <TriangleAlert className="w-10 h-10 text-orange-600 dark:text-orange-400" />
               </div>
             </div>
 
@@ -1056,7 +1050,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
                   handleCustomSpeedApply(true, customSpeedInput);
                 }}
                 className="flex-1 !bg-orange-600 hover:!bg-orange-700"
-                icon={<CheckCircleIcon className="w-5 h-5" />}
+                icon={<CheckCircle2 className="w-5 h-5" />}
               >
                 我已了解风险
               </Button>

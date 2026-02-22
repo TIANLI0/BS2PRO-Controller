@@ -2,12 +2,12 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
-  ChartBarIcon, 
-  PresentationChartLineIcon, 
-  CogIcon,
-  ExclamationTriangleIcon,
-  XMarkIcon,
-} from '@heroicons/react/24/outline';
+  BarChart3,
+  Activity,
+  Settings,
+  TriangleAlert,
+  X,
+} from 'lucide-react';
 import DeviceStatus from './components/DeviceStatus';
 import FanCurve from './components/FanCurve';
 import ControlPanel from './components/ControlPanel';
@@ -304,7 +304,7 @@ export default function Home() {
             <div className="relative rounded-2xl border border-amber-200 bg-amber-50 text-amber-900 shadow-md">
               <div className="flex items-start gap-3 px-4 py-3">
                 <div className="mt-0.5">
-                  <ExclamationTriangleIcon className="w-5 h-5 text-amber-500" />
+                  <TriangleAlert className="w-5 h-5 text-amber-500" />
                 </div>
                 <div className="flex-1">
                   <div className="text-sm font-semibold">温度读取受阻</div>
@@ -316,7 +316,7 @@ export default function Home() {
                   className="p-1 text-amber-700 hover:text-amber-900 hover:bg-amber-100 rounded-lg transition-colors"
                   aria-label="关闭提示"
                 >
-                  <XMarkIcon className="w-5 h-5" />
+                  <X className="w-5 h-5" />
                 </button>
               </div>
             </div>
@@ -331,9 +331,9 @@ export default function Home() {
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-1 md:p-2">
             <nav className="flex space-x-0.5 md:space-x-1" aria-label="Tabs">
               {[
-                { id: 'status', name: '设备状态', icon: 'ChartBarIcon', desc: '实时监控' },
-                { id: 'curve', name: '风扇曲线', icon: 'PresentationChartLineIcon', desc: '温度控制' },
-                { id: 'control', name: '控制面板', icon: 'CogIcon', desc: '手动调节' },
+                { id: 'status', name: '设备状态', icon: BarChart3, desc: '实时监控' },
+                { id: 'curve', name: '风扇曲线', icon: Activity, desc: '温度控制' },
+                { id: 'control', name: '控制面板', icon: Settings, desc: '手动调节' },
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -345,9 +345,7 @@ export default function Home() {
                   } group relative rounded-xl px-3 md:px-6 py-2 md:py-3 font-medium text-sm transition-all duration-200 flex-1 flex flex-col items-center space-y-0.5 md:space-y-1`}
                 >
                   <div className="flex items-center space-x-1 md:space-x-2">
-                    {tab.icon === 'ChartBarIcon' && <ChartBarIcon className="w-4 h-4 md:w-5 md:h-5" />}
-                    {tab.icon === 'PresentationChartLineIcon' && <PresentationChartLineIcon className="w-4 h-4 md:w-5 md:h-5" />}
-                    {tab.icon === 'CogIcon' && <CogIcon className="w-4 h-4 md:w-5 md:h-5" />}
+                    <tab.icon className="w-4 h-4 md:w-5 md:h-5" />
                     <span className="font-semibold text-xs md:text-sm">{tab.name}</span>
                   </div>
                   <span className={`text-xs hidden md:block ${
