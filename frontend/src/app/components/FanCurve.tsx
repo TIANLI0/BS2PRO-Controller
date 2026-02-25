@@ -250,6 +250,84 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
     ticks: Array.from({ length: 14 }, (_, i) => 30 + i * 5)
   }), []);
 
+  const smartControl = useMemo(() => {
+    const curveLength = config.fanCurve?.length || localCurve.length || 14;
+    const defaultOffsets = Array.from({ length: curveLength }, () => 0);
+    const existing = config.smartControl;
+
+    if (!existing) {
+      return {
+        enabled: true,
+        learning: true,
+        targetTemp: 68,
+        aggressiveness: 5,
+        hysteresis: 2,
+        minRpmChange: 50,
+        rampUpLimit: 220,
+        rampDownLimit: 160,
+        learnRate: 4,
+        maxLearnOffset: 600,
+        learnedOffsets: defaultOffsets,
+      };
+    }
+
+    return {
+      ...existing,
+      learnedOffsets: Array.isArray(existing.learnedOffsets)
+        ? [...existing.learnedOffsets.slice(0, curveLength), ...defaultOffsets].slice(0, curveLength)
+        : defaultOffsets,
+    };
+  }, [config.fanCurve, config.smartControl, localCurve.length]);
+
+  const learningInsight = useMemo(() => {
+    const offsets = smartControl.learnedOffsets || [];
+    const points = (config.fanCurve && config.fanCurve.length > 0 ? config.fanCurve : localCurve)
+      .map((point, index) => ({
+        index,
+        temperature: point.temperature,
+        offset: offsets[index] ?? 0,
+      }));
+
+    if (points.length === 0) {
+      return {
+        currentOffset: 0,
+        currentTempLabel: '--',
+        maxAbsOffset: 0,
+        avgAbsOffset: 0,
+        significantPoints: [] as Array<{ temperature: number; offset: number }>,
+      };
+    }
+
+    const maxTemp = temperature?.maxTemp ?? null;
+    let currentPoint = points[0];
+    if (maxTemp !== null) {
+      currentPoint = points.reduce((best, item) => {
+        const bestDistance = Math.abs(best.temperature - maxTemp);
+        const itemDistance = Math.abs(item.temperature - maxTemp);
+        return itemDistance < bestDistance ? item : best;
+      }, points[0]);
+    }
+
+    const absOffsets = points.map((item) => Math.abs(item.offset));
+    const totalAbsOffset = absOffsets.reduce((sum, value) => sum + value, 0);
+    const avgAbsOffset = Math.round(totalAbsOffset / points.length);
+    const maxAbsOffset = absOffsets.reduce((maxValue, value) => Math.max(maxValue, value), 0);
+
+    const significantPoints = points
+      .filter((item) => Math.abs(item.offset) >= 20)
+      .sort((a, b) => Math.abs(b.offset) - Math.abs(a.offset))
+      .slice(0, 6)
+      .map((item) => ({ temperature: item.temperature, offset: item.offset }));
+
+    return {
+      currentOffset: currentPoint.offset,
+      currentTempLabel: `${currentPoint.temperature}°C`,
+      maxAbsOffset,
+      avgAbsOffset,
+      significantPoints,
+    };
+  }, [config.fanCurve, localCurve, smartControl.learnedOffsets, temperature?.maxTemp]);
+
   useEffect(() => {
     const root = document.documentElement;
 
@@ -427,6 +505,30 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
     }
   }, [config, onConfigChange]);
 
+  // 智能学习控温配置
+  const updateSmartControl = useCallback(async (patch: Partial<typeof smartControl>) => {
+    try {
+      const mergedSmartControl = {
+        ...smartControl,
+        ...patch,
+      };
+
+      const newConfig = types.AppConfig.createFrom({
+        ...config,
+        smartControl: mergedSmartControl,
+      });
+
+      onConfigChange(newConfig);
+    } catch (error) {
+      console.error('更新智能控温配置失败:', error);
+    }
+  }, [config, onConfigChange, smartControl]);
+
+  const resetLearning = useCallback(() => {
+    const resetOffsets = Array.from({ length: localCurve.length || config.fanCurve.length || 14 }, () => 0);
+    updateSmartControl({ learnedOffsets: resetOffsets });
+  }, [config.fanCurve.length, localCurve.length, updateSmartControl]);
+
   // 手动挡位选项
   const gearOptions = [
     { value: '静音', label: '静音', description: '低噪音模式' },
@@ -557,6 +659,145 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
                 size="sm"
               />
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 智能控温学习（仅在开启智能变频时显示） */}
+      {config.autoControl && isConnected && (
+        <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-200 dark:border-gray-600 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">智能学习控温</span>
+            <div className="flex items-center gap-4">
+              <ToggleSwitch
+                enabled={smartControl.enabled}
+                onChange={(enabled) => updateSmartControl({ enabled })}
+                label="智能耦合"
+                color="blue"
+              />
+              <ToggleSwitch
+                enabled={smartControl.learning}
+                onChange={(learning) => updateSmartControl({ learning })}
+                label="学习"
+                color="green"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                <span>目标温度</span>
+                <span>{smartControl.targetTemp}°C</span>
+              </div>
+              <Slider
+                value={smartControl.targetTemp}
+                onChange={(targetTemp) => updateSmartControl({ targetTemp })}
+                min={55}
+                max={85}
+                step={1}
+                showValue={false}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                <span>响应强度</span>
+                <span>{smartControl.aggressiveness}</span>
+              </div>
+              <Slider
+                value={smartControl.aggressiveness}
+                onChange={(aggressiveness) => updateSmartControl({ aggressiveness })}
+                min={1}
+                max={10}
+                step={1}
+                showValue={false}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                <span>学习速率</span>
+                <span>{smartControl.learnRate}</span>
+              </div>
+              <Slider
+                value={smartControl.learnRate}
+                onChange={(learnRate) => updateSmartControl({ learnRate })}
+                min={1}
+                max={10}
+                step={1}
+                showValue={false}
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={resetLearning}
+            >
+              重置学习结果
+            </Button>
+          </div>
+
+          <div className="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 p-3 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">学习状态可视化</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                当前温区 {learningInsight.currentTempLabel}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div className="rounded-md bg-gray-50 dark:bg-gray-700/50 px-3 py-2">
+                <div className="text-[11px] text-gray-500 dark:text-gray-400">当前学习偏移</div>
+                <div className={clsx(
+                  'text-sm font-semibold',
+                  learningInsight.currentOffset > 0
+                    ? 'text-amber-600 dark:text-amber-400'
+                    : learningInsight.currentOffset < 0
+                    ? 'text-cyan-600 dark:text-cyan-400'
+                    : 'text-gray-700 dark:text-gray-200'
+                )}>
+                  {learningInsight.currentOffset > 0 ? '+' : ''}{learningInsight.currentOffset} RPM
+                </div>
+              </div>
+
+              <div className="rounded-md bg-gray-50 dark:bg-gray-700/50 px-3 py-2">
+                <div className="text-[11px] text-gray-500 dark:text-gray-400">平均学习强度</div>
+                <div className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                  {learningInsight.avgAbsOffset} RPM
+                </div>
+              </div>
+
+              <div className="rounded-md bg-gray-50 dark:bg-gray-700/50 px-3 py-2">
+                <div className="text-[11px] text-gray-500 dark:text-gray-400">最大学习偏移</div>
+                <div className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                  {learningInsight.maxAbsOffset} RPM
+                </div>
+              </div>
+            </div>
+
+            {learningInsight.significantPoints.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {learningInsight.significantPoints.map((item) => (
+                  <span
+                    key={`learn-offset-${item.temperature}`}
+                    className={clsx(
+                      'text-[11px] px-2.5 py-1 rounded-full border',
+                      item.offset > 0
+                        ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300'
+                        : 'border-cyan-200 bg-cyan-50 text-cyan-700 dark:border-cyan-800 dark:bg-cyan-900/20 dark:text-cyan-300'
+                    )}
+                  >
+                    {item.temperature}°C {item.offset > 0 ? '+' : ''}{item.offset} RPM
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <div className="text-xs text-gray-500 dark:text-gray-400">暂未形成显著学习偏移（|偏移| &lt; 20 RPM）。</div>
+            )}
           </div>
         </div>
       )}

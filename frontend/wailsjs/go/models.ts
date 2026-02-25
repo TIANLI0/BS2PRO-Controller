@@ -52,6 +52,38 @@ export namespace types {
 		    return a;
 		}
 	}
+	export class SmartControlConfig {
+	    enabled: boolean;
+	    learning: boolean;
+	    targetTemp: number;
+	    aggressiveness: number;
+	    hysteresis: number;
+	    minRpmChange: number;
+	    rampUpLimit: number;
+	    rampDownLimit: number;
+	    learnRate: number;
+	    maxLearnOffset: number;
+	    learnedOffsets: number[];
+	
+	    static createFrom(source: any = {}) {
+	        return new SmartControlConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.enabled = source["enabled"];
+	        this.learning = source["learning"];
+	        this.targetTemp = source["targetTemp"];
+	        this.aggressiveness = source["aggressiveness"];
+	        this.hysteresis = source["hysteresis"];
+	        this.minRpmChange = source["minRpmChange"];
+	        this.rampUpLimit = source["rampUpLimit"];
+	        this.rampDownLimit = source["rampDownLimit"];
+	        this.learnRate = source["learnRate"];
+	        this.maxLearnOffset = source["maxLearnOffset"];
+	        this.learnedOffsets = source["learnedOffsets"];
+	    }
+	}
 	export class FanCurvePoint {
 	    temperature: number;
 	    rpm: number;
@@ -84,6 +116,7 @@ export namespace types {
 	    customSpeedEnabled: boolean;
 	    customSpeedRPM: number;
 	    ignoreDeviceOnReconnect: boolean;
+	    smartControl: SmartControlConfig;
 	    lightStrip: LightStripConfig;
 	
 	    static createFrom(source: any = {}) {
@@ -109,6 +142,7 @@ export namespace types {
 	        this.customSpeedEnabled = source["customSpeedEnabled"];
 	        this.customSpeedRPM = source["customSpeedRPM"];
 	        this.ignoreDeviceOnReconnect = source["ignoreDeviceOnReconnect"];
+	        this.smartControl = this.convertValues(source["smartControl"], SmartControlConfig);
 	        this.lightStrip = this.convertValues(source["lightStrip"], LightStripConfig);
 	    }
 	
@@ -187,6 +221,7 @@ export namespace types {
 	        this.workMode = source["workMode"];
 	    }
 	}
+	
 	
 	
 	export class TemperatureData {

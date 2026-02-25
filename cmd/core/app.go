@@ -19,6 +19,7 @@ import (
 	"github.com/TIANLI0/BS2PRO-Controller/internal/device"
 	"github.com/TIANLI0/BS2PRO-Controller/internal/ipc"
 	"github.com/TIANLI0/BS2PRO-Controller/internal/logger"
+	"github.com/TIANLI0/BS2PRO-Controller/internal/smartcontrol"
 	"github.com/TIANLI0/BS2PRO-Controller/internal/temperature"
 	"github.com/TIANLI0/BS2PRO-Controller/internal/tray"
 	"github.com/TIANLI0/BS2PRO-Controller/internal/types"
@@ -133,6 +134,13 @@ func (a *CoreApp) Start() error {
 		a.configManager.Set(cfg)
 		if err := a.configManager.Save(); err != nil {
 			a.logError("保存灯带默认配置失败: %v", err)
+		}
+	}
+	if normalizedSmart, changed := smartcontrol.NormalizeConfig(cfg.SmartControl, cfg.FanCurve); changed {
+		cfg.SmartControl = normalizedSmart
+		a.configManager.Set(cfg)
+		if err := a.configManager.Save(); err != nil {
+			a.logError("保存智能控温默认配置失败: %v", err)
 		}
 	}
 	a.logInfo("配置加载完成，配置路径: %s", cfg.ConfigPath)
@@ -761,6 +769,7 @@ func (a *CoreApp) UpdateConfig(cfg types.AppConfig) error {
 
 	oldCfg := a.configManager.Get()
 	cfg.LightStrip, _ = normalizeLightStripConfig(cfg.LightStrip)
+	cfg.SmartControl, _ = smartcontrol.NormalizeConfig(cfg.SmartControl, cfg.FanCurve)
 
 	if cfg.AutoControl && !a.monitoringTemp && a.isConnected {
 		a.safeGo("startTemperatureMonitoring@UpdateConfig", func() {
@@ -784,6 +793,7 @@ func (a *CoreApp) SetFanCurve(curve []types.FanCurvePoint) error {
 
 	cfg := a.configManager.Get()
 	cfg.FanCurve = curve
+	cfg.SmartControl, _ = smartcontrol.NormalizeConfig(cfg.SmartControl, cfg.FanCurve)
 	return a.configManager.Update(cfg)
 }
 
@@ -1109,6 +1119,10 @@ func (a *CoreApp) startTemperatureMonitoring() {
 	// 温度采样缓冲区
 	sampleCount := max(cfg.TempSampleCount, 1)
 	tempSamples := make([]int, 0, sampleCount)
+	lastAvgTemp := 0
+	lastTargetRPM := 0
+	learningDirty := false
+	lastLearningSave := time.Now()
 
 	for a.monitoringTemp {
 		select {
@@ -1128,6 +1142,15 @@ func (a *CoreApp) startTemperatureMonitoring() {
 			}
 
 			cfg := a.configManager.Get()
+			smartCfg, smartChanged := smartcontrol.NormalizeConfig(cfg.SmartControl, cfg.FanCurve)
+			if smartChanged {
+				cfg.SmartControl = smartCfg
+				a.configManager.Set(cfg)
+				if err := a.configManager.Save(); err != nil {
+					a.logError("保存智能控温配置失败: %v", err)
+				}
+			}
+
 			if cfg.AutoControl && temp.MaxTemp > 0 {
 				// 更新采样配置
 				newSampleCount := max(cfg.TempSampleCount, 1)
@@ -1149,11 +1172,61 @@ func (a *CoreApp) startTemperatureMonitoring() {
 				}
 				avgTemp = avgTemp / len(tempSamples)
 
-				targetRPM := temperature.CalculateTargetRPM(avgTemp, cfg.FanCurve)
-				if targetRPM > 0 {
-					a.deviceManager.SetFanSpeed(targetRPM)
+				baseRPM := temperature.CalculateTargetRPM(avgTemp, cfg.FanCurve)
+				targetRPM := baseRPM
+
+				if smartCfg.Enabled {
+					targetRPM = smartcontrol.CalculateTargetRPM(avgTemp, lastAvgTemp, cfg.FanCurve, smartCfg)
 				}
+
+				if lastTargetRPM > 0 {
+					targetRPM = smartcontrol.ApplyRampLimit(targetRPM, lastTargetRPM, smartCfg.RampUpLimit, smartCfg.RampDownLimit)
+				}
+
+				deltaRPM := targetRPM - lastTargetRPM
+				if deltaRPM < 0 {
+					deltaRPM = -deltaRPM
+				}
+
+				if targetRPM > 0 && (lastTargetRPM == 0 || deltaRPM >= smartCfg.MinRPMChange) {
+					a.deviceManager.SetFanSpeed(targetRPM)
+					lastTargetRPM = targetRPM
+				}
+
+				if smartCfg.Enabled && smartCfg.Learning {
+					updatedOffsets, changed := smartcontrol.LearnCurveOffsets(avgTemp, lastAvgTemp, cfg.FanCurve, smartCfg)
+					if changed {
+						smartCfg.LearnedOffsets = updatedOffsets
+						cfg.SmartControl = smartCfg
+						a.configManager.Set(cfg)
+						learningDirty = true
+					}
+
+					if learningDirty && time.Since(lastLearningSave) >= 25*time.Second {
+						if err := a.configManager.Save(); err != nil {
+							a.logError("保存学习曲线失败: %v", err)
+						} else {
+							lastLearningSave = time.Now()
+							learningDirty = false
+							if a.ipcServer != nil {
+								a.ipcServer.BroadcastEvent(ipc.EventConfigUpdate, cfg)
+							}
+						}
+					}
+				}
+
+				if baseRPM > 0 {
+					a.logDebug("智能控温: 温度=%d°C 平均=%d°C 基础=%dRPM 目标=%dRPM", temp.MaxTemp, avgTemp, baseRPM, targetRPM)
+				}
+
+				lastAvgTemp = avgTemp
 			}
+		}
+	}
+
+	if learningDirty {
+		if err := a.configManager.Save(); err != nil {
+			a.logError("退出监控时保存学习曲线失败: %v", err)
 		}
 	}
 }
