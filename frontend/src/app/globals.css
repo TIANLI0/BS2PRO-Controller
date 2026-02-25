@@ -3,6 +3,12 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --scrollbar-size: 10px;
+  --scrollbar-thumb: color-mix(in srgb, var(--foreground) 35%, transparent);
+  --scrollbar-thumb-hover: color-mix(in srgb, var(--foreground) 52%, transparent);
+  --scrollbar-track: color-mix(in srgb, var(--background) 88%, transparent);
+  --overlay-scrollbar-thumb: color-mix(in srgb, var(--foreground) 24%, transparent);
+  --overlay-scrollbar-thumb-hover: color-mix(in srgb, var(--foreground) 34%, transparent);
 }
 
 @theme inline {
@@ -16,13 +22,107 @@
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+    --scrollbar-thumb: color-mix(in srgb, var(--foreground) 30%, transparent);
+    --scrollbar-thumb-hover: color-mix(in srgb, var(--foreground) 45%, transparent);
+    --scrollbar-track: color-mix(in srgb, var(--background) 92%, transparent);
+    --overlay-scrollbar-thumb: color-mix(in srgb, var(--foreground) 22%, transparent);
+    --overlay-scrollbar-thumb-hover: color-mix(in srgb, var(--foreground) 32%, transparent);
   }
 }
 
+html,
 body {
+  height: 100%;
+  width: 100%;
+  scrollbar-gutter: auto;
+  overscroll-behavior: none;
+}
+
+body {
+  overflow: hidden;
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+.app-scroll-root {
+  height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.app-scroll-root--hide-native {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.app-scroll-root--hide-native::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.overlay-scroll-shell {
+  position: relative;
+  height: 100dvh;
+}
+
+.app-overlay-scrollbar {
+  position: fixed;
+  top: 8px;
+  right: 4px;
+  bottom: 8px;
+  width: 6px;
+  opacity: 0;
+  pointer-events: auto;
+  z-index: 70;
+  transition: opacity 0.2s ease;
+}
+
+.app-overlay-scrollbar.is-visible {
+  opacity: 1;
+}
+
+.app-overlay-scrollbar-thumb {
+  width: 100%;
+  border-radius: 999px;
+  background: var(--overlay-scrollbar-thumb);
+  cursor: ns-resize;
+  transition: background-color 0.2s ease;
+}
+
+.app-overlay-scrollbar-thumb:hover {
+  background: var(--overlay-scrollbar-thumb-hover);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+*::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 /* Smooth animations */
