@@ -1,6 +1,6 @@
 module github.com/TIANLI0/BS2PRO-Controller
 
-go 1.25.3
+go 1.26.0
 
 require (
 	fyne.io/systray v1.12.0
