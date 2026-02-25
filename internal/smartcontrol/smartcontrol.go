@@ -72,6 +72,7 @@ func CalculateTargetRPM(avgTemp, lastAvgTemp int, curve []types.FanCurvePoint, c
 			RPM:         clampInt(point.RPM+offset, 1000, 4000),
 		}
 	}
+	enforceNonDecreasingRPM(effectiveCurve)
 
 	targetRPM := temperature.CalculateTargetRPM(avgTemp, effectiveCurve)
 	if targetRPM <= 0 {
@@ -194,4 +195,12 @@ func absInt(value int) int {
 		return -value
 	}
 	return value
+}
+
+func enforceNonDecreasingRPM(curve []types.FanCurvePoint) {
+	for i := 1; i < len(curve); i++ {
+		if curve[i].RPM < curve[i-1].RPM {
+			curve[i].RPM = curve[i-1].RPM
+		}
+	}
 }

@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, memo, useMemo, useRef } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import { 
   RotateCw,
   Check,
   Info,
 } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { apiService } from '../services/api';
 import { types } from '../../../wailsjs/go/models';
 import { ToggleSwitch, Select, Button, Badge, Card, Slider } from './ui/index';
@@ -135,6 +136,34 @@ const RealtimeStatus = memo(function RealtimeStatus({
         </span>
       </div>
     </div>
+  );
+});
+
+const ConfigTooltipLabel = memo(function ConfigTooltipLabel({
+  label,
+  description,
+}: {
+  label: string;
+  description: string;
+}) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span>{label}</span>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            className="inline-flex items-center justify-center rounded text-gray-400 transition-colors hover:text-gray-600 dark:hover:text-gray-200"
+            aria-label={`${label}说明`}
+          >
+            <Info className="h-3.5 w-3.5" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-[260px] leading-relaxed">
+          {description}
+        </TooltipContent>
+      </Tooltip>
+    </span>
   );
 });
 
@@ -691,10 +720,14 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
             </div>
           </div>
 
+          <TooltipProvider>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-                <span>目标温度</span>
+                <ConfigTooltipLabel
+                  label="目标温度"
+                  description="智能控制会尽量把温度稳定在这个值附近。调低会更积极拉高转速，调高会更安静但温度更高。"
+                />
                 <span>{smartControl.targetTemp}°C</span>
               </div>
               <Slider
@@ -709,7 +742,10 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
 
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-                <span>响应强度</span>
+                <ConfigTooltipLabel
+                  label="响应强度"
+                  description="决定温度变化时转速调整的激进程度。数值越大，加速越快、降速也更敏感。"
+                />
                 <span>{smartControl.aggressiveness}</span>
               </div>
               <Slider
@@ -724,7 +760,10 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
 
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-                <span>学习速率</span>
+                <ConfigTooltipLabel
+                  label="学习速率"
+                  description="控制学习偏移更新速度。数值越大，系统越快根据历史温度修正曲线，但波动也可能更明显。"
+                />
                 <span>{smartControl.learnRate}</span>
               </div>
               <Slider
@@ -737,6 +776,7 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
               />
             </div>
           </div>
+          </TooltipProvider>
 
           <div className="flex items-center justify-end">
             <Button
@@ -863,7 +903,7 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
                   fontSize: 12
                 }}
               />
-              <Tooltip 
+              <RechartsTooltip 
                 formatter={(value: number, name: string) => {
                   if (name === 'coupledRpm') {
                     return [`${value} RPM`, '耦合后曲线'];
