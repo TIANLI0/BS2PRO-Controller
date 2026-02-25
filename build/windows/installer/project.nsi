@@ -82,6 +82,8 @@ ManifestDPIAware true
 #!finalize 'signtool --file "%1"'
 
 Name "${INFO_PRODUCTNAME}"
+Caption "${INFO_PRODUCTNAME} 安装程序 v${INFO_PRODUCTVERSION}"
+BrandingText "${INFO_PRODUCTNAME} v${INFO_PRODUCTVERSION}"
 OutFile "..\..\bin\${INFO_PROJECTNAME}-${ARCH}-installer.exe" # Name of the installer's file.
 InstallDir "$PROGRAMFILES64\${INFO_PRODUCTNAME}" # Default installing folder (single level)
 ShowInstDetails show # This will always show the installation details.
