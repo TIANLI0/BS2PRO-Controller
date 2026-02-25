@@ -29,6 +29,11 @@ type Manager struct {
 	// 监控托盘健康状态
 	lastIconRefresh  int64
 	consecutiveFails int32 // 连续失败计数
+
+	// 防止托盘动作重入导致偶发无响应
+	showWindowInFlight int32
+	toggleAutoInFlight int32
+	quitInFlight       int32
 }
 
 // MenuItems 托盘菜单项结构
@@ -123,7 +128,7 @@ func (m *Manager) onTrayReady() {
 	systray.SetOnTapped(func() {
 		m.logDebug("托盘图标左键点击: 显示主窗口")
 		if m.onShowWindow != nil {
-			m.onShowWindow()
+			m.runTrayActionAsync("icon-show-window", &m.showWindowInFlight, m.onShowWindow)
 		}
 	})
 
@@ -232,31 +237,66 @@ func (m *Manager) handleMenuEvents() {
 		case <-m.menuItems.Show.ClickedCh:
 			m.logDebug("托盘菜单: 显示主窗口")
 			if m.onShowWindow != nil {
-				m.onShowWindow()
+				m.runTrayActionAsync("menu-show-window", &m.showWindowInFlight, m.onShowWindow)
 			}
 		case <-m.menuItems.AutoControl.ClickedCh:
 			m.logDebug("托盘菜单: 切换智能变频状态")
 			if m.onToggleAuto != nil {
-				newState := m.onToggleAuto()
-				// 立即更新UI状态
-				m.uiMutex.Lock()
-				if newState {
-					m.menuItems.AutoControl.Check()
-				} else {
-					m.menuItems.AutoControl.Uncheck()
-				}
-				m.uiMutex.Unlock()
+				m.runTrayActionAsync("menu-toggle-auto", &m.toggleAutoInFlight, func() {
+					newState := m.onToggleAuto()
+					// 立即更新UI状态
+					m.uiMutex.Lock()
+					if newState {
+						m.menuItems.AutoControl.Check()
+					} else {
+						m.menuItems.AutoControl.Uncheck()
+					}
+					m.uiMutex.Unlock()
+				})
 			}
 		case <-m.menuItems.Quit.ClickedCh:
 			m.logInfo("托盘菜单: 用户请求退出应用")
 			if m.onQuit != nil {
-				m.onQuit()
+				m.runTrayActionAsync("menu-quit", &m.quitInFlight, m.onQuit)
 			}
 			return
 		case <-m.done:
 			return
 		}
 	}
+}
+
+// runTrayActionAsync 异步执行托盘动作，避免阻塞托盘消息处理
+func (m *Manager) runTrayActionAsync(action string, inFlight *int32, fn func()) {
+	if fn == nil {
+		return
+	}
+
+	if inFlight != nil && !atomic.CompareAndSwapInt32(inFlight, 0, 1) {
+		m.logDebug("托盘动作[%s]仍在执行，忽略重复触发", action)
+		return
+	}
+
+	go func() {
+		startedAt := time.Now()
+		defer func() {
+			if inFlight != nil {
+				atomic.StoreInt32(inFlight, 0)
+			}
+			if r := recover(); r != nil {
+				m.logError("托盘动作[%s]发生panic: %v", action, r)
+			}
+
+			d := time.Since(startedAt)
+			if d > 800*time.Millisecond {
+				m.logError("托盘动作[%s]执行耗时较长: %v", action, d)
+			} else {
+				m.logDebug("托盘动作[%s]执行完成: %v", action, d)
+			}
+		}()
+
+		fn()
+	}()
 }
 
 // updateMenuStatus 定期更新托盘菜单状态
