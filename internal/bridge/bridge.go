@@ -191,11 +191,13 @@ func (m *Manager) sendCommandUnsafe(cmdType, data string) (*types.BridgeResponse
 		return nil, fmt.Errorf("桥接程序未连接")
 	}
 
-	if err := m.conn.SetDeadline(time.Now().Add(bridgeCommandTimeout)); err != nil {
+	conn := m.conn
+
+	if err := conn.SetDeadline(time.Now().Add(bridgeCommandTimeout)); err != nil {
 		m.logger.Debug("设置桥接命令超时失败: %v", err)
 	}
 	defer func() {
-		_ = m.conn.SetDeadline(time.Time{})
+		_ = conn.SetDeadline(time.Time{})
 	}()
 
 	cmd := types.BridgeCommand{
@@ -210,13 +212,13 @@ func (m *Manager) sendCommandUnsafe(cmdType, data string) (*types.BridgeResponse
 	}
 
 	// 发送命令
-	_, err = m.conn.Write(append(cmdBytes, '\n'))
+	_, err = conn.Write(append(cmdBytes, '\n'))
 	if err != nil {
 		m.closeConnUnsafe()
 		return nil, fmt.Errorf("发送命令失败: %v", err)
 	}
 
-	reader := bufio.NewReader(m.conn)
+	reader := bufio.NewReader(conn)
 	responseBytes, err := reader.ReadBytes('\n')
 	if err != nil {
 		m.closeConnUnsafe()
