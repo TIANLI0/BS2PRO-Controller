@@ -95,6 +95,7 @@ function getRequiredColorCount(mode: string): number {
   switch (mode) {
     case 'static_single':
       return 1;
+    case 'off':
     case 'smart_temp':
     case 'flowing':
       return 0;
@@ -392,6 +393,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
   }, [config, onConfigChange]);
 
   const lightModeOptions = [
+    { value: 'off', label: '关闭灯光', description: '关闭所有RGB灯光' },
     { value: 'smart_temp', label: '智能温控', description: '根据温度自动切换灯效' },
     { value: 'static_single', label: '单色常亮', description: '固定单色显示' },
     { value: 'static_multi', label: '多色常亮', description: '三色静态分区' },
@@ -550,7 +552,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
                 options={lightSpeedOptions}
                 size="sm"
                 label="动画速度"
-                disabled={lightStripConfig.mode === 'smart_temp' || lightStripConfig.mode === 'static_single' || lightStripConfig.mode === 'static_multi'}
+                disabled={lightStripConfig.mode === 'off' || lightStripConfig.mode === 'smart_temp' || lightStripConfig.mode === 'static_single' || lightStripConfig.mode === 'static_multi'}
               />
             </div>
 
@@ -565,8 +567,15 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
                 }
                 label="亮度"
                 valueFormatter={(v) => `${v}%`}
+                disabled={lightStripConfig.mode === 'off' || lightStripConfig.mode === 'smart_temp'}
               />
             </div>
+
+            {lightStripConfig.mode === 'smart_temp' && (
+              <div className="mb-3 text-xs text-amber-600 dark:text-amber-400">
+                智能温控模式由设备自动按温度控制灯效，不支持手动调控温度与亮度。
+              </div>
+            )}
 
             {requiredColorCount > 0 && (
               <>
@@ -632,10 +641,10 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
 
           {/* 温度采样平均 - 仅在开启自动温控时显示 */}
           {config.autoControl && (
-            <div className="py-4 px-4 -mx-4 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all duration-200">
+            <div className="py-3 px-4 -mx-4 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all duration-200">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="p-2.5 rounded-xl bg-cyan-100 dark:bg-cyan-900/30">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-cyan-100 dark:bg-cyan-900/30">
                     <BarChart3 className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
                   </div>
                   <div>
@@ -645,12 +654,14 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
                     </div>
                   </div>
                 </div>
-                <Select
-                  value={(config as any).tempSampleCount || 1}
-                  onChange={(val: string | number) => handleSampleCountChange(val as number)}
-                  options={sampleCountOptions}
-                  size="sm"
-                />
+                <div className="w-36 shrink-0">
+                  <Select
+                    value={(config as any).tempSampleCount || 1}
+                    onChange={(val: string | number) => handleSampleCountChange(val as number)}
+                    options={sampleCountOptions}
+                    size="sm"
+                  />
+                </div>
               </div>
             </div>
           )}

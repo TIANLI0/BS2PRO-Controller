@@ -72,7 +72,7 @@ type RGBColor struct {
 
 // LightStripConfig 灯带配置
 type LightStripConfig struct {
-	Mode       string     `json:"mode"`       // smart_temp/static_single/static_multi/rotation/flowing/breathing
+	Mode       string     `json:"mode"`       // off/smart_temp/static_single/static_multi/rotation/flowing/breathing
 	Speed      string     `json:"speed"`      // fast/medium/slow
 	Brightness int        `json:"brightness"` // 0-100
 	Colors     []RGBColor `json:"colors"`     // 颜色列表
