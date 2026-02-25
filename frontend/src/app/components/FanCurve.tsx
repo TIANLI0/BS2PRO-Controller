@@ -364,14 +364,21 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
     }
   }, [config.fanCurve, fanData?.maxGear, isInitialized]);
 
-  // 图表数据 - 使用本地状态
-  const chartData = useMemo(() => 
-    localCurve.map((point, index) => ({
-      temperature: point.temperature,
-      rpm: point.rpm,
-      index
-    })),
-  [localCurve]);
+  // 图表数据 - 使用本地状态（含耦合后曲线）
+  const chartData = useMemo(() => {
+    const offsets = smartControl.learnedOffsets || [];
+    return localCurve.map((point, index) => {
+      const offset = offsets[index] ?? 0;
+      return {
+        temperature: point.temperature,
+        rpm: point.rpm,
+        coupledRpm: Math.max(rpmRange.min, Math.min(rpmRange.max, point.rpm + offset)),
+        index,
+      };
+    });
+  }, [localCurve, smartControl.learnedOffsets, rpmRange.max, rpmRange.min]);
+
+  const showCoupledCurve = config.autoControl && smartControl.enabled;
 
   // 更新单个点
   const updatePoint = useCallback((index: number, newRpm: number) => {
@@ -857,7 +864,12 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
                 }}
               />
               <Tooltip 
-                formatter={(value: number) => [`${value} RPM`, '目标转速']}
+                formatter={(value: number, name: string) => {
+                  if (name === 'coupledRpm') {
+                    return [`${value} RPM`, '耦合后曲线'];
+                  }
+                  return [`${value} RPM`, '基础曲线'];
+                }}
                 labelFormatter={(value) => `温度: ${value}°C`}
                 contentStyle={{
                   backgroundColor: isDarkMode ? 'rgba(17, 24, 39, 0.95)' : 'rgba(255, 255, 255, 0.95)',
@@ -887,6 +899,18 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
                 activeDot={false}
                 isAnimationActive={false}
               />
+              {showCoupledCurve && (
+                <Line
+                  type="monotone"
+                  dataKey="coupledRpm"
+                  stroke="#3b82f6"
+                  strokeWidth={2}
+                  strokeDasharray="6 4"
+                  dot={false}
+                  activeDot={false}
+                  isAnimationActive={false}
+                />
+              )}
             </LineChart>
           </ResponsiveContainer>
           
@@ -901,9 +925,16 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
 
       {/* 拖拽提示 - 移到图表外部 */}
       <div className="text-center mb-4">
-        <span className="text-xs text-gray-400 dark:text-gray-500 px-3 py-1.5 rounded-full bg-gray-100 dark:bg-gray-700/50">
-          💡 拖拽图表上的蓝色圆点可直接调整转速
-        </span>
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <span className="text-xs text-gray-400 dark:text-gray-500 px-3 py-1.5 rounded-full bg-gray-100 dark:bg-gray-700/50">
+            💡 拖拽图表上的蓝色圆点可直接调整转速
+          </span>
+          {showCoupledCurve && (
+            <span className="text-xs text-gray-500 dark:text-gray-400 px-3 py-1.5 rounded-full bg-gray-100 dark:bg-gray-700/50">
+              实线：基础曲线 · 虚线：耦合后曲线
+            </span>
+          )}
+        </div>
       </div>
 
       {/* 控制点网格 */}
