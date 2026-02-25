@@ -491,6 +491,13 @@ Function StopRunningInstances
     nsExec::ExecToStack '"$SYSDIR\schtasks.exe" /delete /tn "BS2PRO-Core" /f'
     Pop $0
     Pop $1
+
+    # Remove legacy registry auto-start entries as part of upgrade/install pre-clean
+    DetailPrint "正在清理注册表自启动项..."
+    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "BS2PRO-Controller"
+    DeleteRegValue HKLM "Software\Microsoft\Windows\CurrentVersion\Run" "BS2PRO-Controller"
+    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "BS2PRO-Core"
+    DeleteRegValue HKLM "Software\Microsoft\Windows\CurrentVersion\Run" "BS2PRO-Core"
     
     # Wait a moment for processes to fully terminate
     DetailPrint "等待进程完全终止..."
@@ -723,20 +730,23 @@ Section "开机自启动" SEC_AUTOSTART
     DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "BS2PRO-Core"
     DeleteRegValue HKLM "Software\Microsoft\Windows\CurrentVersion\Run" "BS2PRO-Core"
     
-    # Create new scheduled task for auto-start with admin privileges
-    DetailPrint "正在创建自启动计划任务..."
-    
-    # Use schtasks to create a task that runs at logon with highest privileges
-    # The task will start BS2PRO-Core.exe with --autostart flag after 15 seconds delay
-    nsExec::ExecToStack '"$SYSDIR\schtasks.exe" /create /tn "BS2PRO-Controller" /tr "\"$INSTDIR\BS2PRO-Core.exe\" --autostart" /sc onlogon /delay 0000:15 /rl highest /f'
-    Pop $0
-    Pop $1
-    ${If} $0 == 0
-        DetailPrint "开机自启动配置成功（计划任务）"
+    # Prefer registry auto-start first
+    DetailPrint "正在设置注册表自启动..."
+    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "BS2PRO-Controller" '"$INSTDIR\BS2PRO-Core.exe" --autostart'
+    ClearErrors
+    ReadRegStr $0 HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "BS2PRO-Controller"
+
+    ${If} ${Errors}
+        DetailPrint "注册表写入失败，尝试创建计划任务..."
+        nsExec::ExecToStack '"$SYSDIR\schtasks.exe" /create /tn "BS2PRO-Controller" /tr "\"$INSTDIR\BS2PRO-Core.exe\" --autostart" /sc onlogon /delay 0000:15 /rl highest /f'
+        Pop $0
+        Pop $1
+        ${If} $0 == 0
+            DetailPrint "开机自启动配置成功（计划任务）"
+        ${Else}
+            DetailPrint "开机自启动配置失败（注册表与计划任务均失败）"
+        ${EndIf}
     ${Else}
-        DetailPrint "计划任务创建失败，使用注册表方式..."
-        # Fallback: use registry auto-start (will trigger UAC on each login)
-        WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "BS2PRO-Controller" '"$INSTDIR\BS2PRO-Core.exe" --autostart'
         DetailPrint "开机自启动配置成功（注册表）"
     ${EndIf}
 SectionEnd

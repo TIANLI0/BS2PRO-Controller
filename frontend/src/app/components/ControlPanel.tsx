@@ -273,9 +273,8 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
   const handleWindowsAutoStartChange = useCallback(async (enabled: boolean) => {
     setLoading('windowsAutoStart', true);
     try {
-      const isAdmin = await apiService.isRunningAsAdmin();
       if (enabled) {
-        await apiService.setAutoStartWithMethod(true, isAdmin ? 'task_scheduler' : 'registry');
+        await apiService.setAutoStartWithMethod(true, 'registry');
       } else {
         await apiService.setAutoStartWithMethod(false, '');
       }
