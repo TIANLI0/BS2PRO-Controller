@@ -219,7 +219,7 @@ export default function Home() {
                     <h1 className="text-xl font-bold text-gray-900 dark:text-white">
                       BS2PRO 压风控制器
                     </h1>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">飞智空间站替代</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">轻量化控制台</p>
                   </div>
                 </div>
               </div>

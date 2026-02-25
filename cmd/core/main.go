@@ -8,6 +8,27 @@ import (
 )
 
 func main() {
+	var app *CoreApp
+
+	defer func() {
+		if r := recover(); r != nil {
+			capturePanic(app, "main", r)
+
+			if app != nil {
+				func() {
+					defer func() {
+						if stopPanic := recover(); stopPanic != nil {
+							capturePanic(app, "main.Stop", stopPanic)
+						}
+					}()
+					app.Stop()
+				}()
+			}
+
+			os.Exit(1)
+		}
+	}()
+
 	// 检测命令行参数
 	debugMode := false
 	isAutoStart := false
@@ -22,7 +43,7 @@ func main() {
 	}
 
 	// 创建核心应用
-	app := NewCoreApp(debugMode, isAutoStart)
+	app = NewCoreApp(debugMode, isAutoStart)
 
 	// 启动应用
 	if err := app.Start(); err != nil {

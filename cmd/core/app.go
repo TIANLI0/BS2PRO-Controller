@@ -185,16 +185,18 @@ func (a *CoreApp) Start() error {
 	// 启动健康监控
 	if cfg.GuiMonitoring {
 		a.logInfo("启动健康监控")
-		go a.startHealthMonitoring()
+		a.safeGo("startHealthMonitoring", func() {
+			a.startHealthMonitoring()
+		})
 	}
 
 	a.logInfo("=== BS2PRO 核心服务启动完成 ===")
 
 	// 尝试连接设备
-	go func() {
+	a.safeGo("delayedConnectDevice", func() {
 		time.Sleep(1 * time.Second)
 		a.ConnectDevice()
-	}()
+	})
 
 	return nil
 }
@@ -473,7 +475,9 @@ func (a *CoreApp) handleIPCRequest(req ipc.Request) ipc.Response {
 		return a.successResponse(true)
 
 	case ipc.ReqQuitApp:
-		go a.onQuitRequest()
+		a.safeGo("onQuitRequest", func() {
+			a.onQuitRequest()
+		})
 		return a.successResponse(true)
 
 	// 调试相关
@@ -593,7 +597,9 @@ func (a *CoreApp) onDeviceDisconnect() {
 	}
 
 	// 启动自动重连机制
-	go a.scheduleReconnect()
+	a.safeGo("scheduleReconnect", func() {
+		a.scheduleReconnect()
+	})
 }
 
 // scheduleReconnect 安排设备重连
@@ -666,7 +672,9 @@ func (a *CoreApp) ConnectDevice() bool {
 			a.logError("应用灯带配置失败: %v", err)
 		}
 		if cfg.AutoControl {
-			go a.startTemperatureMonitoring()
+			a.safeGo("startTemperatureMonitoring@ConnectDevice", func() {
+				a.startTemperatureMonitoring()
+			})
 		}
 	} else if a.ipcServer != nil {
 		a.ipcServer.BroadcastEvent(ipc.EventDeviceError, "连接失败")
@@ -701,7 +709,9 @@ func (a *CoreApp) reapplyConfigAfterReconnect() {
 	// 重新应用智能变频配置
 	if cfg.AutoControl {
 		a.logInfo("重新启动智能变频")
-		go a.startTemperatureMonitoring()
+		a.safeGo("startTemperatureMonitoring@Reconnect", func() {
+			a.startTemperatureMonitoring()
+		})
 	} else if cfg.CustomSpeedEnabled {
 		// 重新应用自定义转速
 		a.logInfo("重新应用自定义转速: %d RPM", cfg.CustomSpeedRPM)
@@ -753,7 +763,9 @@ func (a *CoreApp) UpdateConfig(cfg types.AppConfig) error {
 	cfg.LightStrip, _ = normalizeLightStripConfig(cfg.LightStrip)
 
 	if cfg.AutoControl && !a.monitoringTemp && a.isConnected {
-		go a.startTemperatureMonitoring()
+		a.safeGo("startTemperatureMonitoring@UpdateConfig", func() {
+			a.startTemperatureMonitoring()
+		})
 	} else if !cfg.AutoControl && a.monitoringTemp {
 		select {
 		case a.stopMonitoring <- true:
@@ -793,7 +805,9 @@ func (a *CoreApp) SetAutoControl(enabled bool) error {
 	}
 
 	if enabled && !a.monitoringTemp && a.isConnected {
-		go a.startTemperatureMonitoring()
+		a.safeGo("startTemperatureMonitoring@SetAutoControl", func() {
+			a.startTemperatureMonitoring()
+		})
 	} else if !enabled && a.monitoringTemp {
 		select {
 		case a.stopMonitoring <- true:
@@ -801,7 +815,9 @@ func (a *CoreApp) SetAutoControl(enabled bool) error {
 		}
 
 		if a.isConnected {
-			go a.applyCurrentGearSetting()
+			a.safeGo("applyCurrentGearSetting", func() {
+				a.applyCurrentGearSetting()
+			})
 		}
 	}
 
@@ -862,7 +878,9 @@ func (a *CoreApp) SetCustomSpeed(enabled bool, rpm int) error {
 		cfg.CustomSpeedRPM = rpm
 
 		if a.isConnected {
-			go a.deviceManager.SetCustomFanSpeed(rpm)
+			a.safeGo("setCustomFanSpeed", func() {
+				a.deviceManager.SetCustomFanSpeed(rpm)
+			})
 		}
 	} else {
 		cfg.CustomSpeedEnabled = false
@@ -1146,7 +1164,7 @@ func (a *CoreApp) startHealthMonitoring() {
 
 	a.healthCheckTicker = time.NewTicker(30 * time.Second)
 
-	go func() {
+	a.safeGo("healthMonitoringLoop", func() {
 		defer a.healthCheckTicker.Stop()
 
 		for {
@@ -1158,10 +1176,12 @@ func (a *CoreApp) startHealthMonitoring() {
 				return
 			}
 		}
-	}()
+	})
 
 	if a.logger != nil {
-		go a.logger.CleanOldLogs()
+		a.safeGo("cleanOldLogs", func() {
+			a.logger.CleanOldLogs()
+		})
 	}
 }
 
@@ -1188,18 +1208,13 @@ func (a *CoreApp) checkDeviceHealth() {
 
 	if !connected {
 		a.logInfo("健康检查: 设备未连接，尝试重新连接")
-		go func() {
-			defer func() {
-				if r := recover(); r != nil {
-					a.logError("设备重连过程中发生panic: %v", r)
-				}
-			}()
+		a.safeGo("healthReconnect", func() {
 			if a.ConnectDevice() {
 				a.logInfo("健康检查: 设备重连成功")
 			} else {
 				a.logDebug("健康检查: 设备重连失败，等待下次检查")
 			}
-		}()
+		})
 	} else {
 		// 验证设备实际连接状态
 		if !a.deviceManager.IsConnected() {
@@ -1243,6 +1258,18 @@ func (a *CoreApp) logDebug(format string, v ...any) {
 	if a.logger != nil {
 		a.logger.Debug(format, v...)
 	}
+}
+
+func (a *CoreApp) safeGo(name string, fn func()) {
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				capturePanic(a, "goroutine:"+name, r)
+			}
+		}()
+
+		fn()
+	}()
 }
 
 // launchGUI 启动 GUI 程序
