@@ -173,7 +173,7 @@ export default function DeviceStatus({
     <div className="space-y-4">
       {/* 顶部状态栏 */}
       <Card className={clsx(
-        'p-5 relative overflow-hidden',
+        'p-5 relative overflow-hidden xl:mx-auto xl:max-w-5xl 2xl:max-w-6xl',
         isConnected && 'bg-gradient-to-r from-white via-white to-blue-50/50 dark:from-gray-800 dark:via-gray-800 dark:to-blue-900/20'
       )}>
         {/* 背景装饰 */}
@@ -274,7 +274,7 @@ export default function DeviceStatus({
 
       {/* 核心数据仪表盘 */}
       {isConnected ? (
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-3 gap-4 xl:mx-auto xl:max-w-4xl 2xl:max-w-5xl">
           {/* CPU 温度卡片 */}
           <Card className="p-5" hover>
             <div className="flex items-center gap-2 mb-4">
@@ -347,7 +347,7 @@ export default function DeviceStatus({
 
       {/* 运行状态详情 */}
       {isConnected && (
-        <Card className="p-4">
+        <Card className="p-4 xl:mx-auto xl:max-w-4xl 2xl:max-w-5xl">
           <div className="flex items-center gap-2 mb-4">
             <Zap className="w-4 h-4 text-gray-500" />
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white">运行详情</h3>
