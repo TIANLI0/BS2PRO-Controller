@@ -57,22 +57,14 @@ func (m *Manager) IsRunningAsAdmin() bool {
 
 // SetWindowsAutoStart 设置Windows开机自启动
 func (m *Manager) SetWindowsAutoStart(enable bool) error {
+	// 检查是否以管理员权限运行
+	if !m.IsRunningAsAdmin() {
+		return fmt.Errorf("设置自启动需要管理员权限")
+	}
+
 	if enable {
-		// 优先使用注册表，失败后回退到任务计划程序
-		if err := m.setRegistryAutoStart(); err == nil {
-			m.deleteScheduledTask()
-			return nil
-		} else {
-			m.logger.Error("注册表自启动设置失败: %v", err)
-		}
-
-		if m.IsRunningAsAdmin() {
-			if err := m.createScheduledTask(); err == nil {
-				return nil
-			}
-		}
-
-		return fmt.Errorf("设置自启动失败：注册表方式失败，且任务计划程序方式不可用")
+		// 使用任务计划程序设置自启动
+		return m.createScheduledTask()
 	} else {
 		// 删除任务计划程序和注册表项
 		m.deleteScheduledTask()
@@ -169,28 +161,13 @@ func (m *Manager) SetAutoStartWithMethod(enable bool, method string) error {
 
 	switch method {
 	case "task_scheduler":
-		if err := m.removeRegistryAutoStart(); err != nil {
-			m.logger.Error("清理注册表自启动失败: %v", err)
-		}
 		if !m.IsRunningAsAdmin() {
 			return fmt.Errorf("使用任务计划程序需要管理员权限，请以管理员身份运行程序进行设置")
 		}
 		return m.createScheduledTask()
 
 	case "registry":
-		if err := m.deleteScheduledTask(); err != nil {
-			m.logger.Error("清理任务计划自启动失败: %v", err)
-		}
-		if err := m.setRegistryAutoStart(); err == nil {
-			return nil
-		} else {
-			m.logger.Error("注册表自启动设置失败: %v", err)
-			if m.IsRunningAsAdmin() {
-				m.logger.Info("尝试回退到任务计划程序自启动")
-				return m.createScheduledTask()
-			}
-			return fmt.Errorf("注册表自启动失败，且当前非管理员无法回退任务计划程序: %v", err)
-		}
+		return m.setRegistryAutoStart()
 
 	default:
 		return fmt.Errorf("不支持的自启动方式: %s", method)
