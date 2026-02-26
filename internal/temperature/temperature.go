@@ -94,8 +94,8 @@ func (r *Reader) readWindowsCPUTemp() int {
 		return 0
 	}
 
-	lines := strings.Split(string(output), "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(string(output), "\n")
+	for line := range lines {
 		line = strings.TrimSpace(line)
 		if after, ok := strings.CutPrefix(line, "CurrentTemperature="); ok {
 			tempStr := after

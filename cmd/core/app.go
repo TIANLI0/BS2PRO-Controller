@@ -1119,6 +1119,7 @@ func (a *CoreApp) startTemperatureMonitoring() {
 	// 温度采样缓冲区
 	sampleCount := max(cfg.TempSampleCount, 1)
 	tempSamples := make([]int, 0, sampleCount)
+	recentAvgTemps := make([]int, 0, 24)
 	lastAvgTemp := 0
 	lastTargetRPM := 0
 	learningDirty := false
@@ -1172,6 +1173,12 @@ func (a *CoreApp) startTemperatureMonitoring() {
 				}
 				avgTemp = avgTemp / len(tempSamples)
 
+				maxHistory := max(8, smartCfg.LearnWindow+smartCfg.LearnDelay+4)
+				recentAvgTemps = append(recentAvgTemps, avgTemp)
+				if len(recentAvgTemps) > maxHistory {
+					recentAvgTemps = recentAvgTemps[len(recentAvgTemps)-maxHistory:]
+				}
+
 				baseRPM := temperature.CalculateTargetRPM(avgTemp, cfg.FanCurve)
 				targetRPM := baseRPM
 
@@ -1194,9 +1201,19 @@ func (a *CoreApp) startTemperatureMonitoring() {
 				}
 
 				if smartCfg.Enabled && smartCfg.Learning {
-					updatedOffsets, changed := smartcontrol.LearnCurveOffsets(avgTemp, lastAvgTemp, cfg.FanCurve, smartCfg)
+					updatedHeatOffsets, updatedCoolOffsets, changed := smartcontrol.LearnCurveOffsets(
+						avgTemp,
+						lastAvgTemp,
+						targetRPM,
+						lastTargetRPM,
+						recentAvgTemps,
+						cfg.FanCurve,
+						smartCfg,
+					)
 					if changed {
-						smartCfg.LearnedOffsets = updatedOffsets
+						smartCfg.LearnedOffsetsHeat = updatedHeatOffsets
+						smartCfg.LearnedOffsetsCool = updatedCoolOffsets
+						smartCfg.LearnedOffsets = smartcontrol.BlendOffsets(updatedHeatOffsets, updatedCoolOffsets)
 						cfg.SmartControl = smartCfg
 						a.configManager.Set(cfg)
 						learningDirty = true

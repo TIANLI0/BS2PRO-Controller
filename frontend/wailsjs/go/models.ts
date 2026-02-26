@@ -62,8 +62,16 @@ export namespace types {
 	    rampUpLimit: number;
 	    rampDownLimit: number;
 	    learnRate: number;
+	    learnWindow: number;
+	    learnDelay: number;
+	    overheatWeight: number;
+	    rpmDeltaWeight: number;
+	    noiseWeight: number;
+	    trendGain: number;
 	    maxLearnOffset: number;
 	    learnedOffsets: number[];
+	    learnedOffsetsHeat: number[];
+	    learnedOffsetsCool: number[];
 	
 	    static createFrom(source: any = {}) {
 	        return new SmartControlConfig(source);
@@ -80,8 +88,16 @@ export namespace types {
 	        this.rampUpLimit = source["rampUpLimit"];
 	        this.rampDownLimit = source["rampDownLimit"];
 	        this.learnRate = source["learnRate"];
+	        this.learnWindow = source["learnWindow"];
+	        this.learnDelay = source["learnDelay"];
+	        this.overheatWeight = source["overheatWeight"];
+	        this.rpmDeltaWeight = source["rpmDeltaWeight"];
+	        this.noiseWeight = source["noiseWeight"];
+	        this.trendGain = source["trendGain"];
 	        this.maxLearnOffset = source["maxLearnOffset"];
 	        this.learnedOffsets = source["learnedOffsets"];
+	        this.learnedOffsetsHeat = source["learnedOffsetsHeat"];
+	        this.learnedOffsetsCool = source["learnedOffsetsCool"];
 	    }
 	}
 	export class FanCurvePoint {

@@ -80,17 +80,25 @@ type LightStripConfig struct {
 
 // SmartControlConfig 智能控温配置
 type SmartControlConfig struct {
-	Enabled        bool  `json:"enabled"`        // 智能耦合控制开关
-	Learning       bool  `json:"learning"`       // 学习开关
-	TargetTemp     int   `json:"targetTemp"`     // 目标温度(°C)
-	Aggressiveness int   `json:"aggressiveness"` // 响应激进度(1-10)
-	Hysteresis     int   `json:"hysteresis"`     // 滞回温差(°C)
-	MinRPMChange   int   `json:"minRpmChange"`   // 最小生效转速变化(RPM)
-	RampUpLimit    int   `json:"rampUpLimit"`    // 每次更新最大升速(RPM)
-	RampDownLimit  int   `json:"rampDownLimit"`  // 每次更新最大降速(RPM)
-	LearnRate      int   `json:"learnRate"`      // 学习速度(1-10)
-	MaxLearnOffset int   `json:"maxLearnOffset"` // 学习偏移上限(RPM)
-	LearnedOffsets []int `json:"learnedOffsets"` // 每个曲线点的学习偏移(RPM)
+	Enabled            bool  `json:"enabled"`            // 智能耦合控制开关
+	Learning           bool  `json:"learning"`           // 学习开关
+	TargetTemp         int   `json:"targetTemp"`         // 目标温度(°C)
+	Aggressiveness     int   `json:"aggressiveness"`     // 响应激进度(1-10)
+	Hysteresis         int   `json:"hysteresis"`         // 滞回温差(°C)
+	MinRPMChange       int   `json:"minRpmChange"`       // 最小生效转速变化(RPM)
+	RampUpLimit        int   `json:"rampUpLimit"`        // 每次更新最大升速(RPM)
+	RampDownLimit      int   `json:"rampDownLimit"`      // 每次更新最大降速(RPM)
+	LearnRate          int   `json:"learnRate"`          // 学习速度(1-10)
+	LearnWindow        int   `json:"learnWindow"`        // 稳态学习窗口(采样点)
+	LearnDelay         int   `json:"learnDelay"`         // 学习延迟步数(处理热惯性)
+	OverheatWeight     int   `json:"overheatWeight"`     // 过热惩罚权重
+	RPMDeltaWeight     int   `json:"rpmDeltaWeight"`     // 转速变化惩罚权重
+	NoiseWeight        int   `json:"noiseWeight"`        // 高转速噪音惩罚权重
+	TrendGain          int   `json:"trendGain"`          // 温升趋势前馈增益
+	MaxLearnOffset     int   `json:"maxLearnOffset"`     // 学习偏移上限(RPM)
+	LearnedOffsets     []int `json:"learnedOffsets"`     // 每个曲线点的学习偏移(RPM)
+	LearnedOffsetsHeat []int `json:"learnedOffsetsHeat"` // 升温工况学习偏移(RPM)
+	LearnedOffsetsCool []int `json:"learnedOffsetsCool"` // 降温工况学习偏移(RPM)
 }
 
 // AppConfig 应用配置
@@ -133,19 +141,29 @@ func GetDefaultLightStripConfig() LightStripConfig {
 // GetDefaultSmartControlConfig 获取默认智能控温配置
 func GetDefaultSmartControlConfig(curve []FanCurvePoint) SmartControlConfig {
 	offsets := make([]int, len(curve))
+	heatOffsets := make([]int, len(curve))
+	coolOffsets := make([]int, len(curve))
 
 	return SmartControlConfig{
-		Enabled:        true,
-		Learning:       true,
-		TargetTemp:     68,
-		Aggressiveness: 5,
-		Hysteresis:     2,
-		MinRPMChange:   50,
-		RampUpLimit:    220,
-		RampDownLimit:  160,
-		LearnRate:      4,
-		MaxLearnOffset: 600,
-		LearnedOffsets: offsets,
+		Enabled:            true,
+		Learning:           true,
+		TargetTemp:         68,
+		Aggressiveness:     5,
+		Hysteresis:         2,
+		MinRPMChange:       50,
+		RampUpLimit:        220,
+		RampDownLimit:      160,
+		LearnRate:          4,
+		LearnWindow:        6,
+		LearnDelay:         2,
+		OverheatWeight:     8,
+		RPMDeltaWeight:     5,
+		NoiseWeight:        4,
+		TrendGain:          5,
+		MaxLearnOffset:     600,
+		LearnedOffsets:     offsets,
+		LearnedOffsetsHeat: heatOffsets,
+		LearnedOffsetsCool: coolOffsets,
 	}
 }
 

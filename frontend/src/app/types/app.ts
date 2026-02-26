@@ -62,8 +62,16 @@ export interface SmartControlConfig {
   rampUpLimit: number;
   rampDownLimit: number;
   learnRate: number;
+  learnWindow: number;
+  learnDelay: number;
+  overheatWeight: number;
+  rpmDeltaWeight: number;
+  noiseWeight: number;
+  trendGain: number;
   maxLearnOffset: number;
   learnedOffsets: number[];
+  learnedOffsetsHeat: number[];
+  learnedOffsetsCool: number[];
 }
 
 // 调试信息

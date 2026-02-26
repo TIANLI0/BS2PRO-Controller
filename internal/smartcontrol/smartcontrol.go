@@ -39,6 +39,30 @@ func NormalizeConfig(cfg types.SmartControlConfig, curve []types.FanCurvePoint) 
 		cfg.LearnRate = defaults.LearnRate
 		changed = true
 	}
+	if cfg.LearnWindow < 3 || cfg.LearnWindow > 24 {
+		cfg.LearnWindow = defaults.LearnWindow
+		changed = true
+	}
+	if cfg.LearnDelay < 1 || cfg.LearnDelay > 8 {
+		cfg.LearnDelay = defaults.LearnDelay
+		changed = true
+	}
+	if cfg.OverheatWeight < 1 || cfg.OverheatWeight > 12 {
+		cfg.OverheatWeight = defaults.OverheatWeight
+		changed = true
+	}
+	if cfg.RPMDeltaWeight < 1 || cfg.RPMDeltaWeight > 12 {
+		cfg.RPMDeltaWeight = defaults.RPMDeltaWeight
+		changed = true
+	}
+	if cfg.NoiseWeight < 0 || cfg.NoiseWeight > 12 {
+		cfg.NoiseWeight = defaults.NoiseWeight
+		changed = true
+	}
+	if cfg.TrendGain < 1 || cfg.TrendGain > 12 {
+		cfg.TrendGain = defaults.TrendGain
+		changed = true
+	}
 	if cfg.MaxLearnOffset < 100 || cfg.MaxLearnOffset > 2000 {
 		cfg.MaxLearnOffset = defaults.MaxLearnOffset
 		changed = true
@@ -51,8 +75,36 @@ func NormalizeConfig(cfg types.SmartControlConfig, curve []types.FanCurvePoint) 
 		changed = true
 	}
 
+	if len(cfg.LearnedOffsetsHeat) != len(curve) {
+		newHeatOffsets := make([]int, len(curve))
+		if len(cfg.LearnedOffsetsHeat) > 0 {
+			copy(newHeatOffsets, cfg.LearnedOffsetsHeat)
+		} else {
+			copy(newHeatOffsets, cfg.LearnedOffsets)
+		}
+		cfg.LearnedOffsetsHeat = newHeatOffsets
+		changed = true
+	}
+
+	if len(cfg.LearnedOffsetsCool) != len(curve) {
+		newCoolOffsets := make([]int, len(curve))
+		if len(cfg.LearnedOffsetsCool) > 0 {
+			copy(newCoolOffsets, cfg.LearnedOffsetsCool)
+		} else {
+			copy(newCoolOffsets, cfg.LearnedOffsets)
+		}
+		cfg.LearnedOffsetsCool = newCoolOffsets
+		changed = true
+	}
+
 	if cfg.RampDownLimit > cfg.RampUpLimit+300 {
 		cfg.RampDownLimit = cfg.RampUpLimit + 300
+		changed = true
+	}
+
+	blended := BlendOffsets(cfg.LearnedOffsetsHeat, cfg.LearnedOffsetsCool)
+	if !intSlicesEqual(blended, cfg.LearnedOffsets) {
+		cfg.LearnedOffsets = blended
 		changed = true
 	}
 
@@ -62,9 +114,12 @@ func NormalizeConfig(cfg types.SmartControlConfig, curve []types.FanCurvePoint) 
 // CalculateTargetRPM 计算智能目标转速
 func CalculateTargetRPM(avgTemp, lastAvgTemp int, curve []types.FanCurvePoint, cfg types.SmartControlConfig) int {
 	effectiveCurve := make([]types.FanCurvePoint, len(curve))
+	activeOffsets := selectOffsetsForTrend(avgTemp-lastAvgTemp, cfg)
 	for i, point := range curve {
 		offset := 0
-		if i < len(cfg.LearnedOffsets) {
+		if i < len(activeOffsets) {
+			offset = activeOffsets[i]
+		} else if i < len(cfg.LearnedOffsets) {
 			offset = cfg.LearnedOffsets[i]
 		}
 		effectiveCurve[i] = types.FanCurvePoint{
@@ -87,68 +142,200 @@ func CalculateTargetRPM(avgTemp, lastAvgTemp int, curve []types.FanCurvePoint, c
 
 	tempDelta := avgTemp - lastAvgTemp
 	if tempDelta > 0 {
-		targetRPM += tempDelta * (8 + cfg.Aggressiveness*3)
+		targetRPM += tempDelta * (6 + cfg.Aggressiveness*2 + cfg.TrendGain*2)
+	}
+	if tempDelta < 0 {
+		targetRPM += tempDelta * (1 + cfg.TrendGain/2)
 	}
 
 	if avgTemp >= cfg.TargetTemp+15 {
-		targetRPM += 350
+		targetRPM += 320 + cfg.OverheatWeight*15
 	}
 
 	return clampInt(targetRPM, 1000, 4000)
 }
 
 // LearnCurveOffsets 学习并更新曲线偏移
-func LearnCurveOffsets(avgTemp, lastAvgTemp int, curve []types.FanCurvePoint, cfg types.SmartControlConfig) ([]int, bool) {
+func LearnCurveOffsets(avgTemp, lastAvgTemp, targetRPM, lastTargetRPM int, recentAvgTemps []int, curve []types.FanCurvePoint, cfg types.SmartControlConfig) ([]int, []int, bool) {
 	if len(curve) == 0 {
-		return cfg.LearnedOffsets, false
+		return cfg.LearnedOffsetsHeat, cfg.LearnedOffsetsCool, false
 	}
 
-	offsets := make([]int, len(curve))
-	copy(offsets, cfg.LearnedOffsets)
+	heatOffsets := make([]int, len(curve))
+	coolOffsets := make([]int, len(curve))
+	copy(heatOffsets, cfg.LearnedOffsetsHeat)
+	copy(coolOffsets, cfg.LearnedOffsetsCool)
 
-	idx := nearestCurveIndex(avgTemp, curve)
+	if len(heatOffsets) != len(curve) {
+		heatOffsets = make([]int, len(curve))
+		copy(heatOffsets, cfg.LearnedOffsets)
+	}
+	if len(coolOffsets) != len(curve) {
+		coolOffsets = make([]int, len(curve))
+		copy(coolOffsets, cfg.LearnedOffsets)
+	}
+
+	learningWindow := max(3, cfg.LearnWindow)
+	learningDelay := max(1, cfg.LearnDelay)
+	minRequired := learningWindow + learningDelay
+	if len(recentAvgTemps) < minRequired {
+		return heatOffsets, coolOffsets, false
+	}
+
+	windowStart := len(recentAvgTemps) - minRequired
+	windowEnd := windowStart + learningWindow
+	learningWindowTemps := recentAvgTemps[windowStart:windowEnd]
+	if !isStableLearningWindow(learningWindowTemps, cfg.Hysteresis+1) {
+		overheatMargin := cfg.TargetTemp + cfg.Hysteresis + 3
+		if avgTemp < overheatMargin {
+			return heatOffsets, coolOffsets, false
+		}
+	}
+
+	learnTemp := recentAvgTemps[len(recentAvgTemps)-learningDelay]
+	learnPrevTemp := recentAvgTemps[len(recentAvgTemps)-learningDelay-1]
+	learnTempDelta := learnTemp - learnPrevTemp
+
+	idx := nearestCurveIndex(learnTemp, curve)
 	errorTemp := avgTemp - cfg.TargetTemp
 	tempDelta := avgTemp - lastAvgTemp
+	overheat := max(0, avgTemp-(cfg.TargetTemp+cfg.Hysteresis))
+	rpmDelta := absInt(targetRPM - lastTargetRPM)
+	noise := max(0, targetRPM-2800)
 
-	learnGain := 2 + cfg.LearnRate*2
-	delta := errorTemp * learnGain
+	tempTerm := errorTemp * (2 + cfg.LearnRate)
+	overheatTerm := overheat * (1 + cfg.OverheatWeight)
+	trendTerm := tempDelta * (1 + cfg.TrendGain)
 
-	if tempDelta > 0 {
-		delta += tempDelta * (1 + cfg.LearnRate)
+	changePenalty := (rpmDelta / max(20, cfg.MinRPMChange/2)) * cfg.RPMDeltaWeight
+	noisePenalty := (noise / 150) * cfg.NoiseWeight
+
+	delta := tempTerm + overheatTerm + trendTerm - changePenalty - noisePenalty
+
+	if learnTempDelta > 0 {
+		delta += learnTempDelta * (1 + cfg.TrendGain)
+	}
+	if learnTempDelta < 0 {
+		delta += learnTempDelta * max(1, cfg.TrendGain/2)
 	}
 
-	if absInt(delta) < 6 {
-		return offsets, false
+	if errorTemp < -cfg.Hysteresis-1 && tempDelta <= 0 {
+		delta -= 2 + cfg.NoiseWeight/2
 	}
 
-	delta = clampInt(delta, -40, 80)
+	if absInt(delta) < 4 {
+		return heatOffsets, coolOffsets, false
+	}
+
+	delta = clampInt(delta, -35, 60)
+
+	activeOffsets := &coolOffsets
+	passiveOffsets := &heatOffsets
+	if tempDelta >= 0 {
+		activeOffsets = &heatOffsets
+		passiveOffsets = &coolOffsets
+	}
 
 	changed := false
-	newMain := clampInt(offsets[idx]+delta, -cfg.MaxLearnOffset, cfg.MaxLearnOffset)
-	if newMain != offsets[idx] {
-		offsets[idx] = newMain
+	if applyDeltaAtIndex(*activeOffsets, idx, delta, cfg.MaxLearnOffset) {
+		changed = true
+	}
+	if applyDeltaAtIndex(*activeOffsets, idx-1, delta/2, cfg.MaxLearnOffset) {
+		changed = true
+	}
+	if applyDeltaAtIndex(*activeOffsets, idx+1, delta/2, cfg.MaxLearnOffset) {
+		changed = true
+	}
+	if applyDeltaAtIndex(*activeOffsets, idx-2, delta/4, cfg.MaxLearnOffset) {
+		changed = true
+	}
+	if applyDeltaAtIndex(*activeOffsets, idx+2, delta/4, cfg.MaxLearnOffset) {
 		changed = true
 	}
 
-	neighborDelta := delta / 2
-	if neighborDelta != 0 {
-		if idx > 0 {
-			newLeft := clampInt(offsets[idx-1]+neighborDelta, -cfg.MaxLearnOffset, cfg.MaxLearnOffset)
-			if newLeft != offsets[idx-1] {
-				offsets[idx-1] = newLeft
-				changed = true
-			}
+	if applyDeltaAtIndex(*passiveOffsets, idx, delta/5, cfg.MaxLearnOffset) {
+		changed = true
+	}
+
+	return heatOffsets, coolOffsets, changed
+}
+
+// BlendOffsets 将升温/降温偏移融合为兼容视图
+func BlendOffsets(heatOffsets, coolOffsets []int) []int {
+	if len(heatOffsets) == 0 && len(coolOffsets) == 0 {
+		return nil
+	}
+
+	size := max(len(coolOffsets), len(heatOffsets))
+	blended := make([]int, size)
+	for i := 0; i < size; i++ {
+		heat := 0
+		if i < len(heatOffsets) {
+			heat = heatOffsets[i]
 		}
-		if idx < len(offsets)-1 {
-			newRight := clampInt(offsets[idx+1]+neighborDelta, -cfg.MaxLearnOffset, cfg.MaxLearnOffset)
-			if newRight != offsets[idx+1] {
-				offsets[idx+1] = newRight
-				changed = true
-			}
+		cool := 0
+		if i < len(coolOffsets) {
+			cool = coolOffsets[i]
+		}
+		blended[i] = (heat + cool) / 2
+	}
+
+	return blended
+}
+
+func selectOffsetsForTrend(tempDelta int, cfg types.SmartControlConfig) []int {
+	if tempDelta > 0 && len(cfg.LearnedOffsetsHeat) > 0 {
+		return cfg.LearnedOffsetsHeat
+	}
+	if tempDelta < 0 && len(cfg.LearnedOffsetsCool) > 0 {
+		return cfg.LearnedOffsetsCool
+	}
+	if len(cfg.LearnedOffsetsHeat) > 0 && len(cfg.LearnedOffsetsCool) > 0 {
+		return BlendOffsets(cfg.LearnedOffsetsHeat, cfg.LearnedOffsetsCool)
+	}
+	return cfg.LearnedOffsets
+}
+
+func applyDeltaAtIndex(offsets []int, idx, delta, maxLearnOffset int) bool {
+	if delta == 0 || idx < 0 || idx >= len(offsets) {
+		return false
+	}
+	newValue := clampInt(offsets[idx]+delta, -maxLearnOffset, maxLearnOffset)
+	if newValue == offsets[idx] {
+		return false
+	}
+	offsets[idx] = newValue
+	return true
+}
+
+func isStableLearningWindow(temps []int, allowedRange int) bool {
+	if len(temps) == 0 {
+		return false
+	}
+	maxTemp := temps[0]
+	minTemp := temps[0]
+	for i := 1; i < len(temps); i++ {
+		if temps[i] > maxTemp {
+			maxTemp = temps[i]
+		}
+		if temps[i] < minTemp {
+			minTemp = temps[i]
 		}
 	}
 
-	return offsets, changed
+	return maxTemp-minTemp <= max(2, allowedRange)
+}
+
+func intSlicesEqual(a, b []int) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // ApplyRampLimit 应用升降速限幅

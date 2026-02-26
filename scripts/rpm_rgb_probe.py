@@ -37,7 +37,9 @@ def enter_smart_temp_mode(controller: BS2PROHIDController) -> bool:
     return True
 
 
-def read_reports_silent(controller: BS2PROHIDController, duration_sec: float) -> List[bytes]:
+def read_reports_silent(
+    controller: BS2PROHIDController, duration_sec: float
+) -> List[bytes]:
     if controller.device is None:
         return []
 
@@ -135,7 +137,7 @@ def write_outputs(rows: List[Dict[str, object]], output_prefix: Path) -> None:
         writer.writerows(rows)
 
     # 做一个“变化字节”总结，便于对照颜色/区间
-    valid_hex = [bytes.fromhex(r["raw_hex"]) for r in rows if r["raw_hex"]]
+    valid_hex = [bytes.fromhex(r["raw_hex"]) for r in rows if r["raw_hex"]]  # type: ignore
     changed_indices: List[int] = []
     if valid_hex:
         min_len = min(len(b) for b in valid_hex)
@@ -149,7 +151,7 @@ def write_outputs(rows: List[Dict[str, object]], output_prefix: Path) -> None:
         "",
         "## 结论摘要",
         f"- 样本点数: {len(rows)}",
-        f"- 有效 0xEF 报文点数: {sum(1 for r in rows if (r['samples'] or 0) > 0)}",
+        f"- 有效 0xEF 报文点数: {sum(1 for r in rows if (r['samples'] or 0) > 0)}",  # type: ignore
         f"- 回包变化字节索引: {', '.join(str(i) for i in changed_indices) if changed_indices else '无'}",
         "",
         "## 逐点结果",
