@@ -1,0 +1,114 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Firmware: Install Python disasm deps",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "-m",
+        "pip",
+        "install",
+        "capstone"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Firmware: HEX -> BIN",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "-c",
+        "from intelhex import IntelHex; h=IntelHex(r'ota/CH591_For_BS2PRO_Ver0.0.3.5.hex'); h.tofile(r'ota/CH591_For_BS2PRO_Ver0.0.3.5.bin','bin'); print('BIN generated')"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Firmware: BIN -> ASM (Python+Capstone)",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "scripts/disasm_riscv.py",
+        "--input",
+        "ota/CH591_For_BS2PRO_Ver0.0.3.5.bin",
+        "--output",
+        "ota/fw_capstone.asm",
+        "--base",
+        "0x0"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Firmware: Pretty ASM (labels)",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "scripts/prettify_asm.py",
+        "--input",
+        "ota/fw_capstone.asm",
+        "--output",
+        "ota/fw_pretty.asm"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Firmware: BIN -> ELF -> ASM (Requires GNU Toolchain)",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        "$ErrorActionPreference='Stop'; if (-not (Get-Command riscv-none-elf-objcopy -ErrorAction SilentlyContinue)) { throw '未找到 riscv-none-elf-objcopy，请先安装 RISC-V GNU Toolchain 并加入 PATH。' }; if (-not (Get-Command riscv-none-elf-objdump -ErrorAction SilentlyContinue)) { throw '未找到 riscv-none-elf-objdump，请先安装 RISC-V GNU Toolchain 并加入 PATH。' }; riscv-none-elf-objcopy -I binary -O elf32-littleriscv -B riscv ota/CH591_For_BS2PRO_Ver0.0.3.5.bin ota/fw.elf; riscv-none-elf-objdump -D -M no-aliases ota/fw.elf > ota/fw.asm; Write-Host 'ELF/ASM generated: ota/fw.elf, ota/fw.asm'"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Firmware: BIN -> ASM (Auto: GNU or Python)",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        "$ErrorActionPreference='Stop'; if ((Get-Command riscv-none-elf-objcopy -ErrorAction SilentlyContinue) -and (Get-Command riscv-none-elf-objdump -ErrorAction SilentlyContinue)) { riscv-none-elf-objcopy -I binary -O elf32-littleriscv -B riscv ota/CH591_For_BS2PRO_Ver0.0.3.5.bin ota/fw.elf; riscv-none-elf-objdump -D -M no-aliases ota/fw.elf > ota/fw.asm; Write-Host 'GNU toolchain found. Generated: ota/fw.elf, ota/fw.asm' } else { python -m pip install capstone; python scripts/disasm_riscv.py --input ota/CH591_For_BS2PRO_Ver0.0.3.5.bin --output ota/fw_capstone.asm --base 0x0; Write-Host 'GNU toolchain not found. Fallback generated: ota/fw_capstone.asm' }"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Firmware: Full Pipeline (HEX -> BIN -> ELF -> ASM)",
+      "dependsOn": [
+        "Firmware: HEX -> BIN",
+        "Firmware: BIN -> ASM (Auto: GNU or Python)"
+      ],
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "Firmware: Full Pipeline (Python Fallback)",
+      "dependsOn": [
+        "Firmware: HEX -> BIN",
+        "Firmware: Install Python disasm deps",
+        "Firmware: BIN -> ASM (Python+Capstone)",
+        "Firmware: Pretty ASM (labels)"
+      ],
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "Firmware: Open in rizin",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        "$ErrorActionPreference='Stop'; if (-not (Get-Command rizin -ErrorAction SilentlyContinue)) { throw '未找到 rizin，请先安装 rizin 并加入 PATH。' }; rizin -a riscv -b 32 -m 0x0 ota/CH591_For_BS2PRO_Ver0.0.3.5.bin"
+      ],
+      "problemMatcher": []
+    }
+  ]
+}

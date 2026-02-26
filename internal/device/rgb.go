@@ -338,5 +338,6 @@ func (m *Manager) setLightSmartTempLocked() error {
 	if err := m.sendLightCommandLocked(0x44, 0x03, 0x01); err != nil {
 		return err
 	}
-	return m.sendLightCommandLocked(0x44, 0x03, 0x01)
+	time.Sleep(5 * time.Millisecond)
+	return m.sendLightCommandLocked(0x43, 0x03, 0x01)
 }
