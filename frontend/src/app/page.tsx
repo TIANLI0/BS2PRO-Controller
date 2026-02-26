@@ -399,30 +399,6 @@ export default function Home() {
         </div>
       </main>
 
-      {/* 底部信息 */}
-      <footer className="mt-auto border-t border-gray-200 dark:border-gray-700">
-        <div className="max-w-7xl xl:max-w-6xl 2xl:max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="text-center text-sm text-gray-500 dark:text-gray-400">
-            BS2PRO Controller - By{' '}
-            <span 
-              className="cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors group relative"
-              title="点击访问开发者主页"
-              onClick={() => BrowserOpenURL('https://www.tianli0.top/')}
-            >
-              Tianli
-              {/* Tooltip */}
-              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 dark:bg-gray-700 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
-                <div className="text-center">
-                  <div className="font-medium">Tianli</div>
-                  <div className="text-gray-300 dark:text-gray-400">www.tianli0.top</div>
-                </div>
-                {/* 箭头 */}
-                <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900 dark:border-t-gray-700"></div>
-              </div>
-            </span>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }

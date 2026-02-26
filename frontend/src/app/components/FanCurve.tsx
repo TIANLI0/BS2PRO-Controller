@@ -676,27 +676,6 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
           </div>
         </div>
 
-        {/* 操作按钮 */}
-        <div className="flex items-center gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={resetCurve}
-            icon={<RotateCw className="w-4 h-4" />}
-          >
-            重置
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={saveCurve}
-            disabled={!hasUnsavedChanges}
-            loading={isSaving}
-            icon={<Check className="w-4 h-4" />}
-          >
-            保存
-          </Button>
-        </div>
       </div>
 
       {/* 手动挡位控制（仅在关闭智能变频时显示） */}
@@ -1112,8 +1091,30 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
         </div>
       </div>
 
+      {/* 曲线编辑操作 */}
+      <div className="mb-6 flex items-center justify-end gap-2">
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={resetCurve}
+          icon={<RotateCw className="w-4 h-4" />}
+        >
+          重置曲线
+        </Button>
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={saveCurve}
+          disabled={!hasUnsavedChanges}
+          loading={isSaving}
+          icon={<Check className="w-4 h-4" />}
+        >
+          保存曲线
+        </Button>
+      </div>
+
       {/* 控制点网格 */}
-      <div className="mb-6">
+      {/* <div className="mb-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white">控制点调节</h3>
           <span className="text-xs text-gray-500 dark:text-gray-400">
@@ -1171,10 +1172,10 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
             </div>
           ))}
         </div>
-      </div>
+      </div> */}
 
       {/* 说明卡片 */}
-      <div className="p-4 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800">
+      {/* <div className="p-4 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800">
         <div className="flex gap-3">
           <Info className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
           <div className="text-sm text-blue-800 dark:text-blue-200 space-y-2">
@@ -1190,7 +1191,7 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
             </p>
           </div>
         </div>
-      </div>
+      </div> */}
     </Card>
   );
 });
