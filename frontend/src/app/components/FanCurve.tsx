@@ -393,7 +393,7 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
     }
   }, [config.fanCurve, fanData?.maxGear, isInitialized]);
 
-  // 图表数据 - 使用本地状态（含耦合后曲线）
+  // 图表数据 - 使用本地状态（含学习曲线）
   const chartData = useMemo(() => {
     const offsets = smartControl.learnedOffsets || [];
     return localCurve.map((point, index) => {
@@ -906,7 +906,7 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
               <RechartsTooltip 
                 formatter={(value: number, name: string) => {
                   if (name === 'coupledRpm') {
-                    return [`${value} RPM`, '耦合后曲线'];
+                    return [`${value} RPM`, '学习曲线'];
                   }
                   return [`${value} RPM`, '基础曲线'];
                 }}
@@ -971,7 +971,7 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
           </span>
           {showCoupledCurve && (
             <span className="text-xs text-gray-500 dark:text-gray-400 px-3 py-1.5 rounded-full bg-gray-100 dark:bg-gray-700/50">
-              实线：基础曲线 · 虚线：耦合后曲线
+              实线：基础曲线 · 虚线：学习曲线
             </span>
           )}
         </div>
