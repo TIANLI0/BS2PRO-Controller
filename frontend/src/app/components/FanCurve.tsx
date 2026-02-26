@@ -708,7 +708,7 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
               <ToggleSwitch
                 enabled={smartControl.enabled}
                 onChange={(enabled) => updateSmartControl({ enabled })}
-                label="智能耦合"
+                label="智能控温"
                 color="blue"
               />
               <ToggleSwitch

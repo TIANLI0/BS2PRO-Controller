@@ -118,9 +118,6 @@ BS2PRO-Controller/
 ├── wails.json             # Wails 配置文件
 ├── build.bat              # Windows 构建脚本
 ├── build_bridge.bat       # 桥接程序构建脚本
-├── lib/
-│   └── LibreHardwareMonitorLib.dll  # 温度监控核心库
-│
 ├── cmd/
 │   └── core/              # 核心服务程序
 │       ├── main.go        # 服务入口

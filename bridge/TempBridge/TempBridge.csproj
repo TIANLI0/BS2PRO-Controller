@@ -17,17 +17,7 @@
   </ItemGroup>
   
   <ItemGroup>
-    <Reference Include="LibreHardwareMonitorLib">
-      <HintPath>..\..\lib\LibreHardwareMonitorLib.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
+    <PackageReference Include="LibreHardwareMonitorLib" Version="0.9.4" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Content Include="..\..\lib\LibreHardwareMonitorLib.dll">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-      <Link>LibreHardwareMonitorLib.dll</Link>
-    </Content>
   </ItemGroup>
 </Project>
