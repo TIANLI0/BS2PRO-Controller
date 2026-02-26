@@ -3,6 +3,7 @@ package tray
 
 import (
 	"fmt"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -92,6 +93,9 @@ func (m *Manager) Init() {
 	m.logInfo("正在初始化系统托盘")
 
 	go func() {
+		runtime.LockOSThread()
+		defer runtime.UnlockOSThread()
+
 		defer func() {
 			if r := recover(); r != nil {
 				m.logError("托盘初始化过程中发生panic: %v", r)
