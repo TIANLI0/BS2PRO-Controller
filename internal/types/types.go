@@ -99,6 +99,8 @@ type SmartControlConfig struct {
 	LearnedOffsets     []int `json:"learnedOffsets"`     // 每个曲线点的学习偏移(RPM)
 	LearnedOffsetsHeat []int `json:"learnedOffsetsHeat"` // 升温工况学习偏移(RPM)
 	LearnedOffsetsCool []int `json:"learnedOffsetsCool"` // 降温工况学习偏移(RPM)
+	LearnedRateHeat    []int `json:"learnedRateHeat"`    // 升温变化率学习偏置(分桶RPM)
+	LearnedRateCool    []int `json:"learnedRateCool"`    // 降温变化率学习偏置(分桶RPM)
 }
 
 // AppConfig 应用配置
@@ -143,6 +145,8 @@ func GetDefaultSmartControlConfig(curve []FanCurvePoint) SmartControlConfig {
 	offsets := make([]int, len(curve))
 	heatOffsets := make([]int, len(curve))
 	coolOffsets := make([]int, len(curve))
+	heatRate := make([]int, 7)
+	coolRate := make([]int, 7)
 
 	return SmartControlConfig{
 		Enabled:            true,
@@ -164,6 +168,8 @@ func GetDefaultSmartControlConfig(curve []FanCurvePoint) SmartControlConfig {
 		LearnedOffsets:     offsets,
 		LearnedOffsetsHeat: heatOffsets,
 		LearnedOffsetsCool: coolOffsets,
+		LearnedRateHeat:    heatRate,
+		LearnedRateCool:    coolRate,
 	}
 }
 

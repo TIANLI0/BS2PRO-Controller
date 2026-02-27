@@ -72,6 +72,8 @@ export interface SmartControlConfig {
   learnedOffsets: number[];
   learnedOffsetsHeat: number[];
   learnedOffsetsCool: number[];
+  learnedRateHeat: number[];
+  learnedRateCool: number[];
 }
 
 // 调试信息

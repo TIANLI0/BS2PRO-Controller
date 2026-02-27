@@ -1181,31 +1181,32 @@ func (a *CoreApp) startTemperatureMonitoring() {
 
 				baseRPM := temperature.CalculateTargetRPM(avgTemp, cfg.FanCurve)
 				targetRPM := baseRPM
+				prevTargetRPM := lastTargetRPM
 
 				if smartCfg.Enabled {
 					targetRPM = smartcontrol.CalculateTargetRPM(avgTemp, lastAvgTemp, cfg.FanCurve, smartCfg)
 				}
 
-				if lastTargetRPM > 0 {
-					targetRPM = smartcontrol.ApplyRampLimit(targetRPM, lastTargetRPM, smartCfg.RampUpLimit, smartCfg.RampDownLimit)
+				if prevTargetRPM > 0 {
+					targetRPM = smartcontrol.ApplyRampLimit(targetRPM, prevTargetRPM, smartCfg.RampUpLimit, smartCfg.RampDownLimit)
 				}
 
-				deltaRPM := targetRPM - lastTargetRPM
+				deltaRPM := targetRPM - prevTargetRPM
 				if deltaRPM < 0 {
 					deltaRPM = -deltaRPM
 				}
 
-				if targetRPM > 0 && (lastTargetRPM == 0 || deltaRPM >= smartCfg.MinRPMChange) {
+				if targetRPM > 0 && (prevTargetRPM == 0 || deltaRPM >= smartCfg.MinRPMChange) {
 					a.deviceManager.SetFanSpeed(targetRPM)
 					lastTargetRPM = targetRPM
 				}
 
-				if smartCfg.Enabled && smartCfg.Learning {
-					updatedHeatOffsets, updatedCoolOffsets, changed := smartcontrol.LearnCurveOffsets(
+				if smartCfg.Enabled {
+					updatedHeatOffsets, updatedCoolOffsets, updatedRateHeat, updatedRateCool, changed := smartcontrol.LearnCurveOffsets(
 						avgTemp,
 						lastAvgTemp,
 						targetRPM,
-						lastTargetRPM,
+						prevTargetRPM,
 						recentAvgTemps,
 						cfg.FanCurve,
 						smartCfg,
@@ -1213,6 +1214,8 @@ func (a *CoreApp) startTemperatureMonitoring() {
 					if changed {
 						smartCfg.LearnedOffsetsHeat = updatedHeatOffsets
 						smartCfg.LearnedOffsetsCool = updatedCoolOffsets
+						smartCfg.LearnedRateHeat = updatedRateHeat
+						smartCfg.LearnedRateCool = updatedRateCool
 						smartCfg.LearnedOffsets = smartcontrol.BlendOffsets(updatedHeatOffsets, updatedCoolOffsets)
 						cfg.SmartControl = smartCfg
 						a.configManager.Set(cfg)

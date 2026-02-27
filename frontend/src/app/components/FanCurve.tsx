@@ -260,6 +260,8 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
   const [isInitialized, setIsInitialized] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [tempTrendDelta, setTempTrendDelta] = useState(0);
+  const [trendPreviewMode, setTrendPreviewMode] = useState<'auto' | 'heat' | 'cool'>('auto');
   
   // 拖拽状态
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -267,6 +269,7 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
   
   // Chart ref for coordinate calculations
   const chartRef = useRef<HTMLDivElement>(null);
+  const previousMaxTempRef = useRef<number | null>(null);
   const chartBoundsRef = useRef<{ top: number; bottom: number; left: number; right: number; yMin: number; yMax: number } | null>(null);
 
   // 静态 RPM 范围 - 仅在首次初始化时计算
@@ -282,12 +285,18 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
   const smartControl = useMemo(() => {
     const curveLength = config.fanCurve?.length || localCurve.length || 14;
     const defaultOffsets = Array.from({ length: curveLength }, () => 0);
+    const defaultRateOffsets = Array.from({ length: 7 }, () => 0);
     const existing = config.smartControl;
 
     const normalizeOffsets = (source?: number[]) =>
       Array.isArray(source)
         ? [...source.slice(0, curveLength), ...defaultOffsets].slice(0, curveLength)
         : defaultOffsets;
+
+    const normalizeRateOffsets = (source?: number[]) =>
+      Array.isArray(source)
+        ? [...source.slice(0, 7), ...defaultRateOffsets].slice(0, 7)
+        : defaultRateOffsets;
 
     if (!existing) {
       return {
@@ -310,11 +319,14 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
         learnedOffsets: defaultOffsets,
         learnedOffsetsHeat: defaultOffsets,
         learnedOffsetsCool: defaultOffsets,
+        learnedRateHeat: defaultRateOffsets,
+        learnedRateCool: defaultRateOffsets,
       };
     }
 
     return {
       ...existing,
+      learning: true,
       learnWindow: existing.learnWindow ?? 6,
       learnDelay: existing.learnDelay ?? 2,
       overheatWeight: existing.overheatWeight ?? 8,
@@ -324,25 +336,71 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
       learnedOffsets: normalizeOffsets(existing.learnedOffsets),
       learnedOffsetsHeat: normalizeOffsets(existing.learnedOffsetsHeat),
       learnedOffsetsCool: normalizeOffsets(existing.learnedOffsetsCool),
+      learnedRateHeat: normalizeRateOffsets(existing.learnedRateHeat),
+      learnedRateCool: normalizeRateOffsets(existing.learnedRateCool),
     };
   }, [config.fanCurve, config.smartControl, localCurve.length]);
 
+  const effectiveTrendDelta = useMemo(() => {
+    if (trendPreviewMode === 'heat') {
+      return 1;
+    }
+    if (trendPreviewMode === 'cool') {
+      return -1;
+    }
+    return tempTrendDelta;
+  }, [trendPreviewMode, tempTrendDelta]);
+
+  useEffect(() => {
+    const maxTemp = temperature?.maxTemp;
+    if (maxTemp === null || maxTemp === undefined || maxTemp <= 0) {
+      return;
+    }
+
+    const previous = previousMaxTempRef.current;
+    if (previous !== null) {
+      setTempTrendDelta(maxTemp - previous);
+    }
+    previousMaxTempRef.current = maxTemp;
+  }, [temperature?.maxTemp]);
+
   const learningInsight = useMemo(() => {
     const offsets = smartControl.learnedOffsets || [];
+    const heatOffsets = smartControl.learnedOffsetsHeat || [];
+    const coolOffsets = smartControl.learnedOffsetsCool || [];
+    const rateHeat = smartControl.learnedRateHeat || [];
+    const rateCool = smartControl.learnedRateCool || [];
+
+    const rateBucketValues = [-3, -2, -1, 0, 1, 2, 3];
+    const rateBucketLabels = ['≤-3', '-2', '-1', '0', '+1', '+2', '≥+3'];
+
+    const rateBucketIndex = Math.max(0, Math.min(6, effectiveTrendDelta + 3));
+    const activeRateBias = effectiveTrendDelta >= 0
+      ? (rateHeat[rateBucketIndex] ?? 0)
+      : (rateCool[rateBucketIndex] ?? 0);
+
     const points = (config.fanCurve && config.fanCurve.length > 0 ? config.fanCurve : localCurve)
       .map((point, index) => ({
         index,
         temperature: point.temperature,
         offset: offsets[index] ?? 0,
+        heatOffset: heatOffsets[index] ?? 0,
+        coolOffset: coolOffsets[index] ?? 0,
       }));
 
     if (points.length === 0) {
       return {
         currentOffset: 0,
+        currentHeatOffset: 0,
+        currentCoolOffset: 0,
+        activeRateBias: 0,
         currentTempLabel: '--',
         maxAbsOffset: 0,
         avgAbsOffset: 0,
+        maxAbsHeatOffset: 0,
+        maxAbsCoolOffset: 0,
         significantPoints: [] as Array<{ temperature: number; offset: number }>,
+        rateBuckets: [] as Array<{ label: string; heat: number; cool: number; isActive: boolean }>,
       };
     }
 
@@ -357,9 +415,13 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
     }
 
     const absOffsets = points.map((item) => Math.abs(item.offset));
+    const absHeatOffsets = points.map((item) => Math.abs(item.heatOffset));
+    const absCoolOffsets = points.map((item) => Math.abs(item.coolOffset));
     const totalAbsOffset = absOffsets.reduce((sum, value) => sum + value, 0);
     const avgAbsOffset = Math.round(totalAbsOffset / points.length);
     const maxAbsOffset = absOffsets.reduce((maxValue, value) => Math.max(maxValue, value), 0);
+    const maxAbsHeatOffset = absHeatOffsets.reduce((maxValue, value) => Math.max(maxValue, value), 0);
+    const maxAbsCoolOffset = absCoolOffsets.reduce((maxValue, value) => Math.max(maxValue, value), 0);
 
     const significantPoints = points
       .filter((item) => Math.abs(item.offset) >= 20)
@@ -367,14 +429,37 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
       .slice(0, 6)
       .map((item) => ({ temperature: item.temperature, offset: item.offset }));
 
+    const rateBuckets = rateBucketValues.map((value, index) => ({
+      label: rateBucketLabels[index],
+      heat: rateHeat[index] ?? 0,
+      cool: rateCool[index] ?? 0,
+      isActive: index === rateBucketIndex,
+    }));
+
     return {
       currentOffset: currentPoint.offset,
+      currentHeatOffset: currentPoint.heatOffset,
+      currentCoolOffset: currentPoint.coolOffset,
+      activeRateBias,
       currentTempLabel: `${currentPoint.temperature}°C`,
       maxAbsOffset,
       avgAbsOffset,
+      maxAbsHeatOffset,
+      maxAbsCoolOffset,
       significantPoints,
+      rateBuckets,
     };
-  }, [config.fanCurve, localCurve, smartControl.learnedOffsets, temperature?.maxTemp]);
+  }, [
+    config.fanCurve,
+    localCurve,
+    smartControl.learnedOffsets,
+    smartControl.learnedOffsetsHeat,
+    smartControl.learnedOffsetsCool,
+    smartControl.learnedRateHeat,
+    smartControl.learnedRateCool,
+    effectiveTrendDelta,
+    temperature?.maxTemp,
+  ]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -414,9 +499,25 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
 
   // 图表数据 - 使用本地状态（含学习曲线）
   const chartData = useMemo(() => {
-    const offsets = smartControl.learnedOffsets || [];
+    const blendedOffsets = smartControl.learnedOffsets || [];
+    const heatOffsets = smartControl.learnedOffsetsHeat || [];
+    const coolOffsets = smartControl.learnedOffsetsCool || [];
+    const rateHeat = smartControl.learnedRateHeat || [];
+    const rateCool = smartControl.learnedRateCool || [];
+
+    const rateBucketIndex = Math.max(0, Math.min(6, effectiveTrendDelta + 3));
+    const trendOffsets = effectiveTrendDelta > 0
+      ? heatOffsets
+      : effectiveTrendDelta < 0
+      ? coolOffsets
+      : blendedOffsets;
+    const trendRateBias = effectiveTrendDelta >= 0
+      ? (rateHeat[rateBucketIndex] ?? 0)
+      : (rateCool[rateBucketIndex] ?? 0);
+
     return localCurve.map((point, index) => {
-      const offset = offsets[index] ?? 0;
+      const baseOffset = trendOffsets[index] ?? blendedOffsets[index] ?? 0;
+      const offset = baseOffset + trendRateBias;
       return {
         temperature: point.temperature,
         rpm: point.rpm,
@@ -424,7 +525,17 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
         index,
       };
     });
-  }, [localCurve, smartControl.learnedOffsets, rpmRange.max, rpmRange.min]);
+  }, [
+    localCurve,
+    smartControl.learnedOffsets,
+    smartControl.learnedOffsetsHeat,
+    smartControl.learnedOffsetsCool,
+    smartControl.learnedRateHeat,
+    smartControl.learnedRateCool,
+    effectiveTrendDelta,
+    rpmRange.max,
+    rpmRange.min,
+  ]);
 
   const showCoupledCurve = config.autoControl && smartControl.enabled;
 
@@ -566,6 +677,7 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
       const mergedSmartControl = {
         ...smartControl,
         ...patch,
+        learning: true,
       };
 
       const newConfig = types.AppConfig.createFrom({
@@ -581,10 +693,13 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
 
   const resetLearning = useCallback(() => {
     const resetOffsets = Array.from({ length: localCurve.length || config.fanCurve.length || 14 }, () => 0);
+    const resetRateOffsets = Array.from({ length: 7 }, () => 0);
     updateSmartControl({
       learnedOffsets: resetOffsets,
       learnedOffsetsHeat: resetOffsets,
       learnedOffsetsCool: resetOffsets,
+      learnedRateHeat: resetRateOffsets,
+      learnedRateCool: resetRateOffsets,
     });
   }, [config.fanCurve.length, localCurve.length, updateSmartControl]);
 
@@ -646,6 +761,7 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
   }, [dragIndex, handleDragStart]);
 
   return (
+    <TooltipProvider>
     <Card className="p-6">
       {/* 头部 */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
@@ -713,16 +829,9 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
                 label="智能控温"
                 color="blue"
               />
-              <ToggleSwitch
-                enabled={smartControl.learning}
-                onChange={(learning) => updateSmartControl({ learning })}
-                label="学习"
-                color="green"
-              />
             </div>
           </div>
 
-          <TooltipProvider>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
@@ -779,118 +888,149 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-                <ConfigTooltipLabel
-                  label="学习窗口"
-                  description="学习前需要连续观察的稳定采样点数量。窗口越大越稳，但学习会更慢。"
-                />
-                <span>{smartControl.learnWindow}</span>
+          {config.debugMode && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                    <ConfigTooltipLabel
+                      label="学习曲线预览"
+                      description="仅用于调试显示：可强制按升温或降温工况预览学习曲线，不影响后端真实控制逻辑。"
+                    />
+                    <span>{trendPreviewMode === 'auto' ? '自动' : trendPreviewMode === 'heat' ? '升温' : '降温'}</span>
+                  </div>
+                  <Select
+                    value={trendPreviewMode}
+                    onChange={(value) => setTrendPreviewMode(value as 'auto' | 'heat' | 'cool')}
+                    options={[
+                      { value: 'auto', label: '自动（实时ΔT）' },
+                      { value: 'heat', label: '强制升温态' },
+                      { value: 'cool', label: '强制降温态' },
+                    ]}
+                    size="sm"
+                  />
+                </div>
               </div>
-              <Slider
-                value={smartControl.learnWindow}
-                onChange={(learnWindow) => updateSmartControl({ learnWindow })}
-                min={3}
-                max={24}
-                step={1}
-                showValue={false}
-              />
-            </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-                <ConfigTooltipLabel
-                  label="学习延迟"
-                  description="将学习归因到若干步之前的温度状态，用于补偿散热系统热惯性。"
-                />
-                <span>{smartControl.learnDelay}</span>
-              </div>
-              <Slider
-                value={smartControl.learnDelay}
-                onChange={(learnDelay) => updateSmartControl({ learnDelay })}
-                min={1}
-                max={8}
-                step={1}
-                showValue={false}
-              />
-            </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                    <ConfigTooltipLabel
+                      label="学习窗口"
+                      description="学习前需要连续观察的稳定采样点数量。窗口越大越稳，但学习会更慢。"
+                    />
+                    <span>{smartControl.learnWindow}</span>
+                  </div>
+                  <Slider
+                    value={smartControl.learnWindow}
+                    onChange={(learnWindow) => updateSmartControl({ learnWindow })}
+                    min={3}
+                    max={24}
+                    step={1}
+                    showValue={false}
+                  />
+                </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-                <ConfigTooltipLabel
-                  label="温升趋势增益"
-                  description="温度上升时的前馈增益。数值越大，升温阶段会更早提高转速。"
-                />
-                <span>{smartControl.trendGain}</span>
-              </div>
-              <Slider
-                value={smartControl.trendGain}
-                onChange={(trendGain) => updateSmartControl({ trendGain })}
-                min={1}
-                max={12}
-                step={1}
-                showValue={false}
-              />
-            </div>
-          </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                    <ConfigTooltipLabel
+                      label="学习延迟"
+                      description="将学习归因到若干步之前的温度状态，用于补偿散热系统热惯性。"
+                    />
+                    <span>{smartControl.learnDelay}</span>
+                  </div>
+                  <Slider
+                    value={smartControl.learnDelay}
+                    onChange={(learnDelay) => updateSmartControl({ learnDelay })}
+                    min={1}
+                    max={8}
+                    step={1}
+                    showValue={false}
+                  />
+                </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-                <ConfigTooltipLabel
-                  label="过热惩罚"
-                  description="超过目标温度后，对升速学习的惩罚增益。数值越大，过热时会更激进提速。"
-                />
-                <span>{smartControl.overheatWeight}</span>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                    <ConfigTooltipLabel
+                      label="温升趋势增益"
+                      description="温度上升时的前馈增益。数值越大，升温阶段会更早提高转速。"
+                    />
+                    <span>{smartControl.trendGain}</span>
+                  </div>
+                  <Slider
+                    value={smartControl.trendGain}
+                    onChange={(trendGain) => updateSmartControl({ trendGain })}
+                    min={1}
+                    max={12}
+                    step={1}
+                    showValue={false}
+                  />
+                </div>
               </div>
-              <Slider
-                value={smartControl.overheatWeight}
-                onChange={(overheatWeight) => updateSmartControl({ overheatWeight })}
-                min={1}
-                max={12}
-                step={1}
-                showValue={false}
-              />
-            </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-                <ConfigTooltipLabel
-                  label="转速变化惩罚"
-                  description="惩罚频繁或大幅度 RPM 变化，降低来回拉扯。数值越大越平滑。"
-                />
-                <span>{smartControl.rpmDeltaWeight}</span>
-              </div>
-              <Slider
-                value={smartControl.rpmDeltaWeight}
-                onChange={(rpmDeltaWeight) => updateSmartControl({ rpmDeltaWeight })}
-                min={1}
-                max={12}
-                step={1}
-                showValue={false}
-              />
-            </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                    <ConfigTooltipLabel
+                      label="过热惩罚"
+                      description="超过目标温度后，对升速学习的惩罚增益。数值越大，过热时会更激进提速。"
+                    />
+                    <span>{smartControl.overheatWeight}</span>
+                  </div>
+                  <Slider
+                    value={smartControl.overheatWeight}
+                    onChange={(overheatWeight) => updateSmartControl({ overheatWeight })}
+                    min={1}
+                    max={12}
+                    step={1}
+                    showValue={false}
+                  />
+                </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-                <ConfigTooltipLabel
-                  label="噪音惩罚"
-                  description="高转速区间的噪音惩罚。数值越大越偏向保持安静，可能牺牲部分温度余量。"
-                />
-                <span>{smartControl.noiseWeight}</span>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                    <ConfigTooltipLabel
+                      label="转速变化惩罚"
+                      description="惩罚频繁或大幅度 RPM 变化，降低来回拉扯。数值越大越平滑。"
+                    />
+                    <span>{smartControl.rpmDeltaWeight}</span>
+                  </div>
+                  <Slider
+                    value={smartControl.rpmDeltaWeight}
+                    onChange={(rpmDeltaWeight) => updateSmartControl({ rpmDeltaWeight })}
+                    min={1}
+                    max={12}
+                    step={1}
+                    showValue={false}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                    <ConfigTooltipLabel
+                      label="噪音惩罚"
+                      description="高转速区间的噪音惩罚。数值越大越偏向保持安静，可能牺牲部分温度余量。"
+                    />
+                    <span>{smartControl.noiseWeight}</span>
+                  </div>
+                  <Slider
+                    value={smartControl.noiseWeight}
+                    onChange={(noiseWeight) => updateSmartControl({ noiseWeight })}
+                    min={0}
+                    max={12}
+                    step={1}
+                    showValue={false}
+                  />
+                </div>
               </div>
-              <Slider
-                value={smartControl.noiseWeight}
-                onChange={(noiseWeight) => updateSmartControl({ noiseWeight })}
-                min={0}
-                max={12}
-                step={1}
-                showValue={false}
-              />
+            </>
+          )}
+
+          {!config.debugMode && (
+            <div className="text-xs text-gray-500 dark:text-gray-400">
+              高级学习参数已收纳到调试模式，可在控制面板开启“调试模式”后进行微调。
             </div>
-          </div>
-          </TooltipProvider>
+          )}
 
           <div className="flex items-center justify-end">
             <Button
@@ -902,6 +1042,7 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
             </Button>
           </div>
 
+          {smartControl.enabled && (
           <div className="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 p-3 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-xs font-medium text-gray-500 dark:text-gray-400">学习状态可视化</span>
@@ -940,6 +1081,58 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
               </div>
             </div>
 
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div className="rounded-md bg-gray-50 dark:bg-gray-700/50 px-3 py-2">
+                <div className="text-[11px] text-gray-500 dark:text-gray-400">当前升温/降温偏移</div>
+                <div className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                  +{learningInsight.currentHeatOffset} / {learningInsight.currentCoolOffset > 0 ? '+' : ''}{learningInsight.currentCoolOffset} RPM
+                </div>
+              </div>
+
+              <div className="rounded-md bg-gray-50 dark:bg-gray-700/50 px-3 py-2">
+                <div className="text-[11px] text-gray-500 dark:text-gray-400">升温最大学习偏移</div>
+                <div className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                  {learningInsight.maxAbsHeatOffset} RPM
+                </div>
+              </div>
+
+              <div className="rounded-md bg-gray-50 dark:bg-gray-700/50 px-3 py-2">
+                <div className="text-[11px] text-gray-500 dark:text-gray-400">降温最大学习偏移</div>
+                <div className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                  {learningInsight.maxAbsCoolOffset} RPM
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-md bg-gray-50 dark:bg-gray-700/50 px-3 py-2 space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="text-[11px] text-gray-500 dark:text-gray-400">
+                  <ConfigTooltipLabel
+                    label="变化率分桶学习偏置"
+                    description="按温度变化率 ΔT 分桶学习：-3 到 +3。当前温度趋势会选用对应分桶偏置叠加到学习曲线，因此同一温度下升温与降温可能显示不同目标转速。"
+                  />
+                </div>
+                <div className="text-[11px] text-gray-600 dark:text-gray-300">
+                  当前变化率偏置 {learningInsight.activeRateBias > 0 ? '+' : ''}{learningInsight.activeRateBias} RPM（ΔT={effectiveTrendDelta > 0 ? '+' : ''}{effectiveTrendDelta}）
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {learningInsight.rateBuckets.map((bucket) => (
+                  <span
+                    key={`rate-bucket-${bucket.label}`}
+                    className={clsx(
+                      'text-[11px] px-2.5 py-1 rounded-full border',
+                      bucket.isActive
+                        ? 'border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-900/20 dark:text-blue-300'
+                        : 'border-gray-200 bg-white text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                    )}
+                  >
+                    ΔT {bucket.label} · H {bucket.heat > 0 ? '+' : ''}{bucket.heat} / C {bucket.cool > 0 ? '+' : ''}{bucket.cool}
+                  </span>
+                ))}
+              </div>
+            </div>
+
             {learningInsight.significantPoints.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {learningInsight.significantPoints.map((item) => (
@@ -957,9 +1150,10 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
                 ))}
               </div>
             ) : (
-              <div className="text-xs text-gray-500 dark:text-gray-400">暂未形成显著学习偏移（|偏移| &lt; 20 RPM）。</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">暂未形成显著学习偏移（|偏移| &lt; 20 RPM），前期看起来会接近原曲线，持续运行后会逐步拉开差异。</div>
             )}
           </div>
+          )}
         </div>
       )}
 
@@ -1193,6 +1387,7 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
         </div>
       </div> */}
     </Card>
+    </TooltipProvider>
   );
 });
 

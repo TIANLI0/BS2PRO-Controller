@@ -72,6 +72,8 @@ export namespace types {
 	    learnedOffsets: number[];
 	    learnedOffsetsHeat: number[];
 	    learnedOffsetsCool: number[];
+	    learnedRateHeat: number[];
+	    learnedRateCool: number[];
 	
 	    static createFrom(source: any = {}) {
 	        return new SmartControlConfig(source);
@@ -98,6 +100,8 @@ export namespace types {
 	        this.learnedOffsets = source["learnedOffsets"];
 	        this.learnedOffsetsHeat = source["learnedOffsetsHeat"];
 	        this.learnedOffsetsCool = source["learnedOffsetsCool"];
+	        this.learnedRateHeat = source["learnedRateHeat"];
+	        this.learnedRateCool = source["learnedRateCool"];
 	    }
 	}
 	export class FanCurvePoint {

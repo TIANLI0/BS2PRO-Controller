@@ -1,7 +1,8 @@
 'use client';
 
-import React, { memo } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { 
+  AlertTriangle,
   Cpu,
   Zap,
   RotateCw,
@@ -155,6 +156,21 @@ export default function DeviceStatus({
   onDisconnect,
   onConfigChange
 }: DeviceStatusProps) {
+  const [cpuTempZeroReady, setCpuTempZeroReady] = useState(false);
+  const isCpuTempZero = isConnected && temperature?.cpuTemp === 0;
+
+  useEffect(() => {
+    if (!isCpuTempZero) {
+      setCpuTempZeroReady(false);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setCpuTempZeroReady(true);
+    }, 5000);
+
+    return () => window.clearTimeout(timer);
+  }, [isCpuTempZero]);
   
   const handleAutoControlChange = async (enabled: boolean) => {
     try {
@@ -341,6 +357,15 @@ export default function DeviceStatus({
             <Button onClick={onConnect} icon={<RotateCw className="w-4 h-4" />}>
               连接设备
             </Button>
+          </div>
+        </Card>
+      )}
+
+      {cpuTempZeroReady && (
+        <Card className="p-4 xl:mx-auto xl:max-w-4xl 2xl:max-w-5xl border-amber-200 bg-amber-50/70 dark:border-amber-800/60 dark:bg-amber-900/20">
+          <div className="flex items-start gap-2 text-sm text-amber-800 dark:text-amber-200">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <p>检测到 CPU 温度获取失败，请将软件安装路径加入杀毒软件白名单（如 Windows Defender / 火绒），然后重启软件再试。</p>
           </div>
         </Card>
       )}
