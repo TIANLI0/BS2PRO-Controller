@@ -1121,7 +1121,7 @@ func (a *CoreApp) startTemperatureMonitoring() {
 	tempSamples := make([]int, 0, sampleCount)
 	recentAvgTemps := make([]int, 0, 24)
 	initialTemp := a.tempReader.Read()
-	lastAvgTemp := initialTemp
+	lastAvgTemp := initialTemp.MaxTemp
 	lastTargetRPM := 0
 	learningDirty := false
 	lastLearningSave := time.Now()
