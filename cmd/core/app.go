@@ -1122,7 +1122,7 @@ func (a *CoreApp) startTemperatureMonitoring() {
 	recentAvgTemps := make([]int, 0, 24)
 	initialTemp := a.tempReader.Read()
 	lastAvgTemp := initialTemp.MaxTemp
-	lastTargetRPM := 0
+	lastTargetRPM := -1
 	learningDirty := false
 	lastLearningSave := time.Now()
 
@@ -1188,7 +1188,7 @@ func (a *CoreApp) startTemperatureMonitoring() {
 					targetRPM = smartcontrol.CalculateTargetRPM(avgTemp, lastAvgTemp, cfg.FanCurve, smartCfg)
 				}
 
-				if prevTargetRPM > 0 {
+				if prevTargetRPM >= 0 {
 					targetRPM = smartcontrol.ApplyRampLimit(targetRPM, prevTargetRPM, smartCfg.RampUpLimit, smartCfg.RampDownLimit)
 				}
 
@@ -1197,7 +1197,7 @@ func (a *CoreApp) startTemperatureMonitoring() {
 					deltaRPM = -deltaRPM
 				}
 
-				if targetRPM > 0 && (prevTargetRPM == 0 || deltaRPM >= smartCfg.MinRPMChange) {
+				if targetRPM >= 0 && (prevTargetRPM < 0 || deltaRPM >= smartCfg.MinRPMChange || (targetRPM == 0 && prevTargetRPM > 0)) {
 					a.deviceManager.SetFanSpeed(targetRPM)
 					lastTargetRPM = targetRPM
 				}

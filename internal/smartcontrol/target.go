@@ -56,7 +56,7 @@ func CalculateTargetRPM(avgTemp, lastAvgTemp int, curve []types.FanCurvePoint, c
 		targetRPM += 320 + cfg.OverheatWeight*15
 	}
 
-	return clampInt(targetRPM, 1000, 4000)
+	return clampInt(targetRPM, 0, 4000)
 }
 
 func selectOffsetsForTrend(tempDelta int, cfg types.SmartControlConfig) []int {

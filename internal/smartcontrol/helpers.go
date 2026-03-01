@@ -4,7 +4,7 @@ import "github.com/TIANLI0/BS2PRO-Controller/internal/types"
 
 func getCurveEdgeRPMBounds(curve []types.FanCurvePoint) (int, int) {
 	if len(curve) == 0 {
-		return 1000, 4000
+		return 0, 4000
 	}
 	left := curve[0].RPM
 	right := curve[len(curve)-1].RPM

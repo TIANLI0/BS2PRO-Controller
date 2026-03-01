@@ -32,9 +32,9 @@ interface ToggleSwitchProps {
 }
 
 const toggleColorClasses: Record<NonNullable<ToggleSwitchProps['color']>, string> = {
-  blue: 'data-[state=checked]:!bg-blue-600',
+  blue: 'data-[state=checked]:!bg-primary',
   green: 'data-[state=checked]:!bg-green-600',
-  purple: 'data-[state=checked]:!bg-purple-600',
+  purple: 'data-[state=checked]:!bg-primary',
   orange: 'data-[state=checked]:!bg-orange-600',
 };
 
@@ -50,7 +50,7 @@ export const ToggleSwitch = forwardRef<HTMLButtonElement, ToggleSwitchProps>(
 
     return (
       <div className="flex items-center gap-3">
-        {label && <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{label}</span>}
+        {label && <span className="text-sm font-medium text-muted-foreground">{label}</span>}
         <Switch
           ref={ref}
           checked={enabled}
@@ -83,9 +83,9 @@ interface SelectProps<T = string> {
 }
 
 const selectTriggerSize: Record<'sm' | 'md' | 'lg', string> = {
-  sm: 'min-h-10 text-sm',
-  md: 'min-h-11 text-sm',
-  lg: 'min-h-12 text-base',
+  sm: 'h-10 text-sm',
+  md: 'h-11 text-sm',
+  lg: 'h-12 text-base',
 };
 
 export function Select<T extends string | number>({
@@ -98,7 +98,6 @@ export function Select<T extends string | number>({
   size = 'md',
 }: SelectProps<T>) {
   const isNumberValue = typeof value === 'number';
-  const hasDescription = options.some((option) => Boolean(option.description));
 
   return (
     <div className="min-w-[120px]">
@@ -109,22 +108,14 @@ export function Select<T extends string | number>({
         disabled={disabled}
       >
         <SelectTrigger
-          className={clsx(
-            selectTriggerSize[size],
-            hasDescription && 'h-auto py-2 [&>span]:whitespace-normal [&>span]:leading-tight'
-          )}
+          className={clsx(selectTriggerSize[size], '[&>span]:truncate')}
         >
-          <SelectValue placeholder={placeholder} className={clsx(hasDescription && 'whitespace-normal leading-tight')} />
+          <SelectValue placeholder={placeholder} />
         </SelectTrigger>
         <SelectContent>
           {options.map((option) => (
             <SelectItem key={String(option.value)} value={String(option.value)} disabled={option.disabled}>
-              <div className="flex flex-col">
-                <span>{option.label}</span>
-                {option.description && (
-                  <span className="text-xs text-gray-500 dark:text-gray-400">{option.description}</span>
-                )}
-              </div>
+              {option.label}
             </SelectItem>
           ))}
         </SelectContent>
@@ -161,7 +152,7 @@ export function RadioGroup<T extends string | number>({
 
   return (
     <div className="w-full">
-      {label && <div className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">{label}</div>}
+      {label && <div className="mb-2 text-sm font-medium text-muted-foreground">{label}</div>}
       <ShadcnRadioGroup
         value={String(value)}
         onValueChange={(raw) => onChange((isNumberValue ? Number(raw) : raw) as T)}
@@ -177,18 +168,18 @@ export function RadioGroup<T extends string | number>({
               className={clsx(
                 'flex cursor-pointer items-center rounded-lg border-2 px-4 py-3 transition-all',
                 selected
-                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                  : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-600 dark:hover:border-gray-500 dark:hover:bg-gray-700/50',
+                  ? 'border-primary/50 bg-primary/10'
+                  : 'border-border hover:border-primary/30 hover:bg-muted/70',
                 itemDisabled && 'cursor-not-allowed opacity-50'
               )}
             >
               <RadioGroupItem value={String(option.value)} disabled={itemDisabled} className="mr-3" />
               <div className="min-w-0 flex-1">
-                <div className={clsx('text-sm font-medium', selected ? 'text-blue-900 dark:text-blue-100' : 'text-gray-900 dark:text-white')}>
+                <div className={clsx('text-sm font-medium', selected ? 'text-primary' : 'text-foreground')}>
                   {option.label}
                 </div>
                 {option.description && (
-                  <div className={clsx('mt-0.5 text-xs', selected ? 'text-blue-700 dark:text-blue-300' : 'text-gray-500 dark:text-gray-400')}>
+                  <div className={clsx('mt-0.5 text-xs', selected ? 'text-primary/80' : 'text-muted-foreground')}>
                     {option.description}
                   </div>
                 )}
@@ -233,8 +224,8 @@ export const Slider = forwardRef<React.ElementRef<typeof ShadcnSlider>, SliderPr
       <div className="w-full">
         {(label || showValue) && (
           <div className="mb-2 flex items-center justify-between">
-            {label && <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{label}</span>}
-            {showValue && <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">{valueFormatter(value)}</span>}
+            {label && <span className="text-sm font-medium text-muted-foreground">{label}</span>}
+            {showValue && <span className="text-sm font-semibold text-primary">{valueFormatter(value)}</span>}
           </div>
         )}
         <ShadcnSlider
@@ -310,7 +301,7 @@ export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
             disabled={disabled}
             className={clsx(suffix && 'pr-12')}
           />
-          {suffix && <span className="pointer-events-none absolute right-3 text-sm text-gray-500 dark:text-gray-400">{suffix}</span>}
+          {suffix && <span className="pointer-events-none absolute right-3 text-sm text-muted-foreground">{suffix}</span>}
         </div>
       </div>
     );
@@ -337,7 +328,7 @@ export function Card({ children, className, padding = 'md', hover = false }: Car
     <ShadcnCard
       className={clsx(
         cardPaddingVariants[padding],
-        hover && 'transition-all duration-200 hover:border-gray-300 hover:shadow-md dark:hover:border-gray-600',
+        hover && 'transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md',
         className
       )}
     >
@@ -399,3 +390,16 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   }
 );
 Button.displayName = 'Button';
+
+export { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+export {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+export { Skeleton } from '@/components/ui/skeleton';

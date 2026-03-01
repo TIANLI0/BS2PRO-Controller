@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { 
+import { motion, AnimatePresence } from 'framer-motion';
+import {
   Play,
   Pause,
   Settings,
@@ -15,17 +16,17 @@ import {
   TriangleAlert,
   CheckCircle2,
   ChevronDown,
-  Info,
   Flame,
   Clock3,
   BarChart3,
   Sparkles,
+  Rocket,
 } from 'lucide-react';
 import { apiService } from '../services/api';
 import { types } from '../../../wailsjs/go/models';
 import { BrowserOpenURL } from '../../../wailsjs/runtime/runtime';
 import { DebugInfo } from '../types/app';
-import { ToggleSwitch, RadioGroup, Card, Badge, Button, Select, ScrollArea, Slider } from './ui/index';
+import { ToggleSwitch, Button, Select, ScrollArea, Slider } from './ui/index';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import clsx from 'clsx';
 
@@ -36,6 +37,8 @@ interface ControlPanelProps {
   fanData: types.FanData | null;
   temperature: types.TemperatureData | null;
 }
+
+/* ── Helpers ── */
 
 function getDefaultLightStripConfig(): types.LightStripConfig {
   return types.LightStripConfig.createFrom({
@@ -53,10 +56,7 @@ function getDefaultLightStripConfig(): types.LightStripConfig {
 function normalizeLightStripConfig(config: types.AppConfig): types.LightStripConfig {
   const defaults = getDefaultLightStripConfig();
   const raw = (config as any).lightStrip;
-
-  if (!raw) {
-    return defaults;
-  }
+  if (!raw) return defaults;
 
   const normalized = types.LightStripConfig.createFrom({
     mode: raw.mode || defaults.mode,
@@ -67,330 +67,274 @@ function normalizeLightStripConfig(config: types.AppConfig): types.LightStripCon
 
   if ((normalized.colors || []).length < 3) {
     const merged = [...(normalized.colors || [])];
-    while (merged.length < 3) {
-      merged.push(defaults.colors[merged.length]);
-    }
+    while (merged.length < 3) merged.push(defaults.colors[merged.length]);
     normalized.colors = merged;
   }
-
   return normalized;
 }
 
 function rgbToHex(color: types.RGBColor): string {
-  const toHex = (value: number) => value.toString(16).padStart(2, '0');
-  return `#${toHex(color.r || 0)}${toHex(color.g || 0)}${toHex(color.b || 0)}`;
+  const h = (v: number) => v.toString(16).padStart(2, '0');
+  return `#${h(color.r || 0)}${h(color.g || 0)}${h(color.b || 0)}`;
 }
 
 function hexToRgb(hex: string): types.RGBColor {
-  const clean = hex.replace('#', '');
-  const bigint = Number.parseInt(clean, 16);
-  return types.RGBColor.createFrom({
-    r: (bigint >> 16) & 255,
-    g: (bigint >> 8) & 255,
-    b: bigint & 255,
-  });
+  const n = Number.parseInt(hex.replace('#', ''), 16);
+  return types.RGBColor.createFrom({ r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 });
 }
 
 function getRequiredColorCount(mode: string): number {
   switch (mode) {
-    case 'static_single':
-      return 1;
-    case 'off':
-    case 'smart_temp':
-    case 'flowing':
-      return 0;
-    case 'static_multi':
-      return 3;
-    case 'rotation':
-    case 'breathing':
-    default:
-      return 3;
+    case 'static_single': return 1;
+    case 'off': case 'smart_temp': case 'flowing': return 0;
+    case 'static_multi': return 3;
+    default: return 3;
   }
 }
 
-// 设置项组件
-interface SettingItemProps {
-  icon: React.ReactNode;
-  iconBgActive: string;
-  iconBgInactive: string;
+/* ── Section wrapper ── */
+
+function Section({
+  title,
+  icon: Icon,
+  children,
+  className,
+}: {
   title: string;
-  description: string;
-  enabled: boolean;
-  onChange: (enabled: boolean) => void;
-  disabled?: boolean;
-  loading?: boolean;
-  color?: 'blue' | 'green' | 'purple' | 'orange';
+  icon: React.ComponentType<{ className?: string }>;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <section className={clsx('rounded-2xl border border-border bg-card shadow-sm', className)}>
+      <div className="flex items-center gap-2.5 border-b border-border/60 px-5 py-4">
+        <Icon className="h-4.5 w-4.5 text-muted-foreground" />
+        <h3 className="text-base font-semibold text-foreground">{title}</h3>
+      </div>
+      <div className="divide-y divide-border/60">{children}</div>
+    </section>
+  );
 }
 
-function SettingItem({ 
-  icon, 
-  iconBgActive, 
-  iconBgInactive, 
-  title, 
-  description, 
-  enabled, 
-  onChange, 
-  disabled = false,
-  loading = false,
-  color = 'blue'
-}: SettingItemProps) {
+/* ── Setting row ── */
+
+function SettingRow({
+  icon,
+  title,
+  description,
+  tip,
+  children,
+  disabled,
+}: {
+  icon?: React.ReactNode;
+  title: string;
+  description?: string;
+  tip?: string;
+  children: React.ReactNode;
+  disabled?: boolean;
+}) {
   return (
-    <div className={clsx(
-      'flex items-center justify-between py-4 px-4 -mx-4 rounded-xl transition-all duration-200',
-      'hover:bg-gray-50 dark:hover:bg-gray-700/50',
-      disabled && 'opacity-60'
-    )}>
-      <div className="flex items-center gap-4">
-        <div className={clsx(
-          'p-2.5 rounded-xl transition-all duration-300',
-          enabled ? iconBgActive : iconBgInactive,
-          enabled && 'scale-105 shadow-sm'
-        )}>
-          {icon}
-        </div>
-        <div>
-          <div className="font-medium text-gray-900 dark:text-white">{title}</div>
-          <div className="text-sm text-gray-500 dark:text-gray-400">{description}</div>
+    <div className={clsx('flex items-center justify-between gap-4 px-5 py-4', disabled && 'opacity-50')}>
+      <div className="flex items-center gap-3 min-w-0">
+        {icon && (
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+            {icon}
+          </div>
+        )}
+        <div className="min-w-0">
+          <div className="text-base font-medium text-foreground">{title}</div>
+          {description && <div className="text-sm text-muted-foreground line-clamp-2">{description}</div>}
+          {tip && <div className="mt-0.5 text-xs text-primary/80">{tip}</div>}
         </div>
       </div>
-      <ToggleSwitch
-        enabled={enabled}
-        onChange={onChange}
-        disabled={disabled}
-        loading={loading}
-        color={color}
-      />
+      <div className="shrink-0">{children}</div>
     </div>
   );
 }
 
+/* ── Main ControlPanel ── */
+
 export default function ControlPanel({ config, onConfigChange, isConnected, fanData, temperature }: ControlPanelProps) {
-  // 更新状态
   const [loadingStates, setLoadingStates] = useState<Record<string, boolean>>({});
-  
-  // 调试面板状态
   const [debugInfo, setDebugInfo] = useState<DebugInfo | null>(null);
   const [debugInfoLoading, setDebugInfoLoading] = useState(false);
   const [debugPanelOpen, setDebugPanelOpen] = useState(false);
-  
-  // 自定义转速相关状态
   const [showCustomSpeedWarning, setShowCustomSpeedWarning] = useState(false);
   const [customSpeedInput, setCustomSpeedInput] = useState<number>((config as any).customSpeedRPM || 2000);
-
-  // 应用版本号
   const [appVersion, setAppVersion] = useState('');
-  
-  // iframe 状态
-  const [iframeLoaded, setIframeLoaded] = useState(false);
-
-  // 灯带配置状态
+  const [latestReleaseTag, setLatestReleaseTag] = useState('');
+  const [latestReleaseUrl, setLatestReleaseUrl] = useState('');
+  const [latestReleaseBody, setLatestReleaseBody] = useState('');
+  const [releaseLoading, setReleaseLoading] = useState(false);
+  const [releaseError, setReleaseError] = useState('');
   const [lightStripConfig, setLightStripConfig] = useState<types.LightStripConfig>(() => normalizeLightStripConfig(config));
 
-  // 辅助函数
-  const setLoading = (key: string, value: boolean) => {
-    setLoadingStates(prev => ({ ...prev, [key]: value }));
-  };
+  const setLoading = (key: string, value: boolean) => setLoadingStates((prev) => ({ ...prev, [key]: value }));
 
   const handleOpenUrl = useCallback((url: string) => {
+    try { BrowserOpenURL(url); } catch { /* noop */ }
+  }, []);
+
+  const isLatestVersion = useCallback((currentVersion: string, latestVersion: string) => {
+    const parse = (v: string) => (v.match(/\d+/g) || []).map((n) => Number(n));
+    const current = parse(currentVersion);
+    const latest = parse(latestVersion);
+    const length = Math.max(current.length, latest.length);
+
+    for (let i = 0; i < length; i += 1) {
+      const currentPart = current[i] ?? 0;
+      const latestPart = latest[i] ?? 0;
+      if (latestPart > currentPart) return false;
+      if (latestPart < currentPart) return true;
+    }
+
+    return true;
+  }, []);
+
+  const checkLatestRelease = useCallback(async () => {
+    setReleaseLoading(true);
+    setReleaseError('');
     try {
-      BrowserOpenURL(url);
-    } catch (error) {
-      console.error('打开链接失败:', error);
+      const response = await fetch('https://api.github.com/repos/TIANLI0/BS2PRO-Controller/releases/latest', {
+        headers: { Accept: 'application/vnd.github+json' },
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      setLatestReleaseTag(data?.tag_name || '');
+      setLatestReleaseUrl(data?.html_url || 'https://github.com/TIANLI0/BS2PRO-Controller/releases/latest');
+      setLatestReleaseBody(typeof data?.body === 'string' ? data.body.trim() : '');
+    } catch {
+      setReleaseError('检查更新失败，请稍后重试');
+      setLatestReleaseTag('');
+      setLatestReleaseUrl('https://github.com/TIANLI0/BS2PRO-Controller/releases/latest');
+      setLatestReleaseBody('');
+    } finally {
+      setReleaseLoading(false);
     }
   }, []);
 
-  // 智能变频控制
+  const hasNewVersion = !!appVersion && !!latestReleaseTag && !isLatestVersion(appVersion, latestReleaseTag);
+
+  /* ── Handlers (same logic as before) ── */
+
   const handleAutoControlChange = useCallback(async (enabled: boolean) => {
     setLoading('autoControl', true);
     try {
       await apiService.setAutoControl(enabled);
       onConfigChange(types.AppConfig.createFrom({ ...config, autoControl: enabled }));
-    } catch (error) {
-      console.error('设置智能变频失败:', error);
-    } finally {
-      setLoading('autoControl', false);
-    }
+    } catch { /* noop */ } finally { setLoading('autoControl', false); }
   }, [config, onConfigChange]);
 
-  // 自定义转速控制
   const handleCustomSpeedApply = useCallback(async (enabled: boolean, rpm: number) => {
     setLoading('customSpeed', true);
     try {
       await apiService.setCustomSpeed(enabled, rpm);
-      onConfigChange(types.AppConfig.createFrom({ 
-        ...config, 
+      onConfigChange(types.AppConfig.createFrom({
+        ...config,
         customSpeedEnabled: enabled,
         customSpeedRPM: rpm,
-        autoControl: enabled ? false : config.autoControl
+        autoControl: enabled ? false : config.autoControl,
       }));
-    } catch (error) {
-      console.error('设置自定义转速失败:', error);
-    } finally {
-      setLoading('customSpeed', false);
-    }
+    } catch { /* noop */ } finally { setLoading('customSpeed', false); }
   }, [config, onConfigChange]);
 
   const handleCustomSpeedToggle = useCallback((enabled: boolean) => {
-    if (enabled) {
-      setShowCustomSpeedWarning(true);
-    } else {
-      handleCustomSpeedApply(false, customSpeedInput);
-    }
+    if (enabled) setShowCustomSpeedWarning(true);
+    else handleCustomSpeedApply(false, customSpeedInput);
   }, [customSpeedInput, handleCustomSpeedApply]);
 
-  // 挡位灯控制
   const handleGearLightChange = useCallback(async (enabled: boolean) => {
     if (!isConnected) return;
     setLoading('gearLight', true);
     try {
-      const success = await apiService.setGearLight(enabled);
-      if (success) {
-        onConfigChange(types.AppConfig.createFrom({ ...config, gearLight: enabled }));
-      }
-    } catch (error) {
-      console.error('设置挡位灯失败:', error);
-    } finally {
-      setLoading('gearLight', false);
-    }
+      const ok = await apiService.setGearLight(enabled);
+      if (ok) onConfigChange(types.AppConfig.createFrom({ ...config, gearLight: enabled }));
+    } catch { /* noop */ } finally { setLoading('gearLight', false); }
   }, [config, onConfigChange, isConnected]);
 
-  // 通电自启动控制
   const handlePowerOnStartChange = useCallback(async (enabled: boolean) => {
     if (!isConnected) return;
     setLoading('powerOnStart', true);
     try {
-      const success = await apiService.setPowerOnStart(enabled);
-      if (success) {
-        onConfigChange(types.AppConfig.createFrom({ ...config, powerOnStart: enabled }));
-      }
-    } catch (error) {
-      console.error('设置通电自启动失败:', error);
-    } finally {
-      setLoading('powerOnStart', false);
-    }
+      const ok = await apiService.setPowerOnStart(enabled);
+      if (ok) onConfigChange(types.AppConfig.createFrom({ ...config, powerOnStart: enabled }));
+    } catch { /* noop */ } finally { setLoading('powerOnStart', false); }
   }, [config, onConfigChange, isConnected]);
 
-  // Windows 开机自启动
   const handleWindowsAutoStartChange = useCallback(async (enabled: boolean) => {
     setLoading('windowsAutoStart', true);
     try {
       const isAdmin = await apiService.isRunningAsAdmin();
-      if (enabled) {
-        await apiService.setAutoStartWithMethod(true, isAdmin ? 'task_scheduler' : 'registry');
-      } else {
-        await apiService.setAutoStartWithMethod(false, '');
-      }
+      if (enabled) await apiService.setAutoStartWithMethod(true, isAdmin ? 'task_scheduler' : 'registry');
+      else await apiService.setAutoStartWithMethod(false, '');
       onConfigChange(types.AppConfig.createFrom({ ...config, windowsAutoStart: enabled }));
-    } catch (error) {
-      console.error('设置开机自启动失败:', error);
-      alert(`设置自启动失败: ${error}`);
-    } finally {
-      setLoading('windowsAutoStart', false);
-    }
+    } catch (e) { alert(`设置自启动失败: ${e}`); } finally { setLoading('windowsAutoStart', false); }
   }, [config, onConfigChange]);
 
-  // 断连保持配置模式
   const handleIgnoreDeviceOnReconnectChange = useCallback(async (enabled: boolean) => {
     try {
-      const newConfig = types.AppConfig.createFrom({ ...config, ignoreDeviceOnReconnect: enabled });
-      await apiService.updateConfig(newConfig);
-      onConfigChange(newConfig);
-    } catch (error) {
-      console.error('设置断连保持配置模式失败:', error);
-    }
+      const newCfg = types.AppConfig.createFrom({ ...config, ignoreDeviceOnReconnect: enabled });
+      await apiService.updateConfig(newCfg);
+      onConfigChange(newCfg);
+    } catch { /* noop */ }
   }, [config, onConfigChange]);
 
-  // 智能启停控制
   const handleSmartStartStopChange = useCallback(async (mode: string) => {
     if (!isConnected) return;
     try {
-      const success = await apiService.setSmartStartStop(mode);
-      if (success) {
-        onConfigChange(types.AppConfig.createFrom({ ...config, smartStartStop: mode }));
-      }
-    } catch (error) {
-      console.error('设置智能启停失败:', error);
-    }
+      const ok = await apiService.setSmartStartStop(mode);
+      if (ok) onConfigChange(types.AppConfig.createFrom({ ...config, smartStartStop: mode }));
+    } catch { /* noop */ }
   }, [config, onConfigChange, isConnected]);
 
-  // 调试模式
   const toggleDebugMode = useCallback(async () => {
     try {
       await apiService.setDebugMode(!config.debugMode);
       onConfigChange(types.AppConfig.createFrom({ ...config, debugMode: !config.debugMode }));
-    } catch (error) {
-      console.error('设置调试模式失败:', error);
-    }
+    } catch { /* noop */ }
   }, [config, onConfigChange]);
 
-  // GUI 监控
   const toggleGuiMonitoring = useCallback(async () => {
     try {
-      const newConfig = types.AppConfig.createFrom({ ...config, guiMonitoring: !config.guiMonitoring });
-      await apiService.updateConfig(newConfig);
-      onConfigChange(newConfig);
-    } catch (error) {
-      console.error('设置GUI监控失败:', error);
-    }
+      const newCfg = types.AppConfig.createFrom({ ...config, guiMonitoring: !config.guiMonitoring });
+      await apiService.updateConfig(newCfg);
+      onConfigChange(newCfg);
+    } catch { /* noop */ }
   }, [config, onConfigChange]);
 
-  // 获取调试信息
   const fetchDebugInfo = useCallback(async () => {
+    setDebugInfoLoading(true);
+    try { setDebugInfo(await apiService.getDebugInfo()); } catch { /* noop */ } finally { setDebugInfoLoading(false); }
+  }, []);
+
+  const handleSampleCountChange = useCallback(async (count: number) => {
     try {
-      setDebugInfoLoading(true);
-      const info = await apiService.getDebugInfo();
-      setDebugInfo(info);
-    } catch (error) {
-      console.error('获取调试信息失败:', error);
-    } finally {
-      setDebugInfoLoading(false);
-    }
-  }, []);
+      const newCfg = types.AppConfig.createFrom({ ...config, tempSampleCount: count });
+      await apiService.updateConfig(newCfg);
+      onConfigChange(newCfg);
+    } catch { /* noop */ }
+  }, [config, onConfigChange]);
 
-  // 定期更新 GUI 响应时间
-  useEffect(() => {
-    const interval = setInterval(() => {
-      apiService.updateGuiResponseTime().catch(() => {});
-    }, 10000);
-    return () => clearInterval(interval);
-  }, []);
+  useEffect(() => { const i = setInterval(() => { apiService.updateGuiResponseTime().catch(() => {}); }, 10000); return () => clearInterval(i); }, []);
+  useEffect(() => { apiService.getAppVersion().then((v) => setAppVersion(v || '')).catch(() => setAppVersion('')); }, []);
+  useEffect(() => { checkLatestRelease(); }, [checkLatestRelease]);
+  useEffect(() => { setLightStripConfig(normalizeLightStripConfig(config)); }, [config]);
 
-  useEffect(() => {
-    apiService.getAppVersion()
-      .then((version) => setAppVersion(version || ''))
-      .catch(() => setAppVersion(''));
-  }, []);
+  /* ── Options data ── */
 
-  useEffect(() => {
-    setLightStripConfig(normalizeLightStripConfig(config));
-  }, [config]);
-
-  // 智能启停选项
   const smartStartStopOptions = [
     { value: 'off', label: '关闭', description: '禁用智能启停功能' },
     { value: 'immediate', label: '即时', description: '立即响应系统负载变化' },
     { value: 'delayed', label: '延时', description: '延时响应，避免频繁启停' },
   ];
 
-  // 采样率选项 (决定多少次采样取平均值)
   const sampleCountOptions = [
-    { value: 1, label: '1次 (即时响应)' },
-    { value: 2, label: '2次 (2秒平均)' },
-    { value: 3, label: '3次 (3秒平均)' },
-    { value: 5, label: '5次 (5秒平均)' },
-    { value: 10, label: '10次 (10秒平均)' },
+    { value: 1, label: '1次 (即时)' },
+    { value: 2, label: '2次 (2s)' },
+    { value: 3, label: '3次 (3s)' },
+    { value: 5, label: '5次 (5s)' },
+    { value: 10, label: '10次 (10s)' },
   ];
-
-  // 采样率变更
-  const handleSampleCountChange = useCallback(async (count: number) => {
-    try {
-      const newConfig = types.AppConfig.createFrom({ ...config, tempSampleCount: count });
-      await apiService.updateConfig(newConfig);
-      onConfigChange(newConfig);
-    } catch (error) {
-      console.error('设置温度采样次数失败:', error);
-    }
-  }, [config, onConfigChange]);
 
   const lightModeOptions = [
     { value: 'off', label: '关闭灯光', description: '关闭所有RGB灯光' },
@@ -409,30 +353,9 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
   ];
 
   const lightColorPresets = [
-    {
-      name: '霓虹',
-      colors: [
-        { r: 255, g: 0, b: 128 },
-        { r: 0, g: 255, b: 255 },
-        { r: 128, g: 0, b: 255 },
-      ],
-    },
-    {
-      name: '森林',
-      colors: [
-        { r: 86, g: 169, b: 84 },
-        { r: 161, g: 210, b: 106 },
-        { r: 44, g: 120, b: 115 },
-      ],
-    },
-    {
-      name: '冰川',
-      colors: [
-        { r: 80, g: 170, b: 255 },
-        { r: 116, g: 214, b: 255 },
-        { r: 200, g: 240, b: 255 },
-      ],
-    },
+    { name: '霓虹', colors: [{ r: 255, g: 0, b: 128 }, { r: 0, g: 255, b: 255 }, { r: 128, g: 0, b: 255 }] },
+    { name: '森林', colors: [{ r: 86, g: 169, b: 84 }, { r: 161, g: 210, b: 106 }, { r: 44, g: 120, b: 115 }] },
+    { name: '冰川', colors: [{ r: 80, g: 170, b: 255 }, { r: 116, g: 214, b: 255 }, { r: 200, g: 240, b: 255 }] },
   ];
 
   const requiredColorCount = getRequiredColorCount(lightStripConfig.mode);
@@ -440,9 +363,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
   const handleLightColorChange = useCallback((index: number, hex: string) => {
     setLightStripConfig((prev) => {
       const colors = [...(prev.colors || [])];
-      while (colors.length < 3) {
-        colors.push(types.RGBColor.createFrom({ r: 255, g: 255, b: 255 }));
-      }
+      while (colors.length < 3) colors.push(types.RGBColor.createFrom({ r: 255, g: 255, b: 255 }));
       colors[index] = hexToRgb(hex);
       return types.LightStripConfig.createFrom({ ...prev, colors });
     });
@@ -452,625 +373,523 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
     setLoading('lightStrip', true);
     try {
       const normalizedColors = [...(lightStripConfig.colors || [])];
-      if (requiredColorCount > 0) {
-        while (normalizedColors.length < requiredColorCount) {
-          normalizedColors.push(types.RGBColor.createFrom({ r: 255, g: 255, b: 255 }));
-        }
-      }
-
+      if (requiredColorCount > 0) while (normalizedColors.length < requiredColorCount) normalizedColors.push(types.RGBColor.createFrom({ r: 255, g: 255, b: 255 }));
       const submitConfig = types.LightStripConfig.createFrom({
         ...lightStripConfig,
         colors: requiredColorCount > 0 ? normalizedColors.slice(0, Math.max(requiredColorCount, 3)) : normalizedColors,
       });
-
       await apiService.setLightStrip(submitConfig);
       onConfigChange(types.AppConfig.createFrom({ ...config, lightStrip: submitConfig }));
-    } catch (error) {
-      console.error('设置灯带失败:', error);
-      alert(`设置灯带失败: ${error}`);
-    } finally {
-      setLoading('lightStrip', false);
-    }
+    } catch (e) { alert(`设置灯带失败: ${e}`); } finally { setLoading('lightStrip', false); }
   }, [lightStripConfig, config, onConfigChange, requiredColorCount]);
 
   return (
     <>
-      <Card className="p-6">
-        {/* 标题 */}
-        <div className="flex items-center gap-3 mb-6">
-          <div className="p-2 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600">
-            <Settings className="w-6 h-6 text-white" />
+      <div className="space-y-4">
+        <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+          <div className="mb-4 flex items-center gap-2">
+            <Settings className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-base font-semibold text-foreground">实时概览</h3>
           </div>
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white">控制面板</h2>
-        </div>
-
-        {/* 实时状态卡片 */}
-        <div className="mb-6 p-5 rounded-2xl bg-gradient-to-r from-gray-50 via-blue-50 to-indigo-50 dark:from-gray-800 dark:via-blue-900/20 dark:to-indigo-900/20 border border-gray-200 dark:border-gray-700">
-          <h3 className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-4">实时状态</h3>
-          <div className="grid grid-cols-3 gap-6">
-            <div className="text-center">
-              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">当前温度</div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="rounded-xl border border-border/70 bg-muted/30 p-4 text-center">
+              <div className="text-sm text-muted-foreground">当前温度</div>
               <div className={clsx(
-                'text-2xl font-bold',
-                (temperature?.maxTemp ?? 0) > 80 ? 'text-red-500' :
-                (temperature?.maxTemp ?? 0) > 70 ? 'text-yellow-500' : 'text-green-500'
+                'mt-1 text-2xl font-semibold tabular-nums',
+                (temperature?.maxTemp ?? 0) > 80 ? 'text-red-500' : (temperature?.maxTemp ?? 0) > 70 ? 'text-amber-500' : 'text-primary'
               )}>
                 {temperature?.maxTemp ?? '--'}°C
               </div>
-              <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                CPU {temperature?.cpuTemp ?? '--'}°C | GPU {temperature?.gpuTemp ?? '--'}°C
-              </div>
+              <div className="mt-1 text-xs text-muted-foreground">CPU {temperature?.cpuTemp ?? '--'}°C · GPU {temperature?.gpuTemp ?? '--'}°C</div>
             </div>
-            
-            <div className="text-center">
-              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">实时转速</div>
-              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                {fanData?.currentRpm ?? '--'} <span className="text-sm font-normal">RPM</span>
-              </div>
-              <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                {fanData?.workMode ?? '--'}
-              </div>
+            <div className="rounded-xl border border-border/70 bg-muted/30 p-4 text-center">
+              <div className="text-sm text-muted-foreground">实时转速</div>
+              <div className="mt-1 text-2xl font-semibold tabular-nums text-primary">{fanData?.currentRpm ?? '--'} RPM</div>
+              <div className="mt-1 text-xs text-muted-foreground">{fanData?.workMode ?? '--'}</div>
             </div>
-            
-            <div className="text-center">
-              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">目标转速</div>
-              <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-                {fanData?.targetRpm ?? '--'} <span className="text-sm font-normal">RPM</span>
-              </div>
-              <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                挡位: {fanData?.setGear ?? '--'}
-              </div>
+            <div className="rounded-xl border border-border/70 bg-muted/30 p-4 text-center">
+              <div className="text-sm text-muted-foreground">目标转速</div>
+              <div className="mt-1 text-2xl font-semibold tabular-nums text-primary">{fanData?.targetRpm ?? '--'} RPM</div>
+              <div className="mt-1 text-xs text-muted-foreground">挡位 {fanData?.setGear ?? '--'}</div>
             </div>
           </div>
-        </div>
+        </section>
 
-        {/* 设置项列表 */}
-        <div className="divide-y divide-gray-100 dark:divide-gray-700/50">
-          {/* 灯带设置（优先） */}
-          <div className="py-4 px-4 -mx-4 rounded-xl bg-gradient-to-r from-pink-50/70 via-purple-50/70 to-indigo-50/70 dark:from-pink-900/10 dark:via-purple-900/10 dark:to-indigo-900/10 border border-pink-200/70 dark:border-pink-800/40 transition-all duration-200">
-            <div className="flex items-center gap-4 mb-4">
-              <div className="p-2.5 rounded-xl bg-pink-100 dark:bg-pink-900/30">
-                <Sparkles className="w-5 h-5 text-pink-600 dark:text-pink-400" />
-              </div>
-              <div className="flex-1">
-                <div className="font-semibold text-gray-900 dark:text-white">灯带效果</div>
-                <div className="text-sm text-gray-500 dark:text-gray-400">个性化你的散热器灯光！</div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+        {/* ═══════════ 1. 灯光效果 ═══════════ */}
+        <Section title="灯光效果" icon={Sparkles}>
+          <div className="space-y-4 p-5">
+            <div className="grid grid-cols-2 gap-3">
               <Select
                 value={lightStripConfig.mode}
-                onChange={(value: string | number) => setLightStripConfig(types.LightStripConfig.createFrom({ ...lightStripConfig, mode: value as string }))}
+                onChange={(v: string | number) => setLightStripConfig(types.LightStripConfig.createFrom({ ...lightStripConfig, mode: v as string }))}
                 options={lightModeOptions}
                 size="sm"
                 label="效果模式"
               />
               <Select
                 value={lightStripConfig.speed}
-                onChange={(value: string | number) => setLightStripConfig(types.LightStripConfig.createFrom({ ...lightStripConfig, speed: value as string }))}
+                onChange={(v: string | number) => setLightStripConfig(types.LightStripConfig.createFrom({ ...lightStripConfig, speed: v as string }))}
                 options={lightSpeedOptions}
                 size="sm"
                 label="动画速度"
-                disabled={lightStripConfig.mode === 'off' || lightStripConfig.mode === 'smart_temp' || lightStripConfig.mode === 'static_single' || lightStripConfig.mode === 'static_multi'}
+                disabled={['off', 'smart_temp', 'static_single', 'static_multi'].includes(lightStripConfig.mode)}
               />
             </div>
 
-            <div className="mb-3">
-              <Slider
-                min={0}
-                max={100}
-                step={1}
-                value={lightStripConfig.brightness}
-                onChange={(nextValue) =>
-                  setLightStripConfig(types.LightStripConfig.createFrom({ ...lightStripConfig, brightness: nextValue }))
-                }
-                label="亮度"
-                valueFormatter={(v) => `${v}%`}
-                disabled={lightStripConfig.mode === 'off' || lightStripConfig.mode === 'smart_temp'}
-              />
-            </div>
+            <Slider
+              min={0} max={100} step={1}
+              value={lightStripConfig.brightness}
+              onChange={(v) => setLightStripConfig(types.LightStripConfig.createFrom({ ...lightStripConfig, brightness: v }))}
+              label="亮度"
+              valueFormatter={(v) => `${v}%`}
+              disabled={lightStripConfig.mode === 'off' || lightStripConfig.mode === 'smart_temp'}
+            />
 
             {lightStripConfig.mode === 'smart_temp' && (
-              <div className="mb-3 text-xs text-amber-600 dark:text-amber-400">
-                智能温控模式由设备自动按温度控制灯效，不支持手动调控温度与亮度。
+              <div className="rounded-lg border border-amber-300/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+                智能温控模式由设备自动控制灯效，不支持手动调节颜色与亮度。
               </div>
             )}
 
-            {requiredColorCount > 0 && (
-              <>
-                <div className="flex flex-wrap gap-2 mb-3">
-                  {lightColorPresets.map((preset) => (
-                    <button
-                      key={preset.name}
-                      type="button"
-                      onClick={() => setLightStripConfig(types.LightStripConfig.createFrom({ ...lightStripConfig, colors: preset.colors }))}
-                      className="px-3 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                    >
-                      {preset.name}
-                    </button>
-                  ))}
-                </div>
+            <AnimatePresence>
+              {requiredColorCount > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="space-y-3 overflow-hidden"
+                >
+                  <div className="flex flex-wrap gap-2">
+                    {lightColorPresets.map((preset) => (
+                      <button
+                        key={preset.name}
+                        type="button"
+                        onClick={() => setLightStripConfig(types.LightStripConfig.createFrom({ ...lightStripConfig, colors: preset.colors }))}
+                        className="rounded-lg border border-border px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-muted"
+                      >
+                        {preset.name}
+                      </button>
+                    ))}
+                  </div>
 
-                <div className={clsx('grid gap-3 mb-3', requiredColorCount === 1 ? 'grid-cols-1' : 'grid-cols-3')}>
-                  {Array.from({ length: requiredColorCount }).map((_, index) => (
-                    <div key={index}>
-                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">颜色 {index + 1}</label>
-                      <input
-                        type="color"
-                        value={rgbToHex((lightStripConfig.colors || [])[index] || types.RGBColor.createFrom({ r: 255, g: 255, b: 255 }))}
-                        onChange={(e) => handleLightColorChange(index, e.target.value)}
-                        className="w-full h-10 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 cursor-pointer"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
+                  <div className={clsx('grid gap-3', requiredColorCount === 1 ? 'grid-cols-1' : 'grid-cols-3')}>
+                    {Array.from({ length: requiredColorCount }).map((_, i) => (
+                      <div key={i}>
+                        <label className="mb-1 block text-xs text-muted-foreground">颜色 {i + 1}</label>
+                        <input
+                          type="color"
+                          value={rgbToHex((lightStripConfig.colors || [])[i] || types.RGBColor.createFrom({ r: 255, g: 255, b: 255 }))}
+                          onChange={(e) => handleLightColorChange(i, e.target.value)}
+                          className="h-9 w-full cursor-pointer rounded-lg border border-border bg-card"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-            <div className="flex items-center justify-between">
-              <div className="text-xs text-gray-500 dark:text-gray-400">
-                {isConnected ? '已连接设备，应用后立即生效' : '设备未连接，配置会在下次连接时自动生效'}
-              </div>
-              <Button
-                variant="primary"
-                onClick={handleApplyLightStrip}
-                loading={loadingStates.lightStrip}
-              >
-                应用灯带设置
+            <div className="flex items-center justify-between pt-1">
+              <span className="text-xs text-muted-foreground">
+                {isConnected ? '应用后立即生效' : '下次连接时自动生效'}
+              </span>
+              <Button variant="primary" size="sm" onClick={handleApplyLightStrip} loading={loadingStates.lightStrip}>
+                应用
               </Button>
             </div>
           </div>
+        </Section>
 
-          {/* 智能变频 */}
-          <SettingItem
-            icon={config.autoControl ? 
-              <Play className="w-5 h-5 text-green-600 dark:text-green-400" /> : 
-              <Pause className="w-5 h-5 text-gray-500 dark:text-gray-400" />
-            }
-            iconBgActive="bg-green-100 dark:bg-green-900/30"
-            iconBgInactive="bg-gray-100 dark:bg-gray-700"
+        {/* ═══════════ 2. 风扇控制 ═══════════ */}
+        <Section title="风扇控制" icon={Settings}>
+          {/* Auto control */}
+          <SettingRow
+            icon={config.autoControl ? <Play className="h-4 w-4 text-emerald-500" /> : <Pause className="h-4 w-4" />}
             title="自动温度控制"
             description="根据温度曲线自动调节风扇转速"
-            enabled={config.autoControl}
-            onChange={handleAutoControlChange}
             disabled={(config as any).customSpeedEnabled}
-            loading={loadingStates.autoControl}
-            color="green"
-          />
+          >
+            <ToggleSwitch
+              enabled={config.autoControl}
+              onChange={handleAutoControlChange}
+              disabled={(config as any).customSpeedEnabled}
+              loading={loadingStates.autoControl}
+              size="sm"
+              color="green"
+            />
+          </SettingRow>
 
-          {/* 温度采样平均 - 仅在开启自动温控时显示 */}
-          {config.autoControl && (
-            <div className="py-3 px-4 -mx-4 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all duration-200">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-cyan-100 dark:bg-cyan-900/30">
-                    <BarChart3 className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
+          {/* Sample count (conditional) */}
+          <AnimatePresence>
+            {config.autoControl && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="overflow-hidden"
+              >
+                <SettingRow
+                  icon={<BarChart3 className="h-4 w-4" />}
+                  title="采样时间"
+                  description="降低频繁调整带来的轴噪，不知道默认即可"
+                >
+                  <div className="w-32">
+                    <Select
+                      value={(config as any).tempSampleCount || 1}
+                      onChange={(v: string | number) => handleSampleCountChange(v as number)}
+                      options={sampleCountOptions}
+                      size="sm"
+                    />
                   </div>
-                  <div>
-                    <div className="font-medium text-gray-900 dark:text-white">采样时间</div>
-                    <div className="text-sm text-gray-500 dark:text-gray-400">
-                      控制采样频率，降低频繁调整带来的轴噪
-                    </div>
-                  </div>
+                </SettingRow>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Custom speed */}
+          <div className="px-5 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className={clsx(
+                  'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors',
+                  (config as any).customSpeedEnabled ? 'bg-amber-500/15 text-amber-600' : 'bg-muted text-muted-foreground',
+                )}>
+                  <Flame className="h-4 w-4" />
                 </div>
-                <div className="w-36 shrink-0">
-                  <Select
-                    value={(config as any).tempSampleCount || 1}
-                    onChange={(val: string | number) => handleSampleCountChange(val as number)}
-                    options={sampleCountOptions}
-                    size="sm"
-                  />
+                <div>
+                  <div className="text-base font-medium text-foreground">自定义转速</div>
+                  <div className="text-sm text-muted-foreground">固定转速，适合特殊场景</div>
                 </div>
               </div>
+              <ToggleSwitch
+                enabled={(config as any).customSpeedEnabled || false}
+                onChange={handleCustomSpeedToggle}
+                disabled={!isConnected}
+                loading={loadingStates.customSpeed}
+                size="sm"
+                color="orange"
+              />
             </div>
-          )}
 
-          {/* 自定义转速控制 */}
-          <div className="py-4">
-            <div className={clsx(
-              'p-4 rounded-xl border-2 transition-all duration-300',
-              (config as any).customSpeedEnabled 
-                ? 'border-orange-300 dark:border-orange-600 bg-orange-50/50 dark:bg-orange-900/10' 
-                : 'border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50'
-            )}>
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-4">
-                  <div className={clsx(
-                    'p-2.5 rounded-xl transition-all duration-300',
-                    (config as any).customSpeedEnabled 
-                      ? 'bg-orange-100 dark:bg-orange-900/30 scale-105' 
-                      : 'bg-gray-100 dark:bg-gray-700'
-                  )}>
-                    <Flame className={clsx(
-                      'w-5 h-5 transition-colors duration-300',
-                      (config as any).customSpeedEnabled 
-                        ? 'text-orange-600 dark:text-orange-400' 
-                        : 'text-gray-500 dark:text-gray-400'
-                    )} />
-                  </div>
-                  <div>
-                    <div className="font-medium text-gray-900 dark:text-white">自定义转速</div>
-                    <div className="text-sm text-gray-500 dark:text-gray-400">
-                      固定风扇转速，适合特殊场景使用
-                    </div>
-                  </div>
-                </div>
-                <ToggleSwitch
-                  enabled={(config as any).customSpeedEnabled || false}
-                  onChange={handleCustomSpeedToggle}
-                  disabled={!isConnected}
-                  loading={loadingStates.customSpeed}
-                  color="orange"
-                />
-              </div>
-              
+            <AnimatePresence>
               {(config as any).customSpeedEnabled && (
-                <div className="pt-4 border-t border-orange-200 dark:border-orange-800">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    目标转速 (RPM)
-                  </label>
-                  <div className="flex items-center gap-3">
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="mt-3 flex items-center gap-3 rounded-xl border border-amber-300/40 bg-amber-50/50 p-3.5 dark:bg-amber-900/10">
                     <input
                       type="number"
                       value={customSpeedInput}
                       onChange={(e) => setCustomSpeedInput(Number(e.target.value))}
-                      className="flex-1 px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200"
-                      min={1000}
-                      max={4000}
-                      step={50}
+                      className="flex-1 rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground focus:ring-2 focus:ring-amber-500/50 focus:border-transparent"
+                      min={1000} max={4000} step={50}
                     />
-                    <Button
-                      variant="primary"
-                      onClick={() => handleCustomSpeedApply(true, customSpeedInput)}
-                      className="!bg-orange-600 hover:!bg-orange-700"
-                    >
+                    <Button variant="primary" size="sm" onClick={() => handleCustomSpeedApply(true, customSpeedInput)} className="bg-amber-600 hover:bg-amber-700 text-white">
                       应用
                     </Button>
                   </div>
-                  <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
-                    ⚠️ 自定义转速会禁用智能温控，请谨慎使用
+                  <p className="mt-2 text-[11px] text-amber-700 dark:text-amber-300">
+                    ⚠ 自定义转速会禁用智能温控
                   </p>
-                </div>
+                </motion.div>
               )}
-            </div>
+            </AnimatePresence>
           </div>
+        </Section>
 
-          {/* 挡位灯 */}
-          <SettingItem
-            icon={<Lightbulb className={clsx(
-              'w-5 h-5 transition-colors duration-300',
-              config.gearLight ? 'text-yellow-500' : 'text-gray-500 dark:text-gray-400'
-            )} />}
-            iconBgActive="bg-yellow-100 dark:bg-yellow-900/30"
-            iconBgInactive="bg-gray-100 dark:bg-gray-700"
+        {/* ═══════════ 3. 设备设置 ═══════════ */}
+        <Section title="设备设置" icon={Zap}>
+          <SettingRow
+            icon={<Lightbulb className={clsx('h-4 w-4', config.gearLight ? 'text-yellow-500' : '')} />}
             title="挡位灯"
             description="控制设备上的挡位指示灯"
-            enabled={config.gearLight}
-            onChange={handleGearLightChange}
             disabled={!isConnected}
-            loading={loadingStates.gearLight}
-            color="blue"
-          />
+          >
+            <ToggleSwitch
+              enabled={config.gearLight}
+              onChange={handleGearLightChange}
+              disabled={!isConnected}
+              loading={loadingStates.gearLight}
+              size="sm"
+            />
+          </SettingRow>
 
-          {/* 通电自启动 */}
-          <SettingItem
-            icon={<Power className={clsx(
-              'w-5 h-5 transition-colors duration-300',
-              config.powerOnStart ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'
-            )} />}
-            iconBgActive="bg-blue-100 dark:bg-blue-900/30"
-            iconBgInactive="bg-gray-100 dark:bg-gray-700"
+          <SettingRow
+            icon={<Power className={clsx('h-4 w-4', config.powerOnStart ? 'text-primary' : '')} />}
             title="通电自启动"
-            description="设备通电后自动开始运行"
-            enabled={config.powerOnStart}
-            onChange={handlePowerOnStartChange}
+            description="设备通电后自动运行"
             disabled={!isConnected}
-            loading={loadingStates.powerOnStart}
-            color="blue"
-          />
+          >
+            <ToggleSwitch
+              enabled={config.powerOnStart}
+              onChange={handlePowerOnStartChange}
+              disabled={!isConnected}
+              loading={loadingStates.powerOnStart}
+              size="sm"
+            />
+          </SettingRow>
 
-          {/* Windows 开机自启动 */}
-          <div className="py-4 px-4 -mx-4 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all duration-200">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className={clsx(
-                  'p-2.5 rounded-xl transition-all duration-300',
-                  config.windowsAutoStart 
-                    ? 'bg-green-100 dark:bg-green-900/30 scale-105' 
-                    : 'bg-gray-100 dark:bg-gray-700'
-                )}>
-                  <Monitor className={clsx(
-                    'w-5 h-5 transition-colors duration-300',
-                    config.windowsAutoStart 
-                      ? 'text-green-600 dark:text-green-400' 
-                      : 'text-gray-500 dark:text-gray-400'
-                  )} />
-                </div>
-                <div>
-                  <div className="font-medium text-gray-900 dark:text-white">开机自启动</div>
-                  <div className="text-sm text-gray-500 dark:text-gray-400">
-                    Windows 启动时自动启动本程序
-                  </div>
-                  <div className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
-                    💡 以管理员身份运行可避免每次UAC授权
-                  </div>
-                </div>
-              </div>
-              <ToggleSwitch
-                enabled={config.windowsAutoStart}
-                onChange={handleWindowsAutoStartChange}
-                loading={loadingStates.windowsAutoStart}
-                color="green"
-              />
-            </div>
-          </div>
-
-          {/* 断连保持配置模式 */}
-          <div className="py-4 px-4 -mx-4 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all duration-200">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className={clsx(
-                  'p-2.5 rounded-xl transition-all duration-300',
-                  (config as any).ignoreDeviceOnReconnect 
-                    ? 'bg-emerald-100 dark:bg-emerald-900/30 scale-105' 
-                    : 'bg-gray-100 dark:bg-gray-700'
-                )}>
-                  <Clock3 className={clsx(
-                    'w-5 h-5 transition-colors duration-300',
-                    (config as any).ignoreDeviceOnReconnect 
-                      ? 'text-emerald-600 dark:text-emerald-400' 
-                      : 'text-gray-500 dark:text-gray-400'
-                  )} />
-                </div>
-                <div>
-                  <div className="font-medium text-gray-900 dark:text-white">断连保持配置</div>
-                  <div className="text-sm text-gray-500 dark:text-gray-400">
-                    设备断开重连后继续使用APP配置，而不是设备默认状态
-                  </div>
-                  <div className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">
-                    推荐开启，防止设备异常断连导致进入手动模式
-                  </div>
-                </div>
-              </div>
-              <ToggleSwitch
-                enabled={(config as any).ignoreDeviceOnReconnect ?? true}
-                onChange={handleIgnoreDeviceOnReconnectChange}
-                color="green"
-              />
-            </div>
-          </div>
-
-          {/* 智能启停 */}
-          <div className="py-4">
-            <div className="flex items-center gap-4 mb-4">
-              <div className="p-2.5 rounded-xl bg-purple-100 dark:bg-purple-900/30">
-                <Zap className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-              </div>
-              <div>
-                <div className="font-medium text-gray-900 dark:text-white">智能启停</div>
-                <div className="text-sm text-gray-500 dark:text-gray-400">
-                  控制在系统关闭后何时停止散热器
-                </div>
-              </div>
-            </div>
-            <div className="ml-14">
-              <RadioGroup
+          <SettingRow
+            icon={<Zap className="h-4 w-4" />}
+            title="智能启停"
+            description="系统关闭后何时停止散热"
+            disabled={!isConnected}
+          >
+            <div className="w-40">
+              <Select
                 value={config.smartStartStop || 'off'}
-                onChange={handleSmartStartStopChange}
-                options={smartStartStopOptions}
+                onChange={(v: string | number) => handleSmartStartStopChange(v as string)}
+                options={smartStartStopOptions.map((item) => ({ value: item.value, label: item.label }))}
                 disabled={!isConnected}
-                orientation="horizontal"
+                size="sm"
               />
             </div>
-          </div>
+          </SettingRow>
+        </Section>
 
-        </div>
+        {/* ═══════════ 4. 系统设置 ═══════════ */}
+        <Section title="系统设置" icon={Monitor}>
+          <SettingRow
+            icon={<Monitor className={clsx('h-4 w-4', config.windowsAutoStart ? 'text-emerald-500' : '')} />}
+            title="开机自启动"
+            description="Windows 启动时自动运行"
+            tip="以管理员身份运行可避免每次 UAC 授权"
+          >
+            <ToggleSwitch
+              enabled={config.windowsAutoStart}
+              onChange={handleWindowsAutoStartChange}
+              loading={loadingStates.windowsAutoStart}
+              size="sm"
+              color="green"
+            />
+          </SettingRow>
 
-        {/* 离线提示 */}
+          <SettingRow
+            icon={<Clock3 className={clsx('h-4 w-4', (config as any).ignoreDeviceOnReconnect ? 'text-emerald-500' : '')} />}
+            title="断连保持配置"
+            description="重连后继续使用 APP 配置"
+            tip="推荐开启，防止断连后进入设备默认模式"
+          >
+            <ToggleSwitch
+              enabled={(config as any).ignoreDeviceOnReconnect ?? true}
+              onChange={handleIgnoreDeviceOnReconnectChange}
+              size="sm"
+              color="green"
+            />
+          </SettingRow>
+        </Section>
+
+        {/* ═══════════ Offline tip ═══════════ */}
         {!isConnected && (
-          <div className="mt-6 p-4 rounded-xl bg-gray-100 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600">
-            <div className="flex items-center gap-3 text-gray-600 dark:text-gray-400">
-              <TriangleAlert className="w-5 h-5" />
-              <span className="text-sm">设备未连接，部分功能不可用</span>
-            </div>
+          <div className="flex items-center gap-2 rounded-xl border border-border bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
+            <TriangleAlert className="h-4 w-4 shrink-0" />
+            设备未连接，部分功能不可用
           </div>
         )}
 
-        {/* 版本和关于 */}
-        <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
-          <div className="text-center mb-4">
-            <Badge variant="info" size="md">{appVersion ? `v${appVersion}` : 'v--'}</Badge>
+        {/* ═══════════ 5. 关于与更新 ═══════════ */}
+        <section className="rounded-2xl border border-border bg-card">
+          <div className="flex items-center gap-2 border-b border-border/60 px-4 py-3">
+            <Rocket className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-sm font-semibold text-foreground">关于与更新</h3>
+            <span className="ml-auto text-[11px] text-muted-foreground">BS2PRO Controller</span>
           </div>
 
-          {/* 关于页面 iframe */}
-          <div className="rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden bg-white dark:bg-gray-800">
-            <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Info className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                  <span className="font-medium text-gray-900 dark:text-white">关于 & 更新</span>
-                </div>
-                <button
-                  onClick={() => handleOpenUrl('https://blog.tianli0.top/pages/bs2pro')}
-                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                >
-                  在浏览器中打开
-                </button>
-              </div>
-            </div>
-            <div className="relative h-80">
-              <iframe
-                src="https://blog.tianli0.top/pages/bs2pro"
-                className="w-full h-full border-0"
-                title="BS2PRO 关于页面"
-                sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
-                loading="lazy"
-                onLoad={() => setIframeLoaded(true)}
-              />
-              {!iframeLoaded && (
-                <div className="absolute inset-0 flex items-center justify-center bg-gray-50 dark:bg-gray-800">
-                  <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full" />
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* 开发者信息 */}
-          <div className="mt-6 p-4 rounded-2xl bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-center gap-4">
-              <img 
-                src="https://q1.qlogo.cn/g?b=qq&nk=507249007&s=640" 
-                alt="开发者头像" 
-                className="w-12 h-12 rounded-full border-2 border-white shadow-lg"
-              />
-              <div>
-                <div className="font-semibold text-gray-900 dark:text-white">TIANLI</div>
-                <button 
-                  onClick={() => handleOpenUrl('mailto:wutianli@tianli0.top')}
-                  className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
-                >
-                  wutianli@tianli0.top
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* 调试面板 */}
-          <Collapsible open={debugPanelOpen} onOpenChange={setDebugPanelOpen} className="mt-6">
-            <div className="rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-              <CollapsibleTrigger asChild>
-                <button type="button" className="w-full px-4 py-3 flex items-center justify-between bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-600/50 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <Bug className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-                    <span className="font-medium text-gray-900 dark:text-white">调试面板</span>
-                  </div>
-                  <ChevronDown className={clsx(
-                    'w-5 h-5 text-gray-500 transition-transform duration-200',
-                    debugPanelOpen && 'rotate-180'
-                  )} />
-                </button>
-              </CollapsibleTrigger>
-
-              <CollapsibleContent>
-                <div className="p-4 space-y-4">
-                    {/* 调试模式 */}
-                    <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-gray-700/50">
-                      <div className="flex items-center gap-3">
-                        <Bug className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-                        <div>
-                          <div className="font-medium text-gray-900 dark:text-white">调试模式</div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400">启用详细日志输出</div>
-                        </div>
-                      </div>
-                      <ToggleSwitch
-                        enabled={config.debugMode}
-                        onChange={toggleDebugMode}
-                        color="purple"
-                      />
-                    </div>
-
-                    {/* GUI 监控 */}
-                    <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-gray-700/50">
-                      <div className="flex items-center gap-3">
-                        {config.guiMonitoring ? (
-                          <Eye className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-                        ) : (
-                          <EyeOff className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-                        )}
-                        <div>
-                          <div className="font-medium text-gray-900 dark:text-white">GUI 监控</div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400">监控 GUI 响应状态</div>
-                        </div>
-                      </div>
-                      <ToggleSwitch
-                        enabled={config.guiMonitoring}
-                        onChange={toggleGuiMonitoring}
-                        color="purple"
-                      />
-                    </div>
-
-                    {/* 刷新调试信息 */}
-                    <Button
-                      variant="secondary"
-                      onClick={fetchDebugInfo}
-                      loading={debugInfoLoading}
-                      className="w-full"
-                    >
-                      刷新调试信息
-                    </Button>
-
-                    {/* 调试信息显示 */}
-                    {debugInfo && (
-                      <ScrollArea className="max-h-60 rounded-xl bg-gray-900">
-                        <pre className="p-3 text-xs text-green-400">
-                          {JSON.stringify(debugInfo, null, 2)}
-                        </pre>
-                      </ScrollArea>
-                    )}
-                </div>
-              </CollapsibleContent>
-            </div>
-          </Collapsible>
-        </div>
-      </Card>
-
-      {/* 自定义转速警告对话框 */}
-      {showCustomSpeedWarning && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6">
-            <div className="flex justify-center mb-4">
-              <div className="w-16 h-16 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center">
-                <TriangleAlert className="w-10 h-10 text-orange-600 dark:text-orange-400" />
-              </div>
-            </div>
-
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white text-center mb-3">
-              ⚠️ 风险提示
-            </h3>
-
-            <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4 mb-4">
-              <p className="text-sm text-gray-700 dark:text-gray-300 mb-2 font-medium">
-                启用自定义转速模式后：
-              </p>
-              <ul className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
-                <li>• 智能温控将被禁用</li>
-                <li>• 风扇将以固定转速运行</li>
-                <li>• 可能导致散热不足</li>
-                <li>• 请确保了解相关风险</li>
-              </ul>
-            </div>
-
-            <div className="bg-gray-50 dark:bg-gray-900/50 rounded-xl p-3 mb-4">
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">当前设置转速：</p>
-              <p className="text-2xl font-bold text-orange-600 dark:text-orange-400 text-center">
-                {customSpeedInput} RPM
-              </p>
-            </div>
-
-            <div className="flex gap-3">
-              <Button
-                variant="secondary"
-                onClick={() => setShowCustomSpeedWarning(false)}
-                className="flex-1"
-              >
-                取消
-              </Button>
-              <Button
-                variant="primary"
-                onClick={() => {
-                  setShowCustomSpeedWarning(false);
-                  handleCustomSpeedApply(true, customSpeedInput);
+          <div className="space-y-3 border-b border-border/60 px-4 py-3.5">
+            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/70 bg-muted/35 px-3 py-3">
+              <span className="inline-flex items-center rounded-full border border-border/70 bg-background/70 px-2.5 py-1 text-xs font-medium text-foreground">
+                BS2PRO Controller
+              </span>
+              <span className="inline-flex items-center rounded-full border border-border/70 bg-background/70 px-2.5 py-1 text-xs text-muted-foreground">
+                当前 {appVersion ? `v${appVersion}` : '--'}
+              </span>
+              <a
+                href="https://github.com/TIANLI0/BS2PRO-Controller/releases/latest"
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleOpenUrl(latestReleaseUrl || 'https://github.com/TIANLI0/BS2PRO-Controller/releases/latest');
                 }}
-                className="flex-1 !bg-orange-600 hover:!bg-orange-700"
-                icon={<CheckCircle2 className="w-5 h-5" />}
+                className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/15"
               >
-                我已了解风险
-              </Button>
+                最新 {releaseLoading ? '检查中…' : latestReleaseTag || '--'}
+                {hasNewVersion && !releaseLoading && <span className="h-2 w-2 rounded-full bg-destructive" />}
+              </a>
+            </div>
+
+            {releaseError && <div className="text-xs text-amber-600 dark:text-amber-300">{releaseError}</div>}
+
+            {hasNewVersion && (
+              <div className="rounded-xl border border-border/70 bg-background/50 p-3">
+                <div className="mb-2 text-xs font-medium text-muted-foreground">Release 日志</div>
+                {latestReleaseBody ? (
+                  <ScrollArea className="max-h-40">
+                    <p className="whitespace-pre-wrap text-xs leading-relaxed text-foreground/90">{latestReleaseBody}</p>
+                  </ScrollArea>
+                ) : (
+                  <p className="text-xs text-muted-foreground">暂无日志内容，或本次获取失败。</p>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="px-4 py-3">
+            <div className="rounded-xl border border-border/70 bg-muted/35 p-3">
+              <div className="mb-2 text-xs text-muted-foreground">开发者</div>
+              <div className="flex items-center gap-3">
+                <img
+                  src="http://q1.qlogo.cn/g?b=qq&nk=507249007&s=640"
+                  alt="Tianli 头像"
+                  className="h-12 w-12 rounded-full border border-border object-cover"
+                  referrerPolicy="no-referrer"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium text-foreground">Tianli</div>
+                  <div className="mt-0.5 text-xs text-muted-foreground">一个不知名开发者</div>
+                </div>
+              </div>
+
+              <div className="mt-3 space-y-1.5 border-t border-border/60 pt-2.5 text-xs">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground">邮箱</span>
+                  <a
+                    href="mailto:wutianli@tianli0.top"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleOpenUrl('mailto:wutianli@tianli0.top');
+                    }}
+                    className="text-foreground transition-colors hover:text-foreground/80"
+                  >
+                    wutianli@tianli0.top
+                  </a>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground">反馈群</span>
+                  <a
+                    href="https://qm.qq.com/q/2lEOycrLjq"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleOpenUrl('https://qm.qq.com/q/2lEOycrLjq');
+                    }}
+                    className="inline-flex items-center rounded-full border border-primary/40 bg-primary/10 px-2.5 py-1 font-medium text-primary transition-colors hover:bg-primary/15"
+                  >
+                    QQ 群入口
+                  </a>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        </section>
+
+        {/* ═══════════ 6. 调试面板 ═══════════ */}
+        <Collapsible open={debugPanelOpen} onOpenChange={setDebugPanelOpen}>
+          <div className="rounded-2xl border border-border bg-card overflow-hidden">
+            <CollapsibleTrigger asChild>
+              <button type="button" className="flex w-full items-center justify-between px-4 py-3 transition-colors hover:bg-muted/40">
+                <div className="flex items-center gap-2">
+                  <Bug className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-semibold text-foreground">调试面板</span>
+                </div>
+                <ChevronDown className={clsx('h-4 w-4 text-muted-foreground transition-transform duration-200', debugPanelOpen && 'rotate-180')} />
+              </button>
+            </CollapsibleTrigger>
+
+            <CollapsibleContent>
+              <div className="space-y-3 border-t border-border/60 p-4">
+                <div className="flex items-center justify-between rounded-xl bg-muted/50 px-3 py-2.5">
+                  <div className="flex items-center gap-2">
+                    <Bug className="h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <div className="text-sm font-medium">调试模式</div>
+                      <div className="text-[11px] text-muted-foreground">启用详细日志</div>
+                    </div>
+                  </div>
+                  <ToggleSwitch enabled={config.debugMode} onChange={toggleDebugMode} size="sm" color="purple" />
+                </div>
+
+                <div className="flex items-center justify-between rounded-xl bg-muted/50 px-3 py-2.5">
+                  <div className="flex items-center gap-2">
+                    {config.guiMonitoring ? <Eye className="h-4 w-4 text-muted-foreground" /> : <EyeOff className="h-4 w-4 text-muted-foreground" />}
+                    <div>
+                      <div className="text-sm font-medium">GUI 监控</div>
+                      <div className="text-[11px] text-muted-foreground">监控 GUI 响应</div>
+                    </div>
+                  </div>
+                  <ToggleSwitch enabled={config.guiMonitoring} onChange={toggleGuiMonitoring} size="sm" color="purple" />
+                </div>
+
+                <Button variant="secondary" size="sm" onClick={fetchDebugInfo} loading={debugInfoLoading} className="w-full">
+                  刷新调试信息
+                </Button>
+
+                {debugInfo && (
+                  <ScrollArea className="max-h-48 rounded-xl border border-border bg-background">
+                    <pre className="p-3 text-xs text-foreground/90">{JSON.stringify(debugInfo, null, 2)}</pre>
+                  </ScrollArea>
+                )}
+              </div>
+            </CollapsibleContent>
+          </div>
+        </Collapsible>
+      </div>
+
+      {/* ═══════════ Custom speed warning dialog ═══════════ */}
+      <AnimatePresence>
+        {showCustomSpeedWarning && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-xl"
+            >
+              <div className="mb-4 flex justify-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-500/15">
+                  <TriangleAlert className="h-8 w-8 text-amber-600" />
+                </div>
+              </div>
+
+              <h3 className="mb-3 text-center text-lg font-bold text-foreground">风险提示</h3>
+
+              <div className="mb-4 rounded-xl border border-amber-300/40 bg-amber-500/10 p-3 text-sm">
+                <p className="mb-2 font-medium text-foreground">启用后：</p>
+                <ul className="space-y-1 text-xs text-muted-foreground">
+                  <li>• 智能温控将被禁用</li>
+                  <li>• 风扇以固定转速运行</li>
+                  <li>• 可能导致散热不足</li>
+                </ul>
+              </div>
+
+              <div className="mb-5 rounded-xl bg-muted/60 p-3 text-center">
+                <span className="text-xs text-muted-foreground">设置转速</span>
+                <div className="text-xl font-bold text-amber-600">{customSpeedInput} RPM</div>
+              </div>
+
+              <div className="flex gap-3">
+                <Button variant="secondary" onClick={() => setShowCustomSpeedWarning(false)} className="flex-1">
+                  取消
+                </Button>
+                <Button
+                  variant="primary"
+                  onClick={() => { setShowCustomSpeedWarning(false); handleCustomSpeedApply(true, customSpeedInput); }}
+                  className="flex-1 bg-amber-600 text-white hover:bg-amber-700"
+                  icon={<CheckCircle2 className="h-4 w-4" />}
+                >
+                  确认
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 }

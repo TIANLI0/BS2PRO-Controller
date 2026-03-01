@@ -1,20 +1,25 @@
 'use client';
 
 import { memo, useEffect, useState } from 'react';
-import { 
+import { motion } from 'framer-motion';
+import {
   AlertTriangle,
   Cpu,
   Zap,
   RotateCw,
   Monitor,
   Wifi,
-  Signal,
+  Fan,
+  Gpu,
   Settings,
-  CheckCircle2,
+  Gauge,
+  Power,
+  ShieldCheck,
+  Sparkles,
 } from 'lucide-react';
 import { types } from '../../../wailsjs/go/models';
 import { apiService } from '../services/api';
-import { ToggleSwitch, Card, Badge, Button } from './ui/index';
+import { ToggleSwitch, Button } from './ui/index';
 import clsx from 'clsx';
 
 interface DeviceStatusProps {
@@ -27,7 +32,6 @@ interface DeviceStatusProps {
   onConfigChange: (config: types.AppConfig) => void;
 }
 
-// 温度状态判断
 const getTempStatus = (temp: number) => {
   if (temp > 85) return { color: 'text-red-500', bg: 'bg-red-500', label: '过热' };
   if (temp > 75) return { color: 'text-orange-500', bg: 'bg-orange-500', label: '偏高' };
@@ -35,30 +39,29 @@ const getTempStatus = (temp: number) => {
   return { color: 'text-green-500', bg: 'bg-green-500', label: '良好' };
 };
 
-// ============ 独立的实时数据组件 - 避免触发父组件重绘 ============
+const getFanSpinDuration = (rpm?: number) => {
+  if (!rpm || rpm <= 0) return 0;
+  if (rpm >= 4200) return 0.45;
+  if (rpm >= 3200) return 0.7;
+  if (rpm >= 2200) return 1;
+  return 1.35;
+};
 
-// CPU 温度显示组件
-const CpuTempDisplay = memo(function CpuTempDisplay({ 
-  temp 
-}: { 
-  temp: number | undefined 
-}) {
+/* ── Memo sub-components to avoid parent re-renders ── */
+
+const CpuTempDisplay = memo(function CpuTempDisplay({ temp }: { temp: number | undefined }) {
   const status = getTempStatus(temp || 0);
   return (
-    <div className="flex flex-col items-center h-full">
-      <div className="flex-1 flex flex-col justify-center">
-        <div className="flex items-baseline gap-0.5 justify-center">
-          <span className={clsx('text-3xl font-bold tabular-nums', status.color)}>
-            {temp ?? '--'}
-          </span>
-          <span className="text-sm text-gray-400">°C</span>
-        </div>
-        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 text-center h-4">
-          {status.label}
-        </div>
+    <div className="flex flex-col items-center">
+      <div className="flex items-baseline gap-0.5">
+        <span className={clsx('text-2xl font-bold tabular-nums', status.color)}>
+          {temp ?? '--'}
+        </span>
+        <span className="text-xs text-muted-foreground">°C</span>
       </div>
-      <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden mt-2">
-        <div 
+      <span className="mt-1 text-[11px] text-muted-foreground">{status.label}</span>
+      <div className="mt-2.5 h-1 w-full overflow-hidden rounded-full bg-muted">
+        <div
           className={clsx('h-full rounded-full transition-all duration-500', status.bg)}
           style={{ width: `${Math.min(100, ((temp || 0) / 100) * 100)}%` }}
         />
@@ -67,28 +70,19 @@ const CpuTempDisplay = memo(function CpuTempDisplay({
   );
 });
 
-// GPU 温度显示组件
-const GpuTempDisplay = memo(function GpuTempDisplay({ 
-  temp 
-}: { 
-  temp: number | undefined 
-}) {
+const GpuTempDisplay = memo(function GpuTempDisplay({ temp }: { temp: number | undefined }) {
   const status = getTempStatus(temp || 0);
   return (
-    <div className="flex flex-col items-center h-full">
-      <div className="flex-1 flex flex-col justify-center">
-        <div className="flex items-baseline gap-0.5 justify-center">
-          <span className={clsx('text-3xl font-bold tabular-nums', status.color)}>
-            {temp ?? '--'}
-          </span>
-          <span className="text-sm text-gray-400">°C</span>
-        </div>
-        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 text-center h-4">
-          {status.label}
-        </div>
+    <div className="flex flex-col items-center">
+      <div className="flex items-baseline gap-0.5">
+        <span className={clsx('text-2xl font-bold tabular-nums', status.color)}>
+          {temp ?? '--'}
+        </span>
+        <span className="text-xs text-muted-foreground">°C</span>
       </div>
-      <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden mt-2">
-        <div 
+      <span className="mt-1 text-[11px] text-muted-foreground">{status.label}</span>
+      <div className="mt-2.5 h-1 w-full overflow-hidden rounded-full bg-muted">
+        <div
           className={clsx('h-full rounded-full transition-all duration-500', status.bg)}
           style={{ width: `${Math.min(100, ((temp || 0) / 100) * 100)}%` }}
         />
@@ -97,64 +91,43 @@ const GpuTempDisplay = memo(function GpuTempDisplay({
   );
 });
 
-// 风扇转速显示组件
-const FanRpmDisplay = memo(function FanRpmDisplay({ 
+const FanRpmDisplay = memo(function FanRpmDisplay({
   currentRpm,
   targetRpm,
   setGear,
-}: { 
+}: {
   currentRpm: number | undefined;
   targetRpm: number | undefined;
   setGear: string | undefined;
 }) {
-  const rpmPercentage = Math.min(100, ((currentRpm || 0) / 4000) * 100);
+  const pct = Math.min(100, ((currentRpm || 0) / 4000) * 100);
+
   return (
-    <div className="flex flex-col items-center h-full">
-      <div className="flex-1 flex flex-col justify-center">
-        <div className="flex items-baseline gap-0.5 justify-center">
-          <span className="text-3xl font-bold tabular-nums text-blue-600 dark:text-blue-400">
-            {currentRpm ?? '--'}
-          </span>
-          <span className="text-sm text-gray-400">RPM</span>
-        </div>
-        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 text-center h-4">
-          目标 {targetRpm ?? '--'} · {setGear || '--'}
-        </div>
+    <div className="flex flex-col items-center">
+      <div className="flex items-baseline gap-0.5">
+        <span className="text-2xl font-bold tabular-nums text-primary">{currentRpm ?? '--'}</span>
+        <span className="text-xs text-muted-foreground">RPM</span>
       </div>
-      <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden mt-2">
-        <div 
-          className="h-full bg-blue-500 rounded-full transition-all duration-300"
-          style={{ width: `${rpmPercentage}%` }}
-        />
+      <span className="mt-1 text-[11px] text-muted-foreground">
+        目标 {targetRpm ?? '--'} · {setGear || '--'}
+      </span>
+      <div className="mt-2.5 h-1 w-full overflow-hidden rounded-full bg-muted">
+        <div className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${pct}%` }} />
       </div>
     </div>
   );
 });
 
-// 最高温度显示组件
-const MaxTempDisplay = memo(function MaxTempDisplay({ 
-  temp 
-}: { 
-  temp: number | undefined 
-}) {
-  const status = getTempStatus(temp || 0);
-  return (
-    <span className={clsx('text-sm font-semibold tabular-nums', status.color)}>
-      {temp ?? '--'}°C
-    </span>
-  );
-});
+/* ── Main component ── */
 
-// ============ 主组件 ============
-
-export default function DeviceStatus({ 
-  isConnected, 
-  fanData, 
-  temperature, 
+export default function DeviceStatus({
+  isConnected,
+  fanData,
+  temperature,
   config,
-  onConnect, 
+  onConnect,
   onDisconnect,
-  onConfigChange
+  onConfigChange,
 }: DeviceStatusProps) {
   const [cpuTempZeroReady, setCpuTempZeroReady] = useState(false);
   const isCpuTempZero = isConnected && temperature?.cpuTemp === 0;
@@ -164,251 +137,224 @@ export default function DeviceStatus({
       setCpuTempZeroReady(false);
       return;
     }
-
-    const timer = window.setTimeout(() => {
-      setCpuTempZeroReady(true);
-    }, 5000);
-
+    const timer = window.setTimeout(() => setCpuTempZeroReady(true), 5000);
     return () => window.clearTimeout(timer);
   }, [isCpuTempZero]);
-  
+
   const handleAutoControlChange = async (enabled: boolean) => {
     try {
       await apiService.setAutoControl(enabled);
-      const newConfig = types.AppConfig.createFrom({ ...config, autoControl: enabled });
-      onConfigChange(newConfig);
-    } catch (error) {
-      console.error('设置智能变频失败:', error);
+      onConfigChange(types.AppConfig.createFrom({ ...config, autoControl: enabled }));
+    } catch (err) {
+      console.error('设置智能变频失败:', err);
     }
   };
 
-  // 设备型号判断
   const deviceModel = fanData?.maxGear === '超频' ? 'BS2 PRO' : 'BS2';
+  const modeTitle = config.autoControl ? '智能控制' : config.customSpeedEnabled ? '固定转速' : '手动策略';
+  const modeDesc = config.autoControl
+    ? '根据实时温度自动调节转速'
+    : config.customSpeedEnabled
+      ? `当前固定为 ${config.customSpeedRPM || fanData?.currentRpm || '--'} RPM`
+      : '可在设置页调整模式与参数';
+  const fanSpinDuration = getFanSpinDuration(fanData?.currentRpm);
 
   return (
     <div className="space-y-4">
-      {/* 顶部状态栏 */}
-      <Card className={clsx(
-        'p-5 relative overflow-hidden xl:mx-auto xl:max-w-5xl 2xl:max-w-6xl',
-        isConnected && 'bg-gradient-to-r from-white via-white to-blue-50/50 dark:from-gray-800 dark:via-gray-800 dark:to-blue-900/20'
-      )}>
-        {/* 背景装饰 */}
-        {isConnected && (
-          <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-500/10 to-purple-500/10 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2" />
-        )}
-        
-        <div className="flex items-center justify-between relative">
-          {/* 左侧：设备信息 */}
-          <div className="flex items-center gap-4">
-            {/* 设备图标 */}
-            <div className="relative">
-              <div className={clsx(
-                'w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-300',
-                isConnected 
-                  ? 'bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/30' 
-                  : 'bg-gray-100 dark:bg-gray-700/50'
-              )}>
-                <Monitor className={clsx(
-                  'w-7 h-7 transition-colors',
-                  isConnected ? 'text-white' : 'text-gray-500 dark:text-gray-400'
-                )} />
-              </div>
-              {/* 连接状态指示点 */}
-              <div className={clsx(
-                'absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center ring-2 ring-white dark:ring-gray-800 transition-all duration-300',
-                isConnected 
-                  ? 'bg-green-500 shadow-lg shadow-green-500/50' 
-                  : 'bg-gray-400 dark:bg-gray-500'
-              )}>
-                {isConnected ? (
-                  <CheckCircle2 className="w-5 h-5 text-white" />
-                ) : (
-                  <span className="w-2 h-2 rounded-full bg-white" />
-                )}
-              </div>
+      {/* ── Device header card ── */}
+      <div className="relative overflow-hidden rounded-3xl border border-border/70 bg-card/80 p-5 shadow-lg shadow-primary/5 backdrop-blur-2xl">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div
+              className={clsx(
+                'flex h-12 w-12 items-center justify-center rounded-2xl transition-colors ring-1',
+                isConnected
+                  ? 'bg-primary/10 text-primary ring-primary/30'
+                  : 'bg-muted text-muted-foreground ring-border',
+              )}
+            >
+              <Monitor className="h-6 w-6" />
             </div>
-
-            {/* 设备名称和状态 */}
             <div>
-              <div className="flex items-center gap-3">
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                  {deviceModel}
-                </h2>
-                <Badge variant={isConnected ? 'success' : 'error'} size="sm">
+              <div className="flex items-center gap-2">
+                <span className="text-lg font-semibold text-foreground">{deviceModel}</span>
+                <span
+                  className={clsx(
+                    'rounded-full px-2.5 py-1 text-xs font-medium',
+                    isConnected
+                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                      : 'bg-red-500/10 text-red-500',
+                  )}
+                >
                   {isConnected ? '已连接' : '离线'}
-                </Badge>
+                </span>
               </div>
-              <div className="flex items-center gap-2 mt-1">
-                {isConnected ? (
-                  <>
-                    <span className={clsx(
-                      'inline-flex items-center gap-1.5 text-sm',
-                      config.autoControl ? 'text-blue-600 dark:text-blue-400' : 'text-orange-600 dark:text-orange-400'
-                    )}>
-                      {config.autoControl ? (
-                        <Zap className="w-4 h-4" />
-                      ) : (
-                        <Settings className="w-4 h-4" />
-                      )}
-                      <span className="font-medium">
-                        {config.autoControl ? '智能变频运行中' : '手动控制模式'}
-                      </span>
-                    </span>
-                  </>
-                ) : (
-                  <span className="text-sm text-gray-500 dark:text-gray-400">
-                    等待设备连接...
-                  </span>
-                )}
-              </div>
+              {isConnected && (
+                <div className="mt-0.5 flex items-center gap-1.5 text-sm text-muted-foreground">
+                  {config.autoControl ? (
+                    <Zap className="h-3 w-3 text-primary" />
+                  ) : (
+                    <Settings className="h-3 w-3" />
+                  )}
+                  <span>{modeTitle} · {modeDesc}</span>
+                </div>
+              )}
+              {!isConnected && <p className="mt-0.5 text-sm text-muted-foreground">等待蓝牙连接…</p>}
             </div>
           </div>
 
-          {/* 右侧：操作区 */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             {isConnected && (
-              <div className="flex items-center gap-3 px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-200 dark:border-gray-600">
-                <ToggleSwitch
-                  enabled={config.autoControl}
-                  onChange={handleAutoControlChange}
-                  label="智能变频"
-                  color="blue"
-                />
-              </div>
+              <ToggleSwitch
+                enabled={config.autoControl}
+                onChange={handleAutoControlChange}
+                label="智能变频"
+                size="md"
+                color="blue"
+              />
             )}
             <Button
               variant={isConnected ? 'secondary' : 'primary'}
-              size="sm"
+              size="md"
               onClick={isConnected ? onDisconnect : onConnect}
-              icon={isConnected ? undefined : <RotateCw className="w-4 h-4" />}
             >
-              {isConnected ? '断开连接' : '连接设备'}
+              {isConnected ? '断开' : '连接'}
             </Button>
           </div>
         </div>
-      </Card>
+      </div>
 
-      {/* 核心数据仪表盘 */}
+      {/* ── Metric cards ── */}
       {isConnected ? (
-        <div className="grid grid-cols-3 gap-4 xl:mx-auto xl:max-w-4xl 2xl:max-w-5xl">
-          {/* CPU 温度卡片 */}
-          <Card className="p-5" hover>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="p-2 rounded-lg bg-orange-50 dark:bg-orange-900/20">
-                <Cpu className="w-5 h-5 text-orange-500" />
-              </div>
-              <span className="text-sm font-medium text-gray-600 dark:text-gray-400">CPU 温度</span>
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, ease: 'easeOut' }}
+          className="grid grid-cols-3 items-stretch gap-4"
+        >
+          {/* CPU */}
+          <div className="flex h-full flex-col rounded-2xl border border-border/70 bg-card/85 p-5 backdrop-blur-xl transition-shadow hover:shadow-md hover:shadow-primary/10">
+            <div className="mb-3 flex items-center justify-center gap-2 text-sm font-medium text-muted-foreground">
+              <Cpu className="h-4 w-4" />
+              CPU
             </div>
-            
-            <div className="h-20">
-              <CpuTempDisplay temp={temperature?.cpuTemp} />
-            </div>
-          </Card>
+            <CpuTempDisplay temp={temperature?.cpuTemp} />
+          </div>
 
-          {/* GPU 温度卡片 */}
-          <Card className="p-5" hover>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="p-2 rounded-lg bg-purple-50 dark:bg-purple-900/20">
-                <svg className="w-5 h-5 text-purple-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <rect x="4" y="4" width="16" height="16" rx="2" />
-                  <rect x="8" y="8" width="8" height="8" rx="1" />
-                  <path d="M4 9h1M4 15h1M19 9h1M19 15h1M9 4v1M15 4v1M9 19v1M15 19v1" strokeLinecap="round" />
-                </svg>
-              </div>
-              <span className="text-sm font-medium text-gray-600 dark:text-gray-400">GPU 温度</span>
+          {/* GPU */}
+          <div className="flex h-full flex-col rounded-2xl border border-border/70 bg-card/85 p-5 backdrop-blur-xl transition-shadow hover:shadow-md hover:shadow-primary/10">
+            <div className="mb-3 flex items-center justify-center gap-2 text-sm font-medium text-muted-foreground">
+              <Gpu className="h-4 w-4" />
+              GPU
             </div>
-            
-            <div className="h-20">
-              <GpuTempDisplay temp={temperature?.gpuTemp} />
-            </div>
-          </Card>
+            <GpuTempDisplay temp={temperature?.gpuTemp} />
+          </div>
 
-          {/* 风扇转速卡片 */}
-          <Card className="p-5" hover>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20">
-                <Signal className="w-5 h-5 text-blue-500" />
-              </div>
-              <span className="text-sm font-medium text-gray-600 dark:text-gray-400">风扇转速</span>
+          {/* Fan */}
+          <div className="flex h-full flex-col rounded-2xl border border-border/70 bg-card/85 p-5 backdrop-blur-xl transition-shadow hover:shadow-md hover:shadow-primary/10">
+            <div className="mb-3 flex items-center justify-center gap-2 text-sm font-medium text-muted-foreground">
+              <motion.div
+                animate={fanSpinDuration ? { rotate: 360 } : { rotate: 0 }}
+                transition={fanSpinDuration ? { duration: fanSpinDuration, repeat: Infinity, ease: 'linear' } : undefined}
+              >
+                <Fan className="h-4 w-4" />
+              </motion.div>
+              风扇
             </div>
-            
-            <div className="h-20">
-              <FanRpmDisplay 
-                currentRpm={fanData?.currentRpm}
-                targetRpm={fanData?.targetRpm}
-                setGear={fanData?.setGear}
-              />
-            </div>
-          </Card>
-        </div>
+            <FanRpmDisplay
+              currentRpm={fanData?.currentRpm}
+              targetRpm={fanData?.targetRpm}
+              setGear={fanData?.setGear}
+            />
+          </div>
+        </motion.div>
       ) : (
-        /* 未连接提示 */
-        <Card className="p-8">
-          <div className="text-center">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
-              <Wifi className="w-8 h-8 text-gray-400" />
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-              设备未连接
-            </h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 max-w-xs mx-auto">
-              请将 BS2/BS2PRO 散热器通过 蓝牙 连接到电脑
-            </p>
-            <Button onClick={onConnect} icon={<RotateCw className="w-4 h-4" />}>
-              连接设备
-            </Button>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.3 }}
+          className="rounded-2xl border border-dashed border-border bg-card p-14 text-center"
+        >
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted">
+            <Wifi className="h-7 w-7 text-muted-foreground" />
           </div>
-        </Card>
+          <h3 className="mb-1.5 text-lg font-semibold">设备未连接</h3>
+          <p className="mb-5 text-base text-muted-foreground">请将散热器通过蓝牙连接到电脑</p>
+          <Button onClick={onConnect} size="md" icon={<RotateCw className="h-4 w-4" />}>
+            连接设备
+          </Button>
+        </motion.div>
       )}
 
+      {/* ── CPU temp zero warning ── */}
       {cpuTempZeroReady && (
-        <Card className="p-4 xl:mx-auto xl:max-w-4xl 2xl:max-w-5xl border-amber-200 bg-amber-50/70 dark:border-amber-800/60 dark:bg-amber-900/20">
-          <div className="flex items-start gap-2 text-sm text-amber-800 dark:text-amber-200">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-            <p>检测到 CPU 温度获取失败，请将软件安装路径加入杀毒软件白名单（如 Windows Defender / 火绒），然后重启软件再试。</p>
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          className="overflow-hidden"
+        >
+          <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-sm dark:border-amber-800/60 dark:bg-amber-900/20">
+            <div className="flex items-start gap-2 text-amber-800 dark:text-amber-200">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <p>检测到 CPU 温度获取失败，请将安装路径加入杀软白名单后重启软件。</p>
+            </div>
           </div>
-        </Card>
+        </motion.div>
       )}
 
-      {/* 运行状态详情 */}
+      {/* ── Running details ── */}
       {isConnected && (
-        <Card className="p-4 xl:mx-auto xl:max-w-4xl 2xl:max-w-5xl">
-          <div className="flex items-center gap-2 mb-4">
-            <Zap className="w-4 h-4 text-gray-500" />
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">运行详情</h3>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.15, duration: 0.3 }}
+          className="rounded-3xl border border-border/70 bg-card/80 p-5 backdrop-blur-2xl"
+        >
+          <div className="mb-4 flex items-center gap-2">
+            <Gauge className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
+              控制与保护
+            </h3>
           </div>
-          
-          <div className="grid grid-cols-4 gap-6">
-            <div className="text-center">
-              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">控制模式</div>
-              <div className={clsx(
-                'text-sm font-semibold',
-                config.autoControl ? 'text-blue-600 dark:text-blue-400' : 'text-orange-600 dark:text-orange-400'
-              )}>
-                {config.autoControl ? '智能变频' : '手动控制'}
+
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <div className="rounded-xl border border-border/70 bg-background/50 p-3.5 backdrop-blur-lg">
+              <div className="mb-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Sparkles className="h-3.5 w-3.5" />
+                控制模式
+              </div>
+              <div className={clsx('text-base font-semibold', config.autoControl ? 'text-primary' : 'text-amber-600 dark:text-amber-400')}>
+                {modeTitle}
               </div>
             </div>
-            
-            <div className="text-center">
-              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">最高功率</div>
-              <div className="text-sm font-semibold text-gray-900 dark:text-white">
-                {fanData?.maxGear || '--'}
+
+            <div className="rounded-xl border border-border/70 bg-background/50 p-3.5 backdrop-blur-lg">
+              <div className="mb-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Power className="h-3.5 w-3.5" />
+                最高功率
               </div>
+              <div className="text-base font-semibold">{fanData?.maxGear || '--'}</div>
             </div>
-            
-            <div className="text-center">
-              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">工作模式</div>
-              <div className="text-sm font-semibold text-gray-900 dark:text-white">
-                {fanData?.workMode || '--'}
+
+            <div className="rounded-xl border border-border/70 bg-background/50 p-3.5 backdrop-blur-lg">
+              <div className="mb-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Fan className="h-3.5 w-3.5" />
+                工作模式
               </div>
+              <div className="text-base font-semibold">{fanData?.workMode || '--'}</div>
             </div>
-            
-            <div className="text-center">
-              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">最高温度</div>
-              <MaxTempDisplay temp={temperature?.maxTemp} />
+
+            <div className="rounded-xl border border-border/70 bg-background/50 p-3.5 backdrop-blur-lg">
+              <div className="mb-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                温度状态
+              </div>
+              <div className={clsx('text-base font-semibold tabular-nums', getTempStatus(temperature?.maxTemp || 0).color)}>
+                {getTempStatus(temperature?.maxTemp || 0).label}
+              </div>
             </div>
           </div>
-        </Card>
+        </motion.div>
       )}
     </div>
   );

@@ -132,7 +132,7 @@ func main() {
 
 	// 创建应用
 	err := wails.Run(&options.App{
-		Title:            "BS2PRO-控制台",
+		Title:            "BS2PRO Controller",
 		Width:            1024,
 		Height:           768,
 		WindowStartState: windowStartState,

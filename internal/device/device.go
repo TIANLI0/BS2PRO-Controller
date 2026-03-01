@@ -365,7 +365,7 @@ func (m *Manager) SetFanSpeed(rpm int) bool {
 		return false
 	}
 
-	if rpm < 1000 || rpm > 4000 {
+	if rpm < 0 || rpm > 4000 {
 		return false
 	}
 
