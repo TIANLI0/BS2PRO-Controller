@@ -130,16 +130,16 @@ export default function DeviceStatus({
   onConfigChange,
 }: DeviceStatusProps) {
   const [cpuTempZeroReady, setCpuTempZeroReady] = useState(false);
-  const isCpuTempZero = isConnected && temperature?.cpuTemp === 0;
+  const isCpuTempZeroInAutoControl = isConnected && config.autoControl && temperature?.cpuTemp === 0;
 
   useEffect(() => {
-    if (!isCpuTempZero) {
+    if (!isCpuTempZeroInAutoControl) {
       setCpuTempZeroReady(false);
       return;
     }
     const timer = window.setTimeout(() => setCpuTempZeroReady(true), 5000);
     return () => window.clearTimeout(timer);
-  }, [isCpuTempZero]);
+  }, [isCpuTempZeroInAutoControl]);
 
   const handleAutoControlChange = async (enabled: boolean) => {
     try {
@@ -287,7 +287,7 @@ export default function DeviceStatus({
       )}
 
       {/* ── CPU temp zero warning ── */}
-      {cpuTempZeroReady && (
+      {cpuTempZeroReady &&  (
         <motion.div
           initial={{ opacity: 0, height: 0 }}
           animate={{ opacity: 1, height: 'auto' }}
