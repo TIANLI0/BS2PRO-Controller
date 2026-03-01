@@ -743,10 +743,39 @@ Section "开机自启动" SEC_AUTOSTART
     ${EndIf}
 SectionEnd
 
+# Optional PawnIO installer section (unchecked by default)
+Section /o "安装 PawnIO (可选)" SEC_PAWNIO
+    DetailPrint "正在准备安装 PawnIO..."
+
+    SetOutPath "$TEMP\BS2PRO-PawnIO"
+    File /nonfatal "..\..\bin\PawnIO_setup.exe"
+
+    ${If} ${FileExists} "$TEMP\BS2PRO-PawnIO\PawnIO_setup.exe"
+        DetailPrint "正在静默安装 PawnIO..."
+        nsExec::ExecToStack '"$TEMP\BS2PRO-PawnIO\PawnIO_setup.exe" -install -silent'
+        Pop $0
+        Pop $1
+        ${If} $0 == 0
+            DetailPrint "PawnIO 安装完成（静默）"
+        ${Else}
+            DetailPrint "PawnIO 静默安装失败，改为交互安装..."
+            ExecWait '"$TEMP\BS2PRO-PawnIO\PawnIO_setup.exe" -install' $0
+            ${If} $0 == 0
+                DetailPrint "PawnIO 安装完成（交互）"
+            ${Else}
+                MessageBox MB_OK|MB_ICONEXCLAMATION "PawnIO 安装返回码: $0。可稍后手动安装。"
+            ${EndIf}
+        ${EndIf}
+    ${Else}
+        MessageBox MB_OK|MB_ICONEXCLAMATION "未找到 PawnIO_setup.exe（build\\bin）。请先执行 build_bridge.bat 下载后再打包安装器。"
+    ${EndIf}
+SectionEnd
+
 # Section descriptions
 !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
     !insertmacro MUI_DESCRIPTION_TEXT ${SEC_MAIN} "BS2PRO 控制器主程序和核心服务文件。"
     !insertmacro MUI_DESCRIPTION_TEXT ${SEC_AUTOSTART} "系统启动时自动运行 BS2PRO 控制器核心服务。推荐开启。"
+    !insertmacro MUI_DESCRIPTION_TEXT ${SEC_PAWNIO} "安装 PawnIO（可选），可降低部分杀毒软件误报风险。"
 !insertmacro MUI_FUNCTION_DESCRIPTION_END
 
 Section "uninstall"
