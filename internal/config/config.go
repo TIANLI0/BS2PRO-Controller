@@ -217,5 +217,11 @@ func ValidateFanCurve(curve []types.FanCurvePoint) error {
 		}
 	}
 
+	for i, point := range curve {
+		if point.RPM < 0 || point.RPM > 4000 {
+			return fmt.Errorf("风扇曲线第%d个点RPM超出范围(0-4000)", i+1)
+		}
+	}
+
 	return nil
 }

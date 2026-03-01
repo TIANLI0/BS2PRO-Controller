@@ -1,20 +1,25 @@
 @echo off
 echo 正在构建温度桥接程序...
 
-cd /d "%~dp0bridge\TempBridge"
+set "ROOT=%~dp0"
+set "PROJECT=%ROOT%bridge\TempBridge\TempBridge.csproj"
+set "OUTDIR=%ROOT%build\bin\bridge"
+
+if not exist "%OUTDIR%" mkdir "%OUTDIR%"
 
 echo 还原NuGet包...
-dotnet restore TempBridge.csproj
+dotnet restore "%PROJECT%"
+if errorlevel 1 goto :error
 
 echo 编译发布版本...
-dotnet publish TempBridge.csproj -c Release -r win-x64 --self-contained false
+dotnet publish "%PROJECT%" -c Release --self-contained false -o "%OUTDIR%"
+if errorlevel 1 goto :error
 
-cd ..\..
+echo 构建完成，输出目录: %OUTDIR%
+goto :end
 
-echo 复制编译产物所有文件到/build/bin/bridge
+:error
+echo 构建失败，请查看上方日志。
 
-mkdir build\bin\bridge 2>nul
-
-copy /y bridge\TempBridge\bin\Release\net4.7.2\win-x64\publish\* build\bin\bridge\
-
+:end
 pause

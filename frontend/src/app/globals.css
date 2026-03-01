@@ -1,33 +1,87 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f6f7fb;
+  --foreground: #111827;
+  --card: #ffffff;
+  --card-foreground: #111827;
+  --muted: #eef2f7;
+  --muted-foreground: #64748b;
+  --border: #dfe5ef;
+  --input: #d5deea;
+  --ring: #2563eb;
+  --primary: #2563eb;
+  --primary-foreground: #ffffff;
+  --destructive: #dc2626;
   --scrollbar-size: 10px;
   --scrollbar-thumb: color-mix(in srgb, var(--foreground) 35%, transparent);
   --scrollbar-thumb-hover: color-mix(in srgb, var(--foreground) 52%, transparent);
   --scrollbar-track: color-mix(in srgb, var(--background) 88%, transparent);
   --overlay-scrollbar-thumb: color-mix(in srgb, var(--foreground) 24%, transparent);
   --overlay-scrollbar-thumb-hover: color-mix(in srgb, var(--foreground) 34%, transparent);
+  --chart-grid: #e5e7eb;
+  --chart-axis: #d1d5db;
+  --chart-tick: #6b7280;
+  --chart-primary: #3b82f6;
+  --chart-primary-active: #1d4ed8;
+  --chart-primary-glow: rgba(59, 130, 246, 0.5);
+  --chart-point-shadow: rgba(0, 0, 0, 0.1);
+  --chart-temperature-indicator: #ef4444;
+  --chart-tooltip-bg: rgba(255, 255, 255, 0.95);
+  --chart-tooltip-border: transparent;
+  --chart-tooltip-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+  --chart-tooltip-text: #111827;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-destructive: var(--destructive);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-    --scrollbar-thumb: color-mix(in srgb, var(--foreground) 30%, transparent);
-    --scrollbar-thumb-hover: color-mix(in srgb, var(--foreground) 45%, transparent);
-    --scrollbar-track: color-mix(in srgb, var(--background) 92%, transparent);
-    --overlay-scrollbar-thumb: color-mix(in srgb, var(--foreground) 22%, transparent);
-    --overlay-scrollbar-thumb-hover: color-mix(in srgb, var(--foreground) 32%, transparent);
-  }
+.dark {
+  --background: #090f1a;
+  --foreground: #e6edf7;
+  --card: #101827;
+  --card-foreground: #e6edf7;
+  --muted: #1d283a;
+  --muted-foreground: #94a3b8;
+  --border: #253047;
+  --input: #2c3a55;
+  --ring: #60a5fa;
+  --primary: #3b82f6;
+  --primary-foreground: #eff6ff;
+  --destructive: #ef4444;
+  --scrollbar-thumb: color-mix(in srgb, var(--foreground) 30%, transparent);
+  --scrollbar-thumb-hover: color-mix(in srgb, var(--foreground) 45%, transparent);
+  --scrollbar-track: color-mix(in srgb, var(--background) 92%, transparent);
+  --overlay-scrollbar-thumb: color-mix(in srgb, var(--foreground) 22%, transparent);
+  --overlay-scrollbar-thumb-hover: color-mix(in srgb, var(--foreground) 32%, transparent);
+  --chart-grid: #4b5563;
+  --chart-axis: #4b5563;
+  --chart-tick: #94a3b8;
+  --chart-primary: #60a5fa;
+  --chart-primary-active: #3b82f6;
+  --chart-primary-glow: rgba(96, 165, 250, 0.45);
+  --chart-point-shadow: rgba(0, 0, 0, 0.45);
+  --chart-temperature-indicator: #ef4444;
+  --chart-tooltip-bg: rgba(17, 24, 39, 0.95);
+  --chart-tooltip-border: #374151;
+  --chart-tooltip-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6);
+  --chart-tooltip-text: #e5e7eb;
 }
 
 html,
@@ -42,7 +96,18 @@ body {
   overflow: hidden;
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  -ms-user-select: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+input,
+textarea,
+[contenteditable='true'] {
+  -ms-user-select: text;
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 .app-scroll-root {

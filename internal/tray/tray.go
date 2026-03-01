@@ -3,6 +3,7 @@ package tray
 
 import (
 	"fmt"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -17,8 +18,8 @@ type Manager struct {
 	initialized  int32 // atomic: 0=未初始化, 1=已初始化
 	readyState   int32 // atomic: 0=未就绪, 1=就绪
 	mutex        sync.Mutex
-	uiMutex      sync.Mutex
 	done         chan struct{} // 关闭此通道以通知所有 goroutine 退出
+	uiQueue      chan func()
 	iconData     []byte
 	menuItems    *MenuItems
 	onShowWindow func()
@@ -29,6 +30,11 @@ type Manager struct {
 	// 监控托盘健康状态
 	lastIconRefresh  int64
 	consecutiveFails int32 // 连续失败计数
+
+	// 防止托盘动作重入导致偶发无响应
+	showWindowInFlight int32
+	toggleAutoInFlight int32
+	quitInFlight       int32
 }
 
 // MenuItems 托盘菜单项结构
@@ -56,6 +62,7 @@ func NewManager(logger types.Logger, iconData []byte) *Manager {
 	return &Manager{
 		logger:   logger,
 		done:     make(chan struct{}),
+		uiQueue:  make(chan func(), 64),
 		iconData: iconData,
 	}
 }
@@ -87,6 +94,9 @@ func (m *Manager) Init() {
 	m.logInfo("正在初始化系统托盘")
 
 	go func() {
+		runtime.LockOSThread()
+		defer runtime.UnlockOSThread()
+
 		defer func() {
 			if r := recover(); r != nil {
 				m.logError("托盘初始化过程中发生panic: %v", r)
@@ -123,7 +133,7 @@ func (m *Manager) onTrayReady() {
 	systray.SetOnTapped(func() {
 		m.logDebug("托盘图标左键点击: 显示主窗口")
 		if m.onShowWindow != nil {
-			m.onShowWindow()
+			m.runTrayActionAsync("icon-show-window", &m.showWindowInFlight, m.onShowWindow)
 		}
 	})
 
@@ -137,6 +147,7 @@ func (m *Manager) onTrayReady() {
 		return
 	}
 	m.menuItems = menuItems
+	m.startUIWorker()
 
 	atomic.StoreInt32(&m.readyState, 1)
 	atomic.StoreInt64(&m.lastIconRefresh, time.Now().Unix())
@@ -165,8 +176,6 @@ func (m *Manager) setupIcon() (err error) {
 		return fmt.Errorf("托盘图标数据为空")
 	}
 
-	m.uiMutex.Lock()
-	defer m.uiMutex.Unlock()
 	systray.SetIcon(m.iconData)
 	systray.SetTitle("BS2PRO 控制器")
 	systray.SetTooltip("BS2PRO 风扇控制器 - 运行中")
@@ -180,9 +189,6 @@ func (m *Manager) createMenu() (items *MenuItems, err error) {
 			err = fmt.Errorf("创建托盘菜单时发生panic: %v", r)
 		}
 	}()
-
-	m.uiMutex.Lock()
-	defer m.uiMutex.Unlock()
 
 	items = &MenuItems{}
 
@@ -232,31 +238,68 @@ func (m *Manager) handleMenuEvents() {
 		case <-m.menuItems.Show.ClickedCh:
 			m.logDebug("托盘菜单: 显示主窗口")
 			if m.onShowWindow != nil {
-				m.onShowWindow()
+				m.runTrayActionAsync("menu-show-window", &m.showWindowInFlight, m.onShowWindow)
 			}
 		case <-m.menuItems.AutoControl.ClickedCh:
 			m.logDebug("托盘菜单: 切换智能变频状态")
 			if m.onToggleAuto != nil {
-				newState := m.onToggleAuto()
-				// 立即更新UI状态
-				m.uiMutex.Lock()
-				if newState {
-					m.menuItems.AutoControl.Check()
-				} else {
-					m.menuItems.AutoControl.Uncheck()
-				}
-				m.uiMutex.Unlock()
+				m.runTrayActionAsync("menu-toggle-auto", &m.toggleAutoInFlight, func() {
+					newState := m.onToggleAuto()
+					m.enqueueUI("menu-toggle-auto-ui", func() {
+						if m.menuItems == nil || m.menuItems.AutoControl == nil {
+							return
+						}
+						if newState {
+							m.menuItems.AutoControl.Check()
+						} else {
+							m.menuItems.AutoControl.Uncheck()
+						}
+					})
+				})
 			}
 		case <-m.menuItems.Quit.ClickedCh:
 			m.logInfo("托盘菜单: 用户请求退出应用")
 			if m.onQuit != nil {
-				m.onQuit()
+				m.runTrayActionAsync("menu-quit", &m.quitInFlight, m.onQuit)
 			}
 			return
 		case <-m.done:
 			return
 		}
 	}
+}
+
+// runTrayActionAsync 异步执行托盘动作，避免阻塞托盘消息处理
+func (m *Manager) runTrayActionAsync(action string, inFlight *int32, fn func()) {
+	if fn == nil {
+		return
+	}
+
+	if inFlight != nil && !atomic.CompareAndSwapInt32(inFlight, 0, 1) {
+		m.logDebug("托盘动作[%s]仍在执行，忽略重复触发", action)
+		return
+	}
+
+	go func() {
+		startedAt := time.Now()
+		defer func() {
+			if inFlight != nil {
+				atomic.StoreInt32(inFlight, 0)
+			}
+			if r := recover(); r != nil {
+				m.logError("托盘动作[%s]发生panic: %v", action, r)
+			}
+
+			d := time.Since(startedAt)
+			if d > 800*time.Millisecond {
+				m.logError("托盘动作[%s]执行耗时较长: %v", action, d)
+			} else {
+				m.logDebug("托盘动作[%s]执行完成: %v", action, d)
+			}
+		}()
+
+		fn()
+	}()
 }
 
 // updateMenuStatus 定期更新托盘菜单状态
@@ -278,58 +321,46 @@ func (m *Manager) updateMenuStatus() {
 				continue
 			}
 
-			// 安全地更新菜单项
-			func() {
-				defer func() {
-					if r := recover(); r != nil {
-						m.logError("托盘更新时发生错误（可能是正在退出）: %v", r)
-					}
-				}()
+			if m.getStatus == nil {
+				continue
+			}
 
-				if m.getStatus == nil || m.menuItems == nil {
+			status := m.getStatus()
+			m.enqueueUI("update-menu-status", func() {
+				if m.menuItems == nil {
 					return
 				}
 
-				status := m.getStatus()
-				m.uiMutex.Lock()
-				defer m.uiMutex.Unlock()
-
-				// 更新设备状态
 				if status.Connected {
 					m.menuItems.DeviceStatus.SetTitle("设备状态: 已连接")
 				} else {
 					m.menuItems.DeviceStatus.SetTitle("设备状态: 未连接")
 				}
 
-				// 更新CPU温度信息
 				if status.CPUTemp > 0 {
 					m.menuItems.CPUTemperature.SetTitle(fmt.Sprintf("CPU温度: %d°C", status.CPUTemp))
 				} else {
 					m.menuItems.CPUTemperature.SetTitle("CPU温度: 无数据")
 				}
 
-				// 更新GPU温度信息
 				if status.GPUTemp > 0 {
 					m.menuItems.GPUTemperature.SetTitle(fmt.Sprintf("GPU温度: %d°C", status.GPUTemp))
 				} else {
 					m.menuItems.GPUTemperature.SetTitle("GPU温度: 无数据")
 				}
 
-				// 更新风扇转速信息
 				if status.CurrentRPM > 0 {
 					m.menuItems.FanSpeed.SetTitle(fmt.Sprintf("风扇转速: %d RPM", status.CurrentRPM))
 				} else {
 					m.menuItems.FanSpeed.SetTitle("风扇转速: 无数据")
 				}
 
-				// 同步智能变频状态
 				if status.AutoControlState {
 					m.menuItems.AutoControl.Check()
 				} else {
 					m.menuItems.AutoControl.Uncheck()
 				}
 
-				// 更新托盘提示
 				if status.Connected {
 					if status.AutoControlState {
 						tooltipText := fmt.Sprintf("BS2PRO 控制器 - 智能变频中\nCPU: %d°C GPU: %d°C", status.CPUTemp, status.GPUTemp)
@@ -347,7 +378,7 @@ func (m *Manager) updateMenuStatus() {
 				} else {
 					systray.SetTooltip("BS2PRO 控制器 - 设备未连接")
 				}
-			}()
+			})
 		case <-m.done:
 			return
 		}
@@ -395,22 +426,75 @@ func (m *Manager) refreshTrayIcon() {
 		}
 	}()
 
-	m.uiMutex.Lock()
-	defer m.uiMutex.Unlock()
+	queued := m.enqueueUI("refresh-tray-icon", func() {
+		if len(m.iconData) == 0 {
+			atomic.AddInt32(&m.consecutiveFails, 1)
+			m.logError("刷新托盘图标失败: 图标数据为空")
+			return
+		}
 
-	if len(m.iconData) == 0 {
+		systray.SetIcon(m.iconData)
+		systray.SetTooltip("BS2PRO 风扇控制器 - 运行中")
+
+		atomic.StoreInt32(&m.consecutiveFails, 0)
+		atomic.StoreInt64(&m.lastIconRefresh, time.Now().Unix())
+
+		m.logDebug("托盘图标已刷新")
+	})
+
+	if !queued {
 		atomic.AddInt32(&m.consecutiveFails, 1)
-		m.logError("刷新托盘图标失败: 图标数据为空")
-		return
+	}
+}
+
+func (m *Manager) startUIWorker() {
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				m.logError("托盘UI队列处理发生panic: %v", r)
+			}
+		}()
+
+		for {
+			select {
+			case fn := <-m.uiQueue:
+				if fn != nil {
+					fn()
+				}
+			case <-m.done:
+				return
+			}
+		}
+	}()
+}
+
+func (m *Manager) enqueueUI(action string, fn func()) bool {
+	if fn == nil {
+		return false
 	}
 
-	systray.SetIcon(m.iconData)
-	systray.SetTooltip("BS2PRO 风扇控制器 - 运行中")
+	select {
+	case <-m.done:
+		return false
+	default:
+	}
 
-	atomic.StoreInt32(&m.consecutiveFails, 0)
-	atomic.StoreInt64(&m.lastIconRefresh, time.Now().Unix())
+	wrapped := func() {
+		defer func() {
+			if r := recover(); r != nil {
+				m.logError("托盘UI动作[%s]发生panic: %v", action, r)
+			}
+		}()
+		fn()
+	}
 
-	m.logDebug("托盘图标已刷新")
+	select {
+	case m.uiQueue <- wrapped:
+		return true
+	default:
+		m.logError("托盘UI队列繁忙，丢弃动作: %s", action)
+		return false
+	}
 }
 
 // IsReady 检查托盘是否就绪

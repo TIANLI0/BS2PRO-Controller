@@ -78,26 +78,52 @@ type LightStripConfig struct {
 	Colors     []RGBColor `json:"colors"`     // 颜色列表
 }
 
+// SmartControlConfig 智能控温配置
+type SmartControlConfig struct {
+	Enabled            bool  `json:"enabled"`            // 智能耦合控制开关
+	Learning           bool  `json:"learning"`           // 学习开关
+	TargetTemp         int   `json:"targetTemp"`         // 目标温度(°C)
+	Aggressiveness     int   `json:"aggressiveness"`     // 响应激进度(1-10)
+	Hysteresis         int   `json:"hysteresis"`         // 滞回温差(°C)
+	MinRPMChange       int   `json:"minRpmChange"`       // 最小生效转速变化(RPM)
+	RampUpLimit        int   `json:"rampUpLimit"`        // 每次更新最大升速(RPM)
+	RampDownLimit      int   `json:"rampDownLimit"`      // 每次更新最大降速(RPM)
+	LearnRate          int   `json:"learnRate"`          // 学习速度(1-10)
+	LearnWindow        int   `json:"learnWindow"`        // 稳态学习窗口(采样点)
+	LearnDelay         int   `json:"learnDelay"`         // 学习延迟步数(处理热惯性)
+	OverheatWeight     int   `json:"overheatWeight"`     // 过热惩罚权重
+	RPMDeltaWeight     int   `json:"rpmDeltaWeight"`     // 转速变化惩罚权重
+	NoiseWeight        int   `json:"noiseWeight"`        // 高转速噪音惩罚权重
+	TrendGain          int   `json:"trendGain"`          // 温升趋势前馈增益
+	MaxLearnOffset     int   `json:"maxLearnOffset"`     // 学习偏移上限(RPM)
+	LearnedOffsets     []int `json:"learnedOffsets"`     // 每个曲线点的学习偏移(RPM)
+	LearnedOffsetsHeat []int `json:"learnedOffsetsHeat"` // 升温工况学习偏移(RPM)
+	LearnedOffsetsCool []int `json:"learnedOffsetsCool"` // 降温工况学习偏移(RPM)
+	LearnedRateHeat    []int `json:"learnedRateHeat"`    // 升温变化率学习偏置(分桶RPM)
+	LearnedRateCool    []int `json:"learnedRateCool"`    // 降温变化率学习偏置(分桶RPM)
+}
+
 // AppConfig 应用配置
 type AppConfig struct {
-	AutoControl             bool             `json:"autoControl"`             // 智能变频开关
-	FanCurve                []FanCurvePoint  `json:"fanCurve"`                // 风扇曲线
-	GearLight               bool             `json:"gearLight"`               // 挡位灯
-	PowerOnStart            bool             `json:"powerOnStart"`            // 通电自启动
-	WindowsAutoStart        bool             `json:"windowsAutoStart"`        // Windows开机自启动
-	SmartStartStop          string           `json:"smartStartStop"`          // 智能启停
-	Brightness              int              `json:"brightness"`              // 亮度
-	TempUpdateRate          int              `json:"tempUpdateRate"`          // 温度更新频率(秒)
-	TempSampleCount         int              `json:"tempSampleCount"`         // 温度采样次数(用于平均)
-	ConfigPath              string           `json:"configPath"`              // 配置文件路径
-	ManualGear              string           `json:"manualGear"`              // 手动挡位设置
-	ManualLevel             string           `json:"manualLevel"`             // 手动挡位级别(低中高)
-	DebugMode               bool             `json:"debugMode"`               // 调试模式
-	GuiMonitoring           bool             `json:"guiMonitoring"`           // GUI监控开关
-	CustomSpeedEnabled      bool             `json:"customSpeedEnabled"`      // 自定义转速开关
-	CustomSpeedRPM          int              `json:"customSpeedRPM"`          // 自定义转速值(无上下限)
-	IgnoreDeviceOnReconnect bool             `json:"ignoreDeviceOnReconnect"` // 断连后忽略设备状态(保持APP配置)
-	LightStrip              LightStripConfig `json:"lightStrip"`              // 灯带配置
+	AutoControl             bool               `json:"autoControl"`             // 智能变频开关
+	FanCurve                []FanCurvePoint    `json:"fanCurve"`                // 风扇曲线
+	GearLight               bool               `json:"gearLight"`               // 挡位灯
+	PowerOnStart            bool               `json:"powerOnStart"`            // 通电自启动
+	WindowsAutoStart        bool               `json:"windowsAutoStart"`        // Windows开机自启动
+	SmartStartStop          string             `json:"smartStartStop"`          // 智能启停
+	Brightness              int                `json:"brightness"`              // 亮度
+	TempUpdateRate          int                `json:"tempUpdateRate"`          // 温度更新频率(秒)
+	TempSampleCount         int                `json:"tempSampleCount"`         // 温度采样次数(用于平均)
+	ConfigPath              string             `json:"configPath"`              // 配置文件路径
+	ManualGear              string             `json:"manualGear"`              // 手动挡位设置
+	ManualLevel             string             `json:"manualLevel"`             // 手动挡位级别(低中高)
+	DebugMode               bool               `json:"debugMode"`               // 调试模式
+	GuiMonitoring           bool               `json:"guiMonitoring"`           // GUI监控开关
+	CustomSpeedEnabled      bool               `json:"customSpeedEnabled"`      // 自定义转速开关
+	CustomSpeedRPM          int                `json:"customSpeedRPM"`          // 自定义转速值(无上下限)
+	IgnoreDeviceOnReconnect bool               `json:"ignoreDeviceOnReconnect"` // 断连后忽略设备状态(保持APP配置)
+	SmartControl            SmartControlConfig `json:"smartControl"`            // 学习型智能控温配置
+	LightStrip              LightStripConfig   `json:"lightStrip"`              // 灯带配置
 }
 
 // GetDefaultLightStripConfig 获取默认灯带配置
@@ -111,6 +137,39 @@ func GetDefaultLightStripConfig() LightStripConfig {
 			{R: 0, G: 255, B: 0},
 			{R: 0, G: 128, B: 255},
 		},
+	}
+}
+
+// GetDefaultSmartControlConfig 获取默认智能控温配置
+func GetDefaultSmartControlConfig(curve []FanCurvePoint) SmartControlConfig {
+	offsets := make([]int, len(curve))
+	heatOffsets := make([]int, len(curve))
+	coolOffsets := make([]int, len(curve))
+	heatRate := make([]int, 7)
+	coolRate := make([]int, 7)
+
+	return SmartControlConfig{
+		Enabled:            true,
+		Learning:           true,
+		TargetTemp:         68,
+		Aggressiveness:     5,
+		Hysteresis:         2,
+		MinRPMChange:       50,
+		RampUpLimit:        220,
+		RampDownLimit:      160,
+		LearnRate:          4,
+		LearnWindow:        6,
+		LearnDelay:         2,
+		OverheatWeight:     8,
+		RPMDeltaWeight:     5,
+		NoiseWeight:        4,
+		TrendGain:          5,
+		MaxLearnOffset:     600,
+		LearnedOffsets:     offsets,
+		LearnedOffsetsHeat: heatOffsets,
+		LearnedOffsetsCool: coolOffsets,
+		LearnedRateHeat:    heatRate,
+		LearnedRateCool:    coolRate,
 	}
 }
 
@@ -172,9 +231,11 @@ func GetDefaultFanCurve() []FanCurvePoint {
 
 // GetDefaultConfig 获取默认配置
 func GetDefaultConfig(isAutoStart bool) AppConfig {
+	defaultCurve := GetDefaultFanCurve()
+
 	return AppConfig{
 		AutoControl:             false,
-		FanCurve:                GetDefaultFanCurve(),
+		FanCurve:                defaultCurve,
 		GearLight:               true,
 		PowerOnStart:            false,
 		WindowsAutoStart:        false,
@@ -190,6 +251,7 @@ func GetDefaultConfig(isAutoStart bool) AppConfig {
 		CustomSpeedEnabled:      false,
 		CustomSpeedRPM:          2000,
 		IgnoreDeviceOnReconnect: true, // 默认开启，防止断连后误判用户手动切换
+		SmartControl:            GetDefaultSmartControlConfig(defaultCurve),
 		LightStrip:              GetDefaultLightStripConfig(),
 	}
 }

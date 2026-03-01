@@ -49,6 +49,31 @@ export interface AppConfig {
   guiMonitoring: boolean;      // GUI监控开关
   customSpeedEnabled: boolean; // 自定义转速开关
   customSpeedRPM: number;      // 自定义转速值(无上下限)
+  smartControl: SmartControlConfig; // 学习型智能控温
+}
+
+export interface SmartControlConfig {
+  enabled: boolean;
+  learning: boolean;
+  targetTemp: number;
+  aggressiveness: number;
+  hysteresis: number;
+  minRpmChange: number;
+  rampUpLimit: number;
+  rampDownLimit: number;
+  learnRate: number;
+  learnWindow: number;
+  learnDelay: number;
+  overheatWeight: number;
+  rpmDeltaWeight: number;
+  noiseWeight: number;
+  trendGain: number;
+  maxLearnOffset: number;
+  learnedOffsets: number[];
+  learnedOffsetsHeat: number[];
+  learnedOffsetsCool: number[];
+  learnedRateHeat: number[];
+  learnedRateCool: number[];
 }
 
 // 调试信息
