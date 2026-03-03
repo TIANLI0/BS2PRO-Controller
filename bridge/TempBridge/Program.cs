@@ -4,6 +4,7 @@ using System.IO.Pipes;
 using System.Threading;
 using Newtonsoft.Json;
 using LibreHardwareMonitor.Hardware;
+using LibreHardwareMonitor.PawnIo;
 
 namespace TempBridge
 {
@@ -87,6 +88,8 @@ namespace TempBridge
 
         static void InitializeHardwareMonitor()
         {
+            EnsurePawnIoInstalled();
+
             computer = new Computer
             {
                 IsCpuEnabled = true,
@@ -100,6 +103,18 @@ namespace TempBridge
 
             computer.Open();
             computer.Accept(new UpdateVisitor());
+        }
+
+        static void EnsurePawnIoInstalled()
+        {
+            if (!PawnIo.IsInstalled)
+            {
+                throw new InvalidOperationException(
+                    "检测到 LibreHardwareMonitor 需要 PawnIO 驱动，但系统未安装。" +
+                    "请先安装 PawnIO（可从 LibreHardwareMonitor 发布包中的 PawnIO_setup.exe 安装），" +
+                    "安装完成后重启程序。"
+                );
+            }
         }
 
         static void StartPipeServer()

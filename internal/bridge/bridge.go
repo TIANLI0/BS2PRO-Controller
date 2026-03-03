@@ -100,9 +100,27 @@ func (m *Manager) start() error {
 		return fmt.Errorf("创建stdout管道失败: %v", err)
 	}
 
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return fmt.Errorf("创建stderr管道失败: %v", err)
+	}
+
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("启动桥接程序失败: %v", err)
 	}
+
+	go func() {
+		scannerErr := bufio.NewScanner(stderr)
+		for scannerErr.Scan() {
+			line := strings.TrimSpace(scannerErr.Text())
+			if line != "" {
+				m.logger.Error("桥接程序stderr: %s", line)
+			}
+		}
+		if err := scannerErr.Err(); err != nil {
+			m.logger.Debug("读取桥接程序stderr失败: %v", err)
+		}
+	}()
 
 	// 读取管道名称
 	scanner := bufio.NewScanner(stdout)
@@ -111,7 +129,7 @@ func (m *Manager) start() error {
 	timeout := time.NewTimer(5 * time.Second)
 	defer timeout.Stop()
 
-	done := make(chan bool)
+	done := make(chan struct{})
 	go func() {
 		if scanner.Scan() {
 			line := scanner.Text()
@@ -122,7 +140,18 @@ func (m *Manager) start() error {
 				m.logger.Error("桥接程序启动错误: %s", after0)
 			}
 		}
-		done <- true
+		close(done)
+
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if line != "" {
+				m.logger.Debug("桥接程序stdout: %s", line)
+			}
+		}
+
+		if err := scanner.Err(); err != nil {
+			m.logger.Debug("读取桥接程序stdout失败: %v", err)
+		}
 	}()
 
 	select {

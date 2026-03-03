@@ -537,6 +537,21 @@ Function StopBridgeDriver
     nsExec::ExecToStack '"$SYSDIR\sc.exe" delete "WinRing0_1_2_0"'
     Pop $0
     Pop $1
+
+    # PawnIO service cleanup (for upgrades / failed previous installs)
+    nsExec::ExecToStack '"$SYSDIR\sc.exe" stop "PawnIO"'
+    Pop $0
+    Pop $1
+    nsExec::ExecToStack '"$SYSDIR\sc.exe" delete "PawnIO"'
+    Pop $0
+    Pop $1
+
+    nsExec::ExecToStack '"$SYSDIR\sc.exe" stop "R0PawnIO"'
+    Pop $0
+    Pop $1
+    nsExec::ExecToStack '"$SYSDIR\sc.exe" delete "R0PawnIO"'
+    Pop $0
+    Pop $1
     Sleep 800
 
     # Best effort delete of driver file in current install dir
@@ -576,6 +591,20 @@ Function un.StopBridgeDriver
     Pop $0
     Pop $1
     nsExec::ExecToStack '"$SYSDIR\sc.exe" delete "WinRing0_1_2_0"'
+    Pop $0
+    Pop $1
+
+    nsExec::ExecToStack '"$SYSDIR\sc.exe" stop "PawnIO"'
+    Pop $0
+    Pop $1
+    nsExec::ExecToStack '"$SYSDIR\sc.exe" delete "PawnIO"'
+    Pop $0
+    Pop $1
+
+    nsExec::ExecToStack '"$SYSDIR\sc.exe" stop "R0PawnIO"'
+    Pop $0
+    Pop $1
+    nsExec::ExecToStack '"$SYSDIR\sc.exe" delete "R0PawnIO"'
     Pop $0
     Pop $1
     Sleep 800
@@ -743,19 +772,48 @@ Section "开机自启动" SEC_AUTOSTART
     ${EndIf}
 SectionEnd
 
-# Optional PawnIO installer section (unchecked by default)
-Section /o "安装 PawnIO (可选)" SEC_PAWNIO
+# Required PawnIO installer section
+Section "安装 PawnIO (必需)" SEC_PAWNIO
+    SectionIn RO
     DetailPrint "正在准备安装 PawnIO..."
+
+    # Pre-clean possible stale driver service state (avoids driver install error 1072)
+    DetailPrint "正在清理旧的 PawnIO 驱动服务..."
+    nsExec::ExecToStack '"$SYSDIR\sc.exe" stop "PawnIO"'
+    Pop $4
+    Pop $5
+    nsExec::ExecToStack '"$SYSDIR\sc.exe" delete "PawnIO"'
+    Pop $4
+    Pop $5
+    nsExec::ExecToStack '"$SYSDIR\sc.exe" stop "R0PawnIO"'
+    Pop $4
+    Pop $5
+    nsExec::ExecToStack '"$SYSDIR\sc.exe" delete "R0PawnIO"'
+    Pop $4
+    Pop $5
+    Sleep 1200
 
     SetOutPath "$TEMP\BS2PRO-PawnIO"
     File /nonfatal "..\..\bin\PawnIO_setup.exe"
 
     ${If} ${FileExists} "$TEMP\BS2PRO-PawnIO\PawnIO_setup.exe"
-        DetailPrint "正在静默安装 PawnIO..."
-        nsExec::ExecToStack '"$TEMP\BS2PRO-PawnIO\PawnIO_setup.exe" -install -silent'
+        DetailPrint "正在静默安装 PawnIO（最多等待 60 秒）..."
+        nsExec::ExecToStack /TIMEOUT=60000 '"$TEMP\BS2PRO-PawnIO\PawnIO_setup.exe" -install -silent'
         Pop $0
         Pop $1
-        ${If} $0 == 0
+        ${If} $0 == "timeout"
+            DetailPrint "PawnIO 静默安装 60 秒未响应，回退到交互安装..."
+            nsExec::ExecToStack '"$SYSDIR\taskkill.exe" /F /IM "PawnIO_setup.exe" /T'
+            Pop $2
+            Pop $3
+            ExecWait '"$TEMP\BS2PRO-PawnIO\PawnIO_setup.exe" -install' $0
+            ${If} $0 == 0
+                DetailPrint "PawnIO 安装完成（交互）"
+            ${Else}
+                MessageBox MB_OK|MB_ICONSTOP "PawnIO 交互安装失败（返回码: $0）。$\n$\n常见原因：驱动服务被系统标记删除（错误 1072）。$\n请先重启系统后重新运行安装程序。"
+                Abort
+            ${EndIf}
+        ${ElseIf} $0 == 0
             DetailPrint "PawnIO 安装完成（静默）"
         ${Else}
             DetailPrint "PawnIO 静默安装失败，改为交互安装..."
@@ -763,11 +821,13 @@ Section /o "安装 PawnIO (可选)" SEC_PAWNIO
             ${If} $0 == 0
                 DetailPrint "PawnIO 安装完成（交互）"
             ${Else}
-                MessageBox MB_OK|MB_ICONEXCLAMATION "PawnIO 安装返回码: $0。可稍后手动安装。"
+                MessageBox MB_OK|MB_ICONSTOP "PawnIO 安装失败（返回码: $0）。$\n$\n常见原因：驱动服务被系统标记删除（错误 1072）。$\n请先重启系统后重新运行安装程序。"
+                Abort
             ${EndIf}
         ${EndIf}
     ${Else}
-        MessageBox MB_OK|MB_ICONEXCLAMATION "未找到 PawnIO_setup.exe（build\\bin）。请先执行 build_bridge.bat 下载后再打包安装器。"
+        MessageBox MB_OK|MB_ICONSTOP "未找到 PawnIO_setup.exe（build\\bin）。请先执行 build_bridge.bat 下载后再打包安装器。"
+        Abort
     ${EndIf}
 SectionEnd
 
@@ -775,7 +835,7 @@ SectionEnd
 !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
     !insertmacro MUI_DESCRIPTION_TEXT ${SEC_MAIN} "BS2PRO 控制器主程序和核心服务文件。"
     !insertmacro MUI_DESCRIPTION_TEXT ${SEC_AUTOSTART} "系统启动时自动运行 BS2PRO 控制器核心服务。推荐开启。"
-    !insertmacro MUI_DESCRIPTION_TEXT ${SEC_PAWNIO} "安装 PawnIO（可选），可降低部分杀毒软件误报风险。"
+    !insertmacro MUI_DESCRIPTION_TEXT ${SEC_PAWNIO} "安装 PawnIO（必需），用于硬件访问并降低部分杀毒软件误报风险。"
 !insertmacro MUI_FUNCTION_DESCRIPTION_END
 
 Section "uninstall"

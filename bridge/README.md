@@ -4,6 +4,8 @@
 
 由于Go语言无法直接调用C#库，我们创建了一个C#桥接程序 `TempBridge.exe`，通过 NuGet 引用 `LibreHardwareMonitorLib` 获取准确的CPU和GPU温度数据。
 
+当前桥接程序使用 `LibreHardwareMonitorLib >= 0.9.6`，该版本基于 `PawnIO` 能力，不再打包 `WinRing0` 资源。
+
 ## 构建说明
 
 ### 前提条件
@@ -67,3 +69,4 @@ dotnet publish TempBridge.csproj -c Release --self-contained false -o ../../buil
 - 桥接程序需要以管理员权限运行才能访问所有硬件传感器
 - 首次运行可能需要一些时间来初始化硬件监控
 - 如果遇到权限问题，请尝试以管理员身份运行主程序
+- 运行前请确保系统已安装 `PawnIO`（未安装时 `TempBridge` 会在启动阶段直接报错并退出）
