@@ -4,6 +4,7 @@ import { memo, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   AlertTriangle,
+  CircleHelp,
   Cpu,
   Zap,
   RotateCw,
@@ -19,7 +20,9 @@ import {
 } from 'lucide-react';
 import { types } from '../../../wailsjs/go/models';
 import { apiService } from '../services/api';
+import { getManualGearHighLevelRpm } from '../lib/manualGearPresets';
 import { ToggleSwitch, Button } from './ui/index';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import clsx from 'clsx';
 
 interface DeviceStatusProps {
@@ -158,6 +161,7 @@ export default function DeviceStatus({
       ? `当前固定为 ${config.customSpeedRPM || fanData?.currentRpm || '--'} RPM`
       : '可在设置页调整模式与参数';
   const fanSpinDuration = getFanSpinDuration(fanData?.currentRpm);
+  const maxGearHighLevelRpm = getManualGearHighLevelRpm(fanData?.maxGear);
 
   return (
     <div className="space-y-4">
@@ -328,12 +332,28 @@ export default function DeviceStatus({
               </div>
             </div>
 
-            <div className="rounded-xl border border-border/70 bg-background/50 p-3.5 backdrop-blur-lg">
-              <div className="mb-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Power className="h-3.5 w-3.5" />
-                最高功率
+            <div className="group rounded-xl border border-border/70 bg-background/50 p-3.5 backdrop-blur-lg">
+              <div className="mb-1 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                <div className="flex items-center gap-1.5">
+                  <Power className="h-3.5 w-3.5" />
+                  最高转速
+                </div>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        className="inline-flex h-4 w-4 items-center justify-center rounded text-muted-foreground/80 opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+                        aria-label="最高转速提示"
+                      >
+                        <CircleHelp className="h-3.5 w-3.5" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>使用 PD 27W 充电器可以解锁 4000 RPM 转速。</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
-              <div className="text-base font-semibold">{fanData?.maxGear || '--'}</div>
+              <div className="text-base font-semibold">{maxGearHighLevelRpm ? `${maxGearHighLevelRpm} RPM` : '--'}</div>
             </div>
 
             <div className="rounded-xl border border-border/70 bg-background/50 p-3.5 backdrop-blur-lg">
@@ -354,6 +374,7 @@ export default function DeviceStatus({
               </div>
             </div>
           </div>
+
         </motion.div>
       )}
     </div>

@@ -13,6 +13,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { apiService } from '../services/api';
 import { types } from '../../../wailsjs/go/models';
+import { MANUAL_GEAR_PRESETS } from '../lib/manualGearPresets';
 import { ToggleSwitch, Select, Button, Badge, Slider } from './ui/index';
 import clsx from 'clsx';
 
@@ -361,52 +362,7 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
 
   /* ── Manual gear ── */
 
-  const manualGearPresets = useMemo(() => ([
-    {
-      gear: '静音',
-      colorClass: 'text-emerald-500',
-      borderClass: 'border-emerald-500/50',
-      bgClass: 'bg-emerald-500/12',
-      levels: [
-        { level: '低', rpm: 1300 },
-        { level: '中', rpm: 1700 },
-        { level: '高', rpm: 1900 },
-      ],
-    },
-    {
-      gear: '标准',
-      colorClass: 'text-blue-500',
-      borderClass: 'border-blue-500/50',
-      bgClass: 'bg-blue-500/12',
-      levels: [
-        { level: '低', rpm: 2100 },
-        { level: '中', rpm: 2310 },
-        { level: '高', rpm: 2760 },
-      ],
-    },
-    {
-      gear: '强劲',
-      colorClass: 'text-purple-500',
-      borderClass: 'border-purple-500/50',
-      bgClass: 'bg-purple-500/12',
-      levels: [
-        { level: '低', rpm: 2800 },
-        { level: '中', rpm: 3000 },
-        { level: '高', rpm: 3300 },
-      ],
-    },
-    {
-      gear: '超频',
-      colorClass: 'text-orange-500',
-      borderClass: 'border-orange-500/50',
-      bgClass: 'bg-orange-500/12',
-      levels: [
-        { level: '低', rpm: 3500 },
-        { level: '中', rpm: 3700 },
-        { level: '高', rpm: 4000 },
-      ],
-    },
-  ]), []);
+  const manualGearPresets = MANUAL_GEAR_PRESETS;
 
   const manualPoints = useMemo(() => {
     return manualGearPresets.flatMap((preset, gearIndex) => preset.levels.map((item, levelIndex) => ({
