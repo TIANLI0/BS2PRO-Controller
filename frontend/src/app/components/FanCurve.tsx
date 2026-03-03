@@ -361,21 +361,89 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
 
   /* ── Manual gear ── */
 
-  const gearOptions = [
-    { value: '静音', label: '静音', description: '低噪音' },
-    { value: '标准', label: '标准', description: '平衡' },
-    { value: '强劲', label: '强劲', description: '高性能' },
-    { value: '超频', label: '超频', description: '极限' },
-  ];
-  const levelOptions = [{ value: '低', label: '低' }, { value: '中', label: '中' }, { value: '高', label: '高' }];
+  const manualGearPresets = useMemo(() => ([
+    {
+      gear: '静音',
+      colorClass: 'text-emerald-500',
+      borderClass: 'border-emerald-500/50',
+      bgClass: 'bg-emerald-500/12',
+      levels: [
+        { level: '低', rpm: 1300 },
+        { level: '中', rpm: 1700 },
+        { level: '高', rpm: 1900 },
+      ],
+    },
+    {
+      gear: '标准',
+      colorClass: 'text-blue-500',
+      borderClass: 'border-blue-500/50',
+      bgClass: 'bg-blue-500/12',
+      levels: [
+        { level: '低', rpm: 2100 },
+        { level: '中', rpm: 2310 },
+        { level: '高', rpm: 2760 },
+      ],
+    },
+    {
+      gear: '强劲',
+      colorClass: 'text-purple-500',
+      borderClass: 'border-purple-500/50',
+      bgClass: 'bg-purple-500/12',
+      levels: [
+        { level: '低', rpm: 2800 },
+        { level: '中', rpm: 3000 },
+        { level: '高', rpm: 3300 },
+      ],
+    },
+    {
+      gear: '超频',
+      colorClass: 'text-orange-500',
+      borderClass: 'border-orange-500/50',
+      bgClass: 'bg-orange-500/12',
+      levels: [
+        { level: '低', rpm: 3500 },
+        { level: '中', rpm: 3700 },
+        { level: '高', rpm: 4000 },
+      ],
+    },
+  ]), []);
 
-  const handleGearChange = useCallback(async (gear: string) => {
-    try { await apiService.setManualGear(gear, config.manualLevel || '中'); onConfigChange(types.AppConfig.createFrom({ ...config, manualGear: gear })); } catch { /* noop */ }
+  const manualPoints = useMemo(() => {
+    return manualGearPresets.flatMap((preset, gearIndex) => preset.levels.map((item, levelIndex) => ({
+      key: `${preset.gear}-${item.level}`,
+      gear: preset.gear,
+      level: item.level,
+      rpm: item.rpm,
+      gearIndex,
+      levelIndex,
+      colorClass: preset.colorClass,
+      borderClass: preset.borderClass,
+      bgClass: preset.bgClass,
+    })));
+  }, [manualGearPresets]);
+
+  const selectedManualPointIndex = useMemo(() => {
+    const selected = manualPoints.findIndex((p) => p.gear === (config.manualGear || '标准') && p.level === (config.manualLevel || '中'));
+    return selected >= 0 ? selected : 4;
+  }, [config.manualGear, config.manualLevel, manualPoints]);
+
+  const applyManualGearPreset = useCallback(async (gear: string, level: string) => {
+    try {
+      await apiService.setManualGear(gear, level);
+      onConfigChange(types.AppConfig.createFrom({ ...config, manualGear: gear, manualLevel: level }));
+    } catch { /* noop */ }
   }, [config, onConfigChange]);
 
-  const handleLevelChange = useCallback(async (level: string) => {
-    try { await apiService.setManualGear(config.manualGear || '标准', level); onConfigChange(types.AppConfig.createFrom({ ...config, manualLevel: level })); } catch { /* noop */ }
-  }, [config, onConfigChange]);
+  const handleManualPointSelect = useCallback(async (index: number) => {
+    const selected = manualPoints[index];
+    if (!selected) return;
+    await applyManualGearPreset(selected.gear, selected.level);
+  }, [applyManualGearPreset, manualPoints]);
+
+  const handleGearCardSelect = useCallback(async (gear: string) => {
+    const currentLevel = config.manualLevel || '中';
+    await applyManualGearPreset(gear, currentLevel);
+  }, [applyManualGearPreset, config.manualLevel]);
 
   /* ── Custom dot renderer ── */
 
@@ -415,12 +483,67 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
         <AnimatePresence>
           {!config.autoControl && isConnected && (
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
-              <div className="rounded-2xl border border-border/70 bg-card p-4">
-                <div className="flex flex-wrap items-center gap-4">
+              <div className="rounded-2xl border border-border/70 bg-card p-4 space-y-4">
+                <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">手动挡位</span>
-                  <div className="flex items-center gap-3">
-                    <Select value={config.manualGear || '标准'} onChange={handleGearChange} options={gearOptions} size="sm" />
-                    <Select value={config.manualLevel || '中'} onChange={handleLevelChange} options={levelOptions} size="sm" />
+                  <span className="text-xs text-muted-foreground">12 控制点滑块</span>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {manualGearPresets.map((preset) => {
+                    const isActiveGear = (config.manualGear || '标准') === preset.gear;
+                    const activeLevel = preset.levels.find((l) => l.level === (isActiveGear ? (config.manualLevel || '中') : '中')) ?? preset.levels[1];
+                    return (
+                      <button
+                        key={preset.gear}
+                        type="button"
+                        onClick={() => handleGearCardSelect(preset.gear)}
+                        className={clsx(
+                          'rounded-xl border px-3 py-2.5 text-left transition-colors',
+                          isActiveGear ? `${preset.borderClass} ${preset.bgClass}` : 'border-border/70 bg-background/40 hover:bg-muted/35',
+                        )}
+                      >
+                        <div className={clsx('text-lg font-bold', isActiveGear ? preset.colorClass : 'text-foreground')}>{preset.gear}</div>
+                        <div className={clsx('mt-1 text-base font-semibold', preset.colorClass)}>{activeLevel.rpm}RPM</div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="rounded-xl border border-border/70 bg-background/40 p-3">
+                  <div className="relative mb-3 px-2">
+                    <div className="absolute left-2 right-2 top-1/2 h-1 -translate-y-1/2 rounded-full bg-muted" />
+                    <div className="relative flex items-center justify-between">
+                      {manualPoints.map((point, index) => {
+                        const isActivePoint = selectedManualPointIndex === index;
+                        const isPassed = index < selectedManualPointIndex;
+                        return (
+                          <button
+                            key={point.key}
+                            type="button"
+                            onClick={() => handleManualPointSelect(index)}
+                            className="flex h-6 w-6 shrink-0 items-center justify-center"
+                            title={`${point.gear} ${point.level} · ${point.rpm} RPM`}
+                          >
+                            <span
+                              className={clsx(
+                                'block h-4 w-4 rounded-full border border-border/80 bg-card transition-transform duration-150',
+                                isActivePoint ? `scale-125 ${point.borderClass} ${point.bgClass}` : '',
+                                isPassed && !isActivePoint ? point.bgClass : '',
+                              )}
+                            />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="flex items-start justify-between px-2 text-[11px]">
+                    {manualPoints.map((point) => (
+                      <span key={`${point.key}-label`} className={clsx('w-6 text-center truncate', point.colorClass)}>
+                        {point.levelIndex + 1}档
+                      </span>
+                    ))}
                   </div>
                 </div>
               </div>
