@@ -155,6 +155,23 @@ Function DetectExistingInstallation
     Push $R0
     Push $R1
     Push $R2
+
+    # Show locally installed version if available
+    ReadRegStr $R2 HKLM "${UNINST_KEY}" "DisplayVersion"
+    ${If} $R2 == ""
+        ReadRegStr $R2 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\BS2PRO-controllerBS2PRO-controller" "DisplayVersion"
+    ${EndIf}
+    ${If} $R2 == ""
+        ReadRegStr $R2 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\TIANLI0BS2PRO-Controller" "DisplayVersion"
+    ${EndIf}
+    ${If} $R2 == ""
+        ReadRegStr $R2 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\TIANLI0BS2PRO" "DisplayVersion"
+    ${EndIf}
+    ${If} $R2 != ""
+        DetailPrint "本地已安装版本: $R2"
+    ${Else}
+        DetailPrint "本地未检测到已安装版本信息"
+    ${EndIf}
     
     # First, check all possible registry keys to find installation path
     # DO NOT delete registry keys yet - we need them to find the install path!
@@ -408,6 +425,17 @@ Function DetectExistingInstallation
     Pop $R2
     Pop $R1
     Pop $R0
+FunctionEnd
+
+# Function to write current version info to uninstall registry key
+Function WriteCurrentVersionInfo
+    SetRegView 64
+    WriteRegStr HKLM "${UNINST_KEY}" "DisplayVersion" "${INFO_PRODUCTVERSION}"
+    WriteRegStr HKLM "${UNINST_KEY}" "Version" "${INFO_PRODUCTVERSION}"
+    WriteRegStr HKLM "${UNINST_KEY}" "InstallLocation" "$INSTDIR"
+    WriteRegStr HKLM "${UNINST_KEY}" "DisplayName" "${INFO_PRODUCTNAME}"
+    WriteRegStr HKLM "${UNINST_KEY}" "Publisher" "${INFO_COMPANYNAME}"
+    DetailPrint "已写入版本信息: ${INFO_PRODUCTVERSION}"
 FunctionEnd
 
 # Helper function to trim quotes from a string
@@ -725,6 +753,7 @@ Section "主程序 (必需)" SEC_MAIN
     !insertmacro wails.associateCustomProtocols
 
     !insertmacro wails.writeUninstaller
+    Call WriteCurrentVersionInfo
     
     DetailPrint "安装完成"
     
@@ -776,6 +805,23 @@ SectionEnd
 Section "安装 PawnIO (必需)" SEC_PAWNIO
     SectionIn RO
     DetailPrint "正在准备安装 PawnIO..."
+    Push $6
+    Push $7
+
+    # If PawnIO is already installed, skip re-installation
+    StrCpy $6 ""
+    SetRegView 64
+    ReadRegStr $6 HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\PawnIO" "DisplayVersion"
+    ${If} $6 == ""
+        SetRegView 32
+        ReadRegStr $6 HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\PawnIO" "DisplayVersion"
+    ${EndIf}
+    SetRegView 64
+
+    ${If} $6 != ""
+        DetailPrint "检测到已安装 PawnIO (版本: $6)，跳过安装。"
+        Goto pawnio_done
+    ${EndIf}
 
     # Pre-clean possible stale driver service state (avoids driver install error 1072)
     DetailPrint "正在清理旧的 PawnIO 驱动服务..."
@@ -829,13 +875,17 @@ Section "安装 PawnIO (必需)" SEC_PAWNIO
         MessageBox MB_OK|MB_ICONSTOP "未找到 PawnIO_setup.exe（build\\bin）。请先执行 build_bridge.bat 下载后再打包安装器。"
         Abort
     ${EndIf}
+
+    pawnio_done:
+    Pop $7
+    Pop $6
 SectionEnd
 
 # Section descriptions
 !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
     !insertmacro MUI_DESCRIPTION_TEXT ${SEC_MAIN} "BS2PRO 控制器主程序和核心服务文件。"
     !insertmacro MUI_DESCRIPTION_TEXT ${SEC_AUTOSTART} "系统启动时自动运行 BS2PRO 控制器核心服务。推荐开启。"
-    !insertmacro MUI_DESCRIPTION_TEXT ${SEC_PAWNIO} "安装 PawnIO（必需），用于硬件访问并降低部分杀毒软件误报风险。"
+    !insertmacro MUI_DESCRIPTION_TEXT ${SEC_PAWNIO} "安装 PawnIO 驱动，PawnIO将用于获取硬件相关信息。"
 !insertmacro MUI_FUNCTION_DESCRIPTION_END
 
 Section "uninstall"
