@@ -236,62 +236,48 @@ namespace TempBridge
                 {
                     computer.Accept(new UpdateVisitor());
 
-                    int maxCpuTemp = 0;
-                    int maxGpuTemp = 0;
+                    int cpuTemp = 0;
+                    int gpuTemp = 0;
 
                     foreach (IHardware hardware in computer.Hardware)
                     {
                         if (hardware.HardwareType == HardwareType.Cpu)
                         {
-                            foreach (ISensor sensor in hardware.Sensors)
+                            if (cpuTemp == 0)
                             {
-                                if (sensor.SensorType == SensorType.Temperature && sensor.Value.HasValue)
-                                {
-                                    int temp = (int)Math.Round(sensor.Value.Value);
-                                    if (temp > 0 && temp < 150)
-                                    {
-                                        // 优先选择CPU Package温度
-                                        if (sensor.Name.Contains("Package") || sensor.Name.Contains("CPU Package"))
-                                        {
-                                            maxCpuTemp = temp;
-                                            break;
-                                        }
-                                        // 如果没有Package温度，选择最高的Core温度
-                                        else if (sensor.Name.Contains("Core") && temp > maxCpuTemp)
-                                        {
-                                            maxCpuTemp = temp;
-                                        }
-                                        // 其他CPU温度传感器作为备选
-                                        else if (!sensor.Name.Contains("Core") && maxCpuTemp == 0)
-                                        {
-                                            maxCpuTemp = temp;
-                                        }
-                                    }
-                                }
+                                cpuTemp = GetTemperatureFromHardwareTree(
+                                    hardware,
+                                    new[] { "Average", "Package", "Tctl", "Tdie", "Core" }
+                                );
                             }
                         }
                         else if (hardware.HardwareType == HardwareType.GpuNvidia || 
                                  hardware.HardwareType == HardwareType.GpuAmd ||
                                  hardware.HardwareType == HardwareType.GpuIntel)
                         {
-                            foreach (ISensor sensor in hardware.Sensors)
+                            if (gpuTemp == 0)
                             {
-                                if (sensor.SensorType == SensorType.Temperature && sensor.Value.HasValue)
-                                {
-                                    int temp = (int)Math.Round(sensor.Value.Value);
-                                    if (temp > maxGpuTemp && temp < 150) // 合理温度范围
-                                    {
-                                        maxGpuTemp = temp;
-                                    }
-                                }
+                                gpuTemp = GetTemperatureFromHardwareTree(
+                                    hardware,
+                                    new[] { "Average", "GPU Core", "Core", "Edge", "Junction", "Hot Spot", "Temperature" }
+                                );
                             }
                         }
                     }
 
-                    result.CpuTemp = maxCpuTemp;
-                    result.GpuTemp = maxGpuTemp;
-                    result.MaxTemp = Math.Max(maxCpuTemp, maxGpuTemp);
-                    result.Success = true;
+                    result.CpuTemp = cpuTemp;
+                    result.GpuTemp = gpuTemp;
+                    result.MaxTemp = Math.Max(cpuTemp, gpuTemp);
+                    if (cpuTemp == 0 && gpuTemp == 0)
+                    {
+                        result.Success = false;
+                        result.Error = "未读取到有效的 CPU/GPU 温度（PawnIO 可能尚未就绪，请重启软件或重新安装驱动）";
+                    }
+                    else
+                    {
+                        result.Success = true;
+                        result.Error = string.Empty;
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -301,6 +287,76 @@ namespace TempBridge
 
                 return result;
             }
+        }
+
+        static int GetTemperatureFromHardwareTree(IHardware hardware, string[] preferredSensorNames)
+        {
+            int temp = GetPreferredTemperatureFromSensors(hardware.Sensors, preferredSensorNames);
+            if (temp > 0)
+            {
+                return temp;
+            }
+
+            foreach (IHardware subHardware in hardware.SubHardware)
+            {
+                temp = GetTemperatureFromHardwareTree(subHardware, preferredSensorNames);
+                if (temp > 0)
+                {
+                    return temp;
+                }
+            }
+
+            return 0;
+        }
+
+        static int GetPreferredTemperatureFromSensors(ISensor[] sensors, string[] preferredSensorNames)
+        {
+            int fallbackTemp = 0;
+
+            foreach (ISensor sensor in sensors)
+            {
+                if (sensor.SensorType != SensorType.Temperature || !sensor.Value.HasValue)
+                {
+                    continue;
+                }
+
+                int temp = (int)Math.Round(sensor.Value.Value);
+                if (temp <= 0 || temp >= 150)
+                {
+                    continue;
+                }
+
+                if (ContainsAnyKeyword(sensor.Name, preferredSensorNames))
+                {
+                    return temp;
+                }
+
+                if (fallbackTemp == 0)
+                {
+                    fallbackTemp = temp;
+                }
+            }
+
+            return fallbackTemp;
+        }
+
+        static bool ContainsAnyKeyword(string source, string[] keywords)
+        {
+            if (string.IsNullOrEmpty(source) || keywords == null)
+            {
+                return false;
+            }
+
+            foreach (string keyword in keywords)
+            {
+                if (!string.IsNullOrEmpty(keyword) &&
+                    source.IndexOf(keyword, StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }

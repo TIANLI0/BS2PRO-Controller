@@ -5,6 +5,8 @@ export interface DeviceStatusPayload {
   connected?: boolean;
   currentData?: types.FanData | null;
   temperature?: types.TemperatureData | null;
+  productId?: string;
+  model?: string;
 }
 
 class DeviceService {

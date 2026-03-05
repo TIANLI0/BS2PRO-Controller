@@ -63,3 +63,42 @@ export const getManualGearHighLevelRpm = (gear?: string | null): number | undefi
   const preset = MANUAL_GEAR_PRESETS.find((item) => item.gear === gear);
   return preset?.levels.find((level) => level.level === '高')?.rpm;
 };
+
+const MAX_GEAR_CODE_TO_RPM: Record<number, number> = {
+  // Legacy max-gear codes observed in HID reports. 
+  0x2: 2760,
+  0x3: 2760,
+  0x4: 3300,
+  0x6: 4000,
+  // Compatibility for firmware variants that use full gear codes.
+  0xA: 2760,
+  0xC: 3300,
+  0xE: 4000,
+};
+
+export interface ReportedMaxRpmInfo {
+  rpm?: number;
+  codeHex?: string;
+  source: 'gearSettings' | 'maxGearText' | 'unknown';
+}
+
+export const getReportedMaxRpm = (
+  gearSettings?: number | null,
+  maxGearText?: string | null,
+): ReportedMaxRpmInfo => {
+  if (typeof gearSettings === 'number') {
+    const maxGearCode = (gearSettings >> 4) & 0x0f;
+    const mapped = MAX_GEAR_CODE_TO_RPM[maxGearCode];
+    if (mapped) {
+      return { rpm: mapped, source: 'gearSettings' };
+    }
+    return { codeHex: `0x${maxGearCode.toString(16).toUpperCase()}`, source: 'gearSettings' };
+  }
+
+  const textMapped = getManualGearHighLevelRpm(maxGearText);
+  if (textMapped) {
+    return { rpm: textMapped, source: 'maxGearText' };
+  }
+
+  return { source: 'unknown' };
+};

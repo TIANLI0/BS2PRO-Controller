@@ -200,9 +200,20 @@ func (a *CoreApp) Start() error {
 
 	a.logInfo("=== BS2PRO 核心服务启动完成 ===")
 
+	// 软件启动后立即开始温度监控（与智能控温开关解耦）
+	a.safeGo("startTemperatureMonitoring@Start", func() {
+		a.startTemperatureMonitoring()
+	})
+
 	// 尝试连接设备
 	a.safeGo("delayedConnectDevice", func() {
-		time.Sleep(1 * time.Second)
+		if a.isAutoStartLaunch {
+			// 自启动时等待更长时间，让设备固件有足够时间完成初始化
+			a.logInfo("自启动模式：等待设备初始化（3秒）")
+			time.Sleep(3 * time.Second)
+		} else {
+			time.Sleep(1 * time.Second)
+		}
 		a.ConnectDevice()
 	})
 
@@ -212,6 +223,7 @@ func (a *CoreApp) Start() error {
 // Stop 停止核心服务
 func (a *CoreApp) Stop() {
 	a.logInfo("核心服务正在停止...")
+	a.stopTemperatureMonitoring()
 
 	// 清理资源
 	a.cleanup()
@@ -553,13 +565,6 @@ func (a *CoreApp) onFanDataUpdate(fanData *types.FanData) {
 		a.logInfo("检测到设备从自动模式切换到挡位工作模式，自动关闭智能变频")
 		cfg.AutoControl = false
 
-		if a.monitoringTemp {
-			select {
-			case a.stopMonitoring <- true:
-			default:
-			}
-		}
-
 		a.configManager.Set(cfg)
 		a.configManager.Save()
 
@@ -675,15 +680,12 @@ func (a *CoreApp) ConnectDevice() bool {
 			a.ipcServer.BroadcastEvent(ipc.EventDeviceConnected, deviceInfo)
 		}
 
-		cfg := a.configManager.Get()
 		if err := a.applyConfiguredLightStrip(); err != nil {
 			a.logError("应用灯带配置失败: %v", err)
 		}
-		if cfg.AutoControl {
-			a.safeGo("startTemperatureMonitoring@ConnectDevice", func() {
-				a.startTemperatureMonitoring()
-			})
-		}
+		a.safeGo("startTemperatureMonitoring@ConnectDevice", func() {
+			a.startTemperatureMonitoring()
+		})
 	} else if a.ipcServer != nil {
 		a.ipcServer.BroadcastEvent(ipc.EventDeviceError, "连接失败")
 	}
@@ -693,13 +695,6 @@ func (a *CoreApp) ConnectDevice() bool {
 // DisconnectDevice 断开设备连接
 func (a *CoreApp) DisconnectDevice() {
 	a.mutex.Lock()
-	if a.monitoringTemp {
-		select {
-		case a.stopMonitoring <- true:
-		default:
-		}
-		a.monitoringTemp = false
-	}
 	a.isConnected = false
 	a.mutex.Unlock()
 
@@ -717,9 +712,6 @@ func (a *CoreApp) reapplyConfigAfterReconnect() {
 	// 重新应用智能变频配置
 	if cfg.AutoControl {
 		a.logInfo("重新启动智能变频")
-		a.safeGo("startTemperatureMonitoring@Reconnect", func() {
-			a.startTemperatureMonitoring()
-		})
 	} else if cfg.CustomSpeedEnabled {
 		// 重新应用自定义转速
 		a.logInfo("重新应用自定义转速: %d RPM", cfg.CustomSpeedRPM)
@@ -754,11 +746,27 @@ func (a *CoreApp) GetDeviceStatus() map[string]any {
 	a.mutex.RLock()
 	defer a.mutex.RUnlock()
 
+	productID := a.deviceManager.GetProductID()
+	productIDHex := ""
+	if productID != 0 {
+		productIDHex = fmt.Sprintf("0x%04X", productID)
+	}
+
+	model := ""
+	switch productID {
+	case device.ProductID1:
+		model = "BS2PRO"
+	case device.ProductID2:
+		model = "BS2"
+	}
+
 	return map[string]any{
 		"connected":   a.isConnected,
 		"monitoring":  a.monitoringTemp,
 		"currentData": a.deviceManager.GetCurrentFanData(),
 		"temperature": a.currentTemp,
+		"productId":   productIDHex,
+		"model":       model,
 	}
 }
 
@@ -770,17 +778,6 @@ func (a *CoreApp) UpdateConfig(cfg types.AppConfig) error {
 	oldCfg := a.configManager.Get()
 	cfg.LightStrip, _ = normalizeLightStripConfig(cfg.LightStrip)
 	cfg.SmartControl, _ = smartcontrol.NormalizeConfig(cfg.SmartControl, cfg.FanCurve, cfg.DebugMode)
-
-	if cfg.AutoControl && !a.monitoringTemp && a.isConnected {
-		a.safeGo("startTemperatureMonitoring@UpdateConfig", func() {
-			a.startTemperatureMonitoring()
-		})
-	} else if !cfg.AutoControl && a.monitoringTemp {
-		select {
-		case a.stopMonitoring <- true:
-		default:
-		}
-	}
 
 	cfg.ConfigPath = oldCfg.ConfigPath
 	return a.configManager.Update(cfg)
@@ -814,21 +811,10 @@ func (a *CoreApp) SetAutoControl(enabled bool) error {
 		a.userSetAutoControl = true
 	}
 
-	if enabled && !a.monitoringTemp && a.isConnected {
-		a.safeGo("startTemperatureMonitoring@SetAutoControl", func() {
-			a.startTemperatureMonitoring()
+	if !enabled && a.isConnected {
+		a.safeGo("applyCurrentGearSetting", func() {
+			a.applyCurrentGearSetting()
 		})
-	} else if !enabled && a.monitoringTemp {
-		select {
-		case a.stopMonitoring <- true:
-		default:
-		}
-
-		if a.isConnected {
-			a.safeGo("applyCurrentGearSetting", func() {
-				a.applyCurrentGearSetting()
-			})
-		}
 	}
 
 	a.configManager.Set(cfg)
@@ -876,12 +862,6 @@ func (a *CoreApp) SetCustomSpeed(enabled bool, rpm int) error {
 	if enabled {
 		if cfg.AutoControl {
 			cfg.AutoControl = false
-			if a.monitoringTemp {
-				select {
-				case a.stopMonitoring <- true:
-				default:
-				}
-			}
 		}
 
 		cfg.CustomSpeedEnabled = true
@@ -1099,20 +1079,34 @@ func (a *CoreApp) SetDebugMode(enabled bool) error {
 	return nil
 }
 
+func (a *CoreApp) stopTemperatureMonitoring() {
+	if !a.monitoringTemp {
+		return
+	}
+
+	select {
+	case a.stopMonitoring <- true:
+	default:
+	}
+}
+
 // startTemperatureMonitoring 开始温度监控
 func (a *CoreApp) startTemperatureMonitoring() {
 	if a.monitoringTemp {
 		return
 	}
 
+	// 清理可能残留的停止信号，避免新监控循环被立即中断。
+	select {
+	case <-a.stopMonitoring:
+	default:
+	}
+
 	a.monitoringTemp = true
 
-	if a.isConnected {
-		if err := a.deviceManager.EnterAutoMode(); err != nil {
-			a.logError("进入自动模式失败: %v", err)
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
+	// 注意：不在此处立即调用 EnterAutoMode，因为在启动时温度数据（桥接程序）可能尚未就绪。
+	// 如果在温度读取成功之前切换到软件控制模式，设备将不会收到转速指令，导致风扇停转。
+	// EnterAutoMode 和转速设置会在首次成功读取温度后，由 SetFanSpeed 内部统一完成。
 
 	cfg := a.configManager.Get()
 	updateInterval := time.Duration(cfg.TempUpdateRate) * time.Second

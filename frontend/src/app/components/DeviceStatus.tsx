@@ -19,13 +19,14 @@ import {
 } from 'lucide-react';
 import { types } from '../../../wailsjs/go/models';
 import { apiService } from '../services/api';
-import { getManualGearHighLevelRpm } from '../lib/manualGearPresets';
+import { getReportedMaxRpm } from '../lib/manualGearPresets';
 import { ToggleSwitch, Button } from './ui/index';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import clsx from 'clsx';
 
 interface DeviceStatusProps {
   isConnected: boolean;
+  deviceProductId: string | null;
   fanData: types.FanData | null;
   temperature: types.TemperatureData | null;
   config: types.AppConfig;
@@ -124,6 +125,7 @@ const FanRpmDisplay = memo(function FanRpmDisplay({
 
 export default function DeviceStatus({
   isConnected,
+  deviceProductId,
   fanData,
   temperature,
   config,
@@ -131,17 +133,17 @@ export default function DeviceStatus({
   onDisconnect,
   onConfigChange,
 }: DeviceStatusProps) {
-  const [cpuTempZeroReady, setCpuTempZeroReady] = useState(false);
-  const isCpuTempZeroInAutoControl = isConnected && config.autoControl && temperature?.cpuTemp === 0;
+  const [bridgeWarningReady, setBridgeWarningReady] = useState(false);
+  const hasBridgeWarning = isConnected && temperature?.bridgeOk === false;
 
   useEffect(() => {
-    if (!isCpuTempZeroInAutoControl) {
-      setCpuTempZeroReady(false);
+    if (!hasBridgeWarning) {
+      setBridgeWarningReady(false);
       return;
     }
-    const timer = window.setTimeout(() => setCpuTempZeroReady(true), 5000);
+    const timer = window.setTimeout(() => setBridgeWarningReady(true), 2000);
     return () => window.clearTimeout(timer);
-  }, [isCpuTempZeroInAutoControl]);
+  }, [hasBridgeWarning]);
 
   const handleAutoControlChange = async (enabled: boolean) => {
     try {
@@ -152,9 +154,11 @@ export default function DeviceStatus({
     }
   };
 
-  const isProModel = fanData?.maxGear === '超频' || !fanData;
-  const deviceModel = isProModel ? 'BS2 PRO' : 'BS2';
-  const deviceImageSrc = isProModel ? '/bs2pro.png' : '/bs2.png';
+  const normalizedProductId = deviceProductId?.trim().toUpperCase() ?? '';
+  const isProModel = normalizedProductId === '0X1002';
+  const isBs2Model = normalizedProductId === '0X1001';
+  const deviceModel = isProModel ? 'BS2 PRO' : isBs2Model ? 'BS2' : '未知设备';
+  const deviceImageSrc = isBs2Model ? '/bs2.png' : '/bs2pro.png';
   const modeTitle = config.autoControl ? '智能控制' : config.customSpeedEnabled ? '固定转速' : '手动策略';
   const modeDesc = config.autoControl
     ? '根据实时温度自动调节转速'
@@ -162,7 +166,18 @@ export default function DeviceStatus({
       ? `当前固定为 ${config.customSpeedRPM || fanData?.currentRpm || '--'} RPM`
       : '可在设置页调整模式与参数';
   const fanSpinDuration = getFanSpinDuration(fanData?.currentRpm);
-  const maxGearHighLevelRpm = getManualGearHighLevelRpm(fanData?.maxGear);
+  const maxRpmInfo = getReportedMaxRpm(fanData?.gearSettings, fanData?.maxGear);
+  const maxGearHighLevelRpm = maxRpmInfo.rpm;
+  const maxRpmHint =
+    maxGearHighLevelRpm === 4000
+      ? '当前已解锁超频上限，最高可达 4000 RPM。'
+      : maxGearHighLevelRpm === 3300
+        ? '当前最高为强劲档，最高可达 3300 RPM，使用PD 27W充电头以解锁上限。'
+        : maxGearHighLevelRpm === 2760
+          ? '当前最高为标准档，最高可达 2760 RPM，使用PD 27W充电头以解锁上限。'
+          : maxRpmInfo.codeHex
+            ? `设备上报了未映射的最高挡位编码：${maxRpmInfo.codeHex}`
+            : '等待设备上报最高转速能力。';
 
   return (
     <div className="space-y-4">
@@ -291,8 +306,8 @@ export default function DeviceStatus({
         </motion.div>
       )}
 
-      {/* ── CPU temp zero warning ── */}
-      {cpuTempZeroReady &&  (
+      {/* ── Bridge warning ── */}
+      {bridgeWarningReady && (
         <motion.div
           initial={{ opacity: 0, height: 0 }}
           animate={{ opacity: 1, height: 'auto' }}
@@ -301,7 +316,7 @@ export default function DeviceStatus({
           <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-sm dark:border-amber-800/60 dark:bg-amber-900/20">
             <div className="flex items-start gap-2 text-amber-800 dark:text-amber-200">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              <p>检测到 CPU 温度获取失败，请将安装路径加入杀软白名单后重启软件。</p>
+              <p>{temperature?.bridgeMessage || '温度桥接程序读取失败，请检查 PawnIO 驱动后重试。'}</p>
             </div>
           </div>
         </motion.div>
@@ -350,11 +365,15 @@ export default function DeviceStatus({
                         <CircleHelp className="h-3.5 w-3.5" />
                       </button>
                     </TooltipTrigger>
-                    <TooltipContent>使用 PD 27W 充电器可以解锁 4000 RPM 转速。</TooltipContent>
+                    <TooltipContent>{maxRpmHint}</TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
               </div>
-              <div className="text-base font-semibold">{maxGearHighLevelRpm ? `${maxGearHighLevelRpm} RPM` : '--'}</div>
+              <div className="text-base font-semibold">
+                {maxGearHighLevelRpm
+                  ? `${maxGearHighLevelRpm} RPM`
+                  : maxRpmInfo.codeHex || '--'}
+              </div>
             </div>
 
             <div className="rounded-xl border border-border/70 bg-background/50 p-3.5 backdrop-blur-lg">

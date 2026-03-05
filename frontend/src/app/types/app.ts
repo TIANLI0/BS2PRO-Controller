@@ -110,6 +110,8 @@ export interface DeviceStatus {
   monitoring: boolean;
   currentData: FanData | null;
   temperature: TemperatureData;
+  productId?: string;
+  model?: string;
 }
 
 // 设备信息
@@ -117,4 +119,6 @@ export interface DeviceInfo {
   manufacturer: string;
   product: string;
   serial: string;
+  model?: string;
+  productId?: string;
 }

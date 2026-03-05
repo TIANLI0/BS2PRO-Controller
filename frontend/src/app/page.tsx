@@ -14,6 +14,7 @@ export default function Home() {
   useAppBootstrap();
 
   const isConnected = useAppStore((state) => state.isConnected);
+  const deviceProductId = useAppStore((state) => state.deviceProductId);
   const config = useAppStore((state) => state.config);
   const fanData = useAppStore((state) => state.fanData);
   const temperature = useAppStore((state) => state.temperature);
@@ -53,6 +54,7 @@ export default function Home() {
       statusContent={
         <DeviceStatus
           isConnected={isConnected}
+          deviceProductId={deviceProductId}
           fanData={fanData}
           temperature={temperature}
           config={safeConfig}

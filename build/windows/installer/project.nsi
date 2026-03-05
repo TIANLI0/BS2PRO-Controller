@@ -40,9 +40,16 @@
 # Include required plugins and libraries
 !include "MUI.nsh"
 !include "FileFunc.nsh"
+!include "WordFunc.nsh"
 
 # Include .NET Framework Detection
 !include "DotNetChecker.nsh"
+
+# Built-in PawnIO version for upgrade/repair decisions.
+# You can override this at build time with: -DPAWNIO_BUNDLED_VERSION=x.y.z
+!ifndef PAWNIO_BUNDLED_VERSION
+!define PAWNIO_BUNDLED_VERSION "2.1.0.0"
+!endif
 
 # The version information for this two must consist of 4 parts
 VIProductVersion "${INFO_PRODUCTVERSION}.0"
@@ -676,6 +683,42 @@ Function RestoreUserData
     ${EndIf}
 FunctionEnd
 
+# Uninstall currently installed PawnIO via bundled installer
+Function UninstallPawnIO
+    DetailPrint "正在卸载已安装的 PawnIO..."
+
+    ${If} ${FileExists} "$TEMP\BS2PRO-PawnIO\PawnIO_setup.exe"
+        nsExec::ExecToStack /TIMEOUT=60000 '"$TEMP\BS2PRO-PawnIO\PawnIO_setup.exe" -uninstall -silent'
+        Pop $0
+        Pop $1
+
+        ${If} $0 == "timeout"
+            DetailPrint "PawnIO 静默卸载 60 秒未响应，回退到交互卸载..."
+            nsExec::ExecToStack '"$SYSDIR\taskkill.exe" /F /IM "PawnIO_setup.exe" /T'
+            Pop $2
+            Pop $3
+            ExecWait '"$TEMP\BS2PRO-PawnIO\PawnIO_setup.exe" -uninstall' $0
+            ${If} $0 != 0
+                DetailPrint "PawnIO 交互卸载返回码: $0"
+            ${EndIf}
+        ${ElseIf} $0 == 0
+            DetailPrint "PawnIO 卸载完成（静默）"
+        ${Else}
+            DetailPrint "PawnIO 静默卸载失败，回退到交互卸载..."
+            ExecWait '"$TEMP\BS2PRO-PawnIO\PawnIO_setup.exe" -uninstall' $0
+            ${If} $0 != 0
+                DetailPrint "PawnIO 交互卸载返回码: $0"
+            ${EndIf}
+        ${EndIf}
+    ${Else}
+        DetailPrint "未找到 PawnIO_setup.exe，跳过卸载程序调用"
+    ${EndIf}
+
+    # 卸载后再做一次驱动服务清理，避免升级残留
+    Call StopBridgeDriver
+    Sleep 1000
+FunctionEnd
+
 Section "主程序 (必需)" SEC_MAIN
     SectionIn RO  # Read-only, cannot be deselected
     !insertmacro wails.setShellContext
@@ -807,8 +850,17 @@ Section "安装 PawnIO (必需)" SEC_PAWNIO
     DetailPrint "正在准备安装 PawnIO..."
     Push $6
     Push $7
+    Push $8
+    Push $9
 
-    # If PawnIO is already installed, skip re-installation
+    SetOutPath "$TEMP\BS2PRO-PawnIO"
+    File /nonfatal "..\..\bin\PawnIO_setup.exe"
+    ${IfNot} ${FileExists} "$TEMP\BS2PRO-PawnIO\PawnIO_setup.exe"
+        MessageBox MB_OK|MB_ICONSTOP "未找到 PawnIO_setup.exe（build\\bin）。请先执行 build_bridge.bat 下载后再打包安装器。"
+        Abort
+    ${EndIf}
+
+    # Detect installed PawnIO version
     StrCpy $6 ""
     SetRegView 64
     ReadRegStr $6 HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\PawnIO" "DisplayVersion"
@@ -818,9 +870,41 @@ Section "安装 PawnIO (必需)" SEC_PAWNIO
     ${EndIf}
     SetRegView 64
 
+    # Decide install strategy:
+    # $9 = 0 skip, 1 fresh install, 2 upgrade/repair (uninstall then install)
+    StrCpy $9 "1"
+
     ${If} $6 != ""
-        DetailPrint "检测到已安装 PawnIO (版本: $6)，跳过安装。"
+        DetailPrint "检测到已安装 PawnIO (版本: $6)，内置版本: ${PAWNIO_BUNDLED_VERSION}"
+        ${VersionCompare} "$6" "${PAWNIO_BUNDLED_VERSION}" $8
+
+        ${If} $8 == 2
+            MessageBox MB_YESNO|MB_ICONQUESTION "检测到 PawnIO 旧版本：$6。$\n安装包内置版本：${PAWNIO_BUNDLED_VERSION}。$\n$\n是否先卸载旧版本再安装新版本？" IDYES pawnio_upgrade IDNO pawnio_skip
+            pawnio_upgrade:
+                StrCpy $9 "2"
+                Goto pawnio_apply
+            pawnio_skip:
+                StrCpy $9 "0"
+                Goto pawnio_apply
+        ${Else}
+            MessageBox MB_YESNO|MB_ICONQUESTION "检测到 PawnIO 已安装（版本：$6）。$\n$\n是否执行 PawnIO 修复安装（卸载后重装）？" IDYES pawnio_repair IDNO pawnio_skip2
+            pawnio_repair:
+                StrCpy $9 "2"
+                Goto pawnio_apply
+            pawnio_skip2:
+                StrCpy $9 "0"
+                Goto pawnio_apply
+        ${EndIf}
+    ${EndIf}
+
+    pawnio_apply:
+    ${If} $9 == "0"
+        DetailPrint "用户选择跳过 PawnIO 处理。"
         Goto pawnio_done
+    ${EndIf}
+
+    ${If} $9 == "2"
+        Call UninstallPawnIO
     ${EndIf}
 
     # Pre-clean possible stale driver service state (avoids driver install error 1072)
@@ -839,44 +923,38 @@ Section "安装 PawnIO (必需)" SEC_PAWNIO
     Pop $5
     Sleep 1200
 
-    SetOutPath "$TEMP\BS2PRO-PawnIO"
-    File /nonfatal "..\..\bin\PawnIO_setup.exe"
-
-    ${If} ${FileExists} "$TEMP\BS2PRO-PawnIO\PawnIO_setup.exe"
-        DetailPrint "正在静默安装 PawnIO（最多等待 60 秒）..."
-        nsExec::ExecToStack /TIMEOUT=60000 '"$TEMP\BS2PRO-PawnIO\PawnIO_setup.exe" -install -silent'
-        Pop $0
-        Pop $1
-        ${If} $0 == "timeout"
-            DetailPrint "PawnIO 静默安装 60 秒未响应，回退到交互安装..."
-            nsExec::ExecToStack '"$SYSDIR\taskkill.exe" /F /IM "PawnIO_setup.exe" /T'
-            Pop $2
-            Pop $3
-            ExecWait '"$TEMP\BS2PRO-PawnIO\PawnIO_setup.exe" -install' $0
-            ${If} $0 == 0
-                DetailPrint "PawnIO 安装完成（交互）"
-            ${Else}
-                MessageBox MB_OK|MB_ICONSTOP "PawnIO 交互安装失败（返回码: $0）。$\n$\n常见原因：驱动服务被系统标记删除（错误 1072）。$\n请先重启系统后重新运行安装程序。"
-                Abort
-            ${EndIf}
-        ${ElseIf} $0 == 0
-            DetailPrint "PawnIO 安装完成（静默）"
+    DetailPrint "正在静默安装 PawnIO（最多等待 60 秒）..."
+    nsExec::ExecToStack /TIMEOUT=60000 '"$TEMP\BS2PRO-PawnIO\PawnIO_setup.exe" -install -silent'
+    Pop $0
+    Pop $1
+    ${If} $0 == "timeout"
+        DetailPrint "PawnIO 静默安装 60 秒未响应，回退到交互安装..."
+        nsExec::ExecToStack '"$SYSDIR\taskkill.exe" /F /IM "PawnIO_setup.exe" /T'
+        Pop $2
+        Pop $3
+        ExecWait '"$TEMP\BS2PRO-PawnIO\PawnIO_setup.exe" -install' $0
+        ${If} $0 == 0
+            DetailPrint "PawnIO 安装完成（交互）"
         ${Else}
-            DetailPrint "PawnIO 静默安装失败，改为交互安装..."
-            ExecWait '"$TEMP\BS2PRO-PawnIO\PawnIO_setup.exe" -install' $0
-            ${If} $0 == 0
-                DetailPrint "PawnIO 安装完成（交互）"
-            ${Else}
-                MessageBox MB_OK|MB_ICONSTOP "PawnIO 安装失败（返回码: $0）。$\n$\n常见原因：驱动服务被系统标记删除（错误 1072）。$\n请先重启系统后重新运行安装程序。"
-                Abort
-            ${EndIf}
+            MessageBox MB_OK|MB_ICONSTOP "PawnIO 交互安装失败（返回码: $0）。$\n$\n常见原因：驱动服务被系统标记删除（错误 1072）。$\n请先重启系统后重新运行安装程序。"
+            Abort
         ${EndIf}
+    ${ElseIf} $0 == 0
+        DetailPrint "PawnIO 安装完成（静默）"
     ${Else}
-        MessageBox MB_OK|MB_ICONSTOP "未找到 PawnIO_setup.exe（build\\bin）。请先执行 build_bridge.bat 下载后再打包安装器。"
-        Abort
+        DetailPrint "PawnIO 静默安装失败，改为交互安装..."
+        ExecWait '"$TEMP\BS2PRO-PawnIO\PawnIO_setup.exe" -install' $0
+        ${If} $0 == 0
+            DetailPrint "PawnIO 安装完成（交互）"
+        ${Else}
+            MessageBox MB_OK|MB_ICONSTOP "PawnIO 安装失败（返回码: $0）。$\n$\n常见原因：驱动服务被系统标记删除（错误 1072）。$\n请先重启系统后重新运行安装程序。"
+            Abort
+        ${EndIf}
     ${EndIf}
 
     pawnio_done:
+    Pop $9
+    Pop $8
     Pop $7
     Pop $6
 SectionEnd

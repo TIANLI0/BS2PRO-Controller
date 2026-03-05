@@ -9,6 +9,7 @@ type ActiveTab = 'status' | 'curve' | 'control';
 
 interface AppStore {
   isConnected: boolean;
+  deviceProductId: string | null;
   config: types.AppConfig | null;
   fanData: types.FanData | null;
   temperature: types.TemperatureData | null;
@@ -31,6 +32,7 @@ interface AppStore {
 
 export const useAppStore = create<AppStore>((set, get) => ({
   isConnected: false,
+  deviceProductId: null,
   config: null,
   fanData: null,
   temperature: null,
@@ -61,6 +63,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       set({
         config: appConfig,
         isConnected: deviceStatus.connected || false,
+        deviceProductId: deviceStatus.productId || null,
         fanData: deviceStatus.currentData || null,
         error: null,
       });
@@ -89,7 +92,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   disconnectDevice: async () => {
     try {
       await deviceService.disconnect();
-      set({ isConnected: false, fanData: null });
+      set({ isConnected: false, deviceProductId: null, fanData: null });
     } catch (error) {
       console.error('断开连接失败:', error);
     }
@@ -111,14 +114,19 @@ export const useAppStore = create<AppStore>((set, get) => ({
     unsubscribers.push(
       deviceService.onDeviceConnected((deviceInfo) => {
         console.log('设备已连接:', deviceInfo);
-        set({ isConnected: true, error: null });
+        const info = deviceInfo as { productId?: string };
+        set({
+          isConnected: true,
+          deviceProductId: info.productId || null,
+          error: null,
+        });
       })
     );
 
     unsubscribers.push(
       deviceService.onDeviceDisconnected(() => {
         console.log('设备已断开');
-        set({ isConnected: false, fanData: null });
+        set({ isConnected: false, deviceProductId: null, fanData: null });
       })
     );
 

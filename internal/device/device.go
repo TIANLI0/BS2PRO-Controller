@@ -158,6 +158,25 @@ func (m *Manager) IsConnected() bool {
 	return m.isConnected
 }
 
+// GetProductID 获取当前连接设备的产品ID
+func (m *Manager) GetProductID() uint16 {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	return m.productID
+}
+
+// GetModelName 获取当前连接设备的型号名称
+func (m *Manager) GetModelName() string {
+	productID := m.GetProductID()
+	if productID == ProductID2 {
+		return "BS2"
+	}
+	if productID == ProductID1 {
+		return "BS2PRO"
+	}
+	return "Unknown"
+}
+
 // GetCurrentFanData 获取当前风扇数据
 func (m *Manager) GetCurrentFanData() *types.FanData {
 	m.mutex.RLock()
