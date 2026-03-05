@@ -268,7 +268,16 @@ namespace TempBridge
                     result.CpuTemp = cpuTemp;
                     result.GpuTemp = gpuTemp;
                     result.MaxTemp = Math.Max(cpuTemp, gpuTemp);
-                    result.Success = true;
+                    if (cpuTemp == 0 && gpuTemp == 0)
+                    {
+                        result.Success = false;
+                        result.Error = "未读取到有效的 CPU/GPU 温度（PawnIO 可能尚未就绪，请重启软件或重新安装驱动）";
+                    }
+                    else
+                    {
+                        result.Success = true;
+                        result.Error = string.Empty;
+                    }
                 }
                 catch (Exception ex)
                 {

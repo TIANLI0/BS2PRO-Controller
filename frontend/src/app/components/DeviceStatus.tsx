@@ -131,17 +131,17 @@ export default function DeviceStatus({
   onDisconnect,
   onConfigChange,
 }: DeviceStatusProps) {
-  const [cpuTempZeroReady, setCpuTempZeroReady] = useState(false);
-  const isCpuTempZeroInAutoControl = isConnected && config.autoControl && temperature?.cpuTemp === 0;
+  const [bridgeWarningReady, setBridgeWarningReady] = useState(false);
+  const hasBridgeWarning = isConnected && temperature?.bridgeOk === false;
 
   useEffect(() => {
-    if (!isCpuTempZeroInAutoControl) {
-      setCpuTempZeroReady(false);
+    if (!hasBridgeWarning) {
+      setBridgeWarningReady(false);
       return;
     }
-    const timer = window.setTimeout(() => setCpuTempZeroReady(true), 5000);
+    const timer = window.setTimeout(() => setBridgeWarningReady(true), 2000);
     return () => window.clearTimeout(timer);
-  }, [isCpuTempZeroInAutoControl]);
+  }, [hasBridgeWarning]);
 
   const handleAutoControlChange = async (enabled: boolean) => {
     try {
@@ -291,8 +291,8 @@ export default function DeviceStatus({
         </motion.div>
       )}
 
-      {/* ── CPU temp zero warning ── */}
-      {cpuTempZeroReady &&  (
+      {/* ── Bridge warning ── */}
+      {bridgeWarningReady && (
         <motion.div
           initial={{ opacity: 0, height: 0 }}
           animate={{ opacity: 1, height: 'auto' }}
@@ -301,7 +301,7 @@ export default function DeviceStatus({
           <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-sm dark:border-amber-800/60 dark:bg-amber-900/20">
             <div className="flex items-start gap-2 text-amber-800 dark:text-amber-200">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              <p>检测到 CPU 温度获取失败，请将安装路径加入杀软白名单后重启软件。</p>
+              <p>{temperature?.bridgeMessage || '温度桥接程序读取失败，请检查 PawnIO 驱动后重试。'}</p>
             </div>
           </div>
         </motion.div>
