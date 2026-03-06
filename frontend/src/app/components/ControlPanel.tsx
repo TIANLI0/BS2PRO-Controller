@@ -21,10 +21,12 @@ import {
   BarChart3,
   Sparkles,
   Rocket,
+  X,
 } from 'lucide-react';
 import { apiService } from '../services/api';
 import { types } from '../../../wailsjs/go/models';
 import { BrowserOpenURL } from '../../../wailsjs/runtime/runtime';
+import { toast } from 'sonner';
 import { DebugInfo } from '../types/app';
 import { ToggleSwitch, Button, Select, ScrollArea, Slider } from './ui/index';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -92,6 +94,52 @@ function getRequiredColorCount(mode: string): number {
   }
 }
 
+const DEFAULT_MANUAL_HOTKEY = 'Ctrl+Alt+Shift+M';
+const DEFAULT_AUTO_HOTKEY = 'Ctrl+Alt+Shift+A';
+
+function normalizeHotkeyForDisplay(value: string, fallback: string): string {
+  const trimmed = (value || '').trim();
+  return trimmed || fallback;
+}
+
+function buildShortcutFromKeyboardEvent(e: {
+  key: string;
+  ctrlKey: boolean;
+  altKey: boolean;
+  shiftKey: boolean;
+  metaKey: boolean;
+}): string {
+  if (e.key === 'Backspace' || e.key === 'Delete') {
+    return '';
+  }
+
+  const parts: string[] = [];
+  if (e.ctrlKey) parts.push('Ctrl');
+  if (e.altKey) parts.push('Alt');
+  if (e.shiftKey) parts.push('Shift');
+  if (e.metaKey) parts.push('Win');
+
+  const key = e.key;
+  if (['Control', 'Alt', 'Shift', 'Meta'].includes(key)) {
+    return '';
+  }
+
+  let mainKey = '';
+  if (/^[a-z]$/i.test(key)) {
+    mainKey = key.toUpperCase();
+  } else if (/^[0-9]$/.test(key)) {
+    mainKey = key;
+  } else if (/^F\d{1,2}$/i.test(key)) {
+    mainKey = key.toUpperCase();
+  }
+
+  if (!mainKey || parts.length === 0) {
+    return '';
+  }
+
+  return [...parts, mainKey].join('+');
+}
+
 /* ── Section wrapper ── */
 
 function Section({
@@ -152,6 +200,67 @@ function SettingRow({
   );
 }
 
+function HotkeyField({
+  title,
+  description,
+  value,
+  placeholder,
+  recording,
+  onFocus,
+  onBlur,
+  onKeyDown,
+  onClear,
+}: {
+  title: string;
+  description: string;
+  value: string;
+  placeholder: string;
+  recording: boolean;
+  onFocus: () => void;
+  onBlur: () => void;
+  onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  onClear: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 md:flex-row md:items-center md:gap-4">
+      <div className="min-w-0 flex-1 pr-2">
+        <div className="text-sm text-foreground">{title}</div>
+        <div className="mt-1 text-xs leading-relaxed text-muted-foreground">{description}</div>
+      </div>
+
+      <div className="w-full md:ml-auto md:w-[240px] md:flex-none">
+        <div className="relative">
+          <input
+            value={value}
+            onFocus={onFocus}
+            onBlur={onBlur}
+            onKeyDown={onKeyDown}
+            readOnly
+            placeholder={placeholder}
+            className={clsx(
+              'w-full rounded-lg border bg-background px-3 py-2.5 pr-9 text-center font-mono text-sm text-foreground outline-none transition',
+              recording
+                ? 'border-primary shadow-[0_0_0_1px_var(--color-primary)] ring-2 ring-primary/20'
+                : 'border-border/70 hover:border-border',
+            )}
+          />
+          {value && (
+            <button
+              type="button"
+              aria-label="清除快捷键"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={onClear}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── Main ControlPanel ── */
 
 export default function ControlPanel({ config, onConfigChange, isConnected, fanData, temperature }: ControlPanelProps) {
@@ -168,6 +277,13 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
   const [releaseLoading, setReleaseLoading] = useState(false);
   const [releaseError, setReleaseError] = useState('');
   const [lightStripConfig, setLightStripConfig] = useState<types.LightStripConfig>(() => normalizeLightStripConfig(config));
+  const [manualHotkeyInput, setManualHotkeyInput] = useState(
+    normalizeHotkeyForDisplay((config as any).manualGearToggleHotkey, DEFAULT_MANUAL_HOTKEY)
+  );
+  const [autoHotkeyInput, setAutoHotkeyInput] = useState(
+    normalizeHotkeyForDisplay((config as any).autoControlToggleHotkey, DEFAULT_AUTO_HOTKEY)
+  );
+  const [recordingTarget, setRecordingTarget] = useState<'manual' | 'auto' | null>(null);
 
   const setLoading = (key: string, value: boolean) => setLoadingStates((prev) => ({ ...prev, [key]: value }));
 
@@ -319,6 +435,10 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
   useEffect(() => { apiService.getAppVersion().then((v) => setAppVersion(v || '')).catch(() => setAppVersion('')); }, []);
   useEffect(() => { checkLatestRelease(); }, [checkLatestRelease]);
   useEffect(() => { setLightStripConfig(normalizeLightStripConfig(config)); }, [config]);
+  useEffect(() => {
+    setManualHotkeyInput(normalizeHotkeyForDisplay((config as any).manualGearToggleHotkey, DEFAULT_MANUAL_HOTKEY));
+    setAutoHotkeyInput(normalizeHotkeyForDisplay((config as any).autoControlToggleHotkey, DEFAULT_AUTO_HOTKEY));
+  }, [(config as any).manualGearToggleHotkey, (config as any).autoControlToggleHotkey]);
 
   /* ── Options data ── */
 
@@ -382,6 +502,65 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
       onConfigChange(types.AppConfig.createFrom({ ...config, lightStrip: submitConfig }));
     } catch (e) { alert(`设置灯带失败: ${e}`); } finally { setLoading('lightStrip', false); }
   }, [lightStripConfig, config, onConfigChange, requiredColorCount]);
+
+  const saveHotkeys = useCallback(async (silent = false) => {
+    setLoading('hotkeys', true);
+    try {
+      if (manualHotkeyInput === autoHotkeyInput) {
+        if (!silent) toast.error('两个快捷键不能设置为同一个组合');
+        return false;
+      }
+
+      const newCfg = types.AppConfig.createFrom({
+        ...config,
+        manualGearToggleHotkey: normalizeHotkeyForDisplay(manualHotkeyInput, DEFAULT_MANUAL_HOTKEY),
+        autoControlToggleHotkey: normalizeHotkeyForDisplay(autoHotkeyInput, DEFAULT_AUTO_HOTKEY),
+      });
+      await apiService.updateConfig(newCfg);
+      onConfigChange(newCfg);
+      if (!silent) toast.success('快捷键保存成功');
+      return true;
+    } catch (e) {
+      if (!silent) toast.error(`保存快捷键失败: ${e}`);
+      return false;
+    } finally {
+      setLoading('hotkeys', false);
+    }
+  }, [autoHotkeyInput, config, manualHotkeyInput, onConfigChange]);
+
+  const handleHotkeyInputKeyDown = (target: 'manual' | 'auto') => (e: React.KeyboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (e.key === 'Escape') {
+      setRecordingTarget(null);
+      e.currentTarget.blur();
+      return;
+    }
+
+    if (e.key === 'Backspace' || e.key === 'Delete') {
+      if (target === 'manual') setManualHotkeyInput('');
+      else setAutoHotkeyInput('');
+      return;
+    }
+
+    const shortcut = buildShortcutFromKeyboardEvent(e);
+    if (!shortcut) return;
+
+    if (target === 'manual') setManualHotkeyInput(shortcut);
+    else setAutoHotkeyInput(shortcut);
+  };
+
+  const handleHotkeyInputBlur = useCallback(async () => {
+    setRecordingTarget(null);
+    await saveHotkeys(true);
+  }, [saveHotkeys]);
+
+  const clearHotkeyInput = useCallback(async (target: 'manual' | 'auto') => {
+    if (target === 'manual') setManualHotkeyInput('');
+    else setAutoHotkeyInput('');
+    await saveHotkeys(true);
+  }, [saveHotkeys]);
 
   return (
     <>
@@ -652,6 +831,45 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
 
         {/* ═══════════ 4. 系统设置 ═══════════ */}
         <Section title="系统设置" icon={Monitor}>
+          <div className="px-5 py-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <div className="text-base font-medium text-foreground">全局快捷键</div>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  点击右侧输入框后直接按组合键，失焦自动保存，按 Backspace/Delete 或清除按钮恢复默认值。
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-border/70 bg-background/45 px-4 py-2">
+              <HotkeyField
+                title="切换手动挡位"
+                description="在静音、标准、强劲、超频之间轮换，并保留各自的小挡位记忆。"
+                value={manualHotkeyInput}
+                placeholder="点击后按下组合键"
+                recording={recordingTarget === 'manual'}
+                onFocus={() => setRecordingTarget('manual')}
+                onBlur={handleHotkeyInputBlur}
+                onKeyDown={handleHotkeyInputKeyDown('manual')}
+                onClear={() => clearHotkeyInput('manual')}
+              />
+
+              <div className="border-t border-border/60" />
+
+              <HotkeyField
+                title="开关智能变频"
+                description="快速切换智能控温状态，适合游戏或安静场景之间来回切换。"
+                value={autoHotkeyInput}
+                placeholder="点击后按下组合键"
+                recording={recordingTarget === 'auto'}
+                onFocus={() => setRecordingTarget('auto')}
+                onBlur={handleHotkeyInputBlur}
+                onKeyDown={handleHotkeyInputKeyDown('auto')}
+                onClear={() => clearHotkeyInput('auto')}
+              />
+            </div>
+          </div>
+
           <SettingRow
             icon={<Monitor className={clsx('h-4 w-4', config.windowsAutoStart ? 'text-emerald-500' : '')} />}
             title="开机自启动"

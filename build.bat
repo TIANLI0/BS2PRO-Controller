@@ -22,6 +22,11 @@ echo Building core service...
 go-winres make --in cmd/core/winres/winres.json --out cmd/core/rsrc
 go build -ldflags "!LDFLAGS!" -o build/bin/BS2PRO-Core.exe ./cmd/core/
 
+REM Installer icon is still file-based; system notification icon is now embedded in BS2PRO-Core.exe
+if not exist "build\windows\icon.ico" (
+    echo WARNING: build\windows\icon.ico not found, executable/installer icon may be incorrect
+)
+
 REM Build main application with wails
 echo Building main application...
 wails build -nsis -ldflags "!LDFLAGS!"

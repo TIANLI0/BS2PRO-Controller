@@ -190,6 +190,11 @@ class ApiService {
     return () => EventsOff('config-update');
   }
 
+  onHotkeyTriggered(callback: (payload: { action: string; shortcut: string; success: boolean; message: string }) => void): () => void {
+    EventsOn('hotkey-triggered', callback);
+    return () => EventsOff('hotkey-triggered');
+  }
+
   // 调试相关方法
   async getDebugInfo(): Promise<any> {
     return await GetDebugInfo();

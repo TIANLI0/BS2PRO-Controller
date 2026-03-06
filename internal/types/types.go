@@ -106,6 +106,9 @@ type SmartControlConfig struct {
 // AppConfig 应用配置
 type AppConfig struct {
 	AutoControl             bool               `json:"autoControl"`             // 智能变频开关
+	ManualGearToggleHotkey  string             `json:"manualGearToggleHotkey"`  // 切换手动挡位快捷键
+	AutoControlToggleHotkey string             `json:"autoControlToggleHotkey"` // 开关智能变频快捷键
+	ManualGearLevels        map[string]string  `json:"manualGearLevels"`        // 每个大挡位记忆的小挡位(低中高)
 	FanCurve                []FanCurvePoint    `json:"fanCurve"`                // 风扇曲线
 	GearLight               bool               `json:"gearLight"`               // 挡位灯
 	PowerOnStart            bool               `json:"powerOnStart"`            // 通电自启动
@@ -235,6 +238,14 @@ func GetDefaultConfig(isAutoStart bool) AppConfig {
 
 	return AppConfig{
 		AutoControl:             false,
+		ManualGearToggleHotkey:  "Ctrl+Alt+Shift+M",
+		AutoControlToggleHotkey: "Ctrl+Alt+Shift+A",
+		ManualGearLevels: map[string]string{
+			"静音": "中",
+			"标准": "中",
+			"强劲": "中",
+			"超频": "中",
+		},
 		FanCurve:                defaultCurve,
 		GearLight:               true,
 		PowerOnStart:            false,

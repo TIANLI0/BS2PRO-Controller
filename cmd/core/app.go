@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -17,8 +18,10 @@ import (
 	"github.com/TIANLI0/BS2PRO-Controller/internal/bridge"
 	"github.com/TIANLI0/BS2PRO-Controller/internal/config"
 	"github.com/TIANLI0/BS2PRO-Controller/internal/device"
+	hotkeysvc "github.com/TIANLI0/BS2PRO-Controller/internal/hotkey"
 	"github.com/TIANLI0/BS2PRO-Controller/internal/ipc"
 	"github.com/TIANLI0/BS2PRO-Controller/internal/logger"
+	"github.com/TIANLI0/BS2PRO-Controller/internal/notifier"
 	"github.com/TIANLI0/BS2PRO-Controller/internal/smartcontrol"
 	"github.com/TIANLI0/BS2PRO-Controller/internal/temperature"
 	"github.com/TIANLI0/BS2PRO-Controller/internal/tray"
@@ -39,6 +42,8 @@ type CoreApp struct {
 	tempReader       *temperature.Reader
 	configManager    *config.Manager
 	trayManager      *tray.Manager
+	hotkeyManager    *hotkeysvc.Manager
+	notifier         *notifier.Manager
 	autostartManager *autostart.Manager
 	logger           *logger.CustomLogger
 	ipcServer        *ipc.Server
@@ -60,8 +65,9 @@ type CoreApp struct {
 	quitChan          chan bool
 
 	// 同步
-	mutex          sync.RWMutex
-	stopMonitoring chan bool
+	mutex                 sync.RWMutex
+	stopMonitoring        chan bool
+	manualGearLevelMemory map[string]string
 }
 
 // NewCoreApp 创建核心应用实例
@@ -109,7 +115,15 @@ func NewCoreApp(debugMode, isAutoStart bool) *CoreApp {
 		cleanupChan:        make(chan bool, 1),
 		quitChan:           make(chan bool, 1),
 		guiMonitorEnabled:  true,
+		manualGearLevelMemory: map[string]string{
+			"静音": "中",
+			"标准": "中",
+			"强劲": "中",
+			"超频": "中",
+		},
 	}
+	app.notifier = notifier.NewManager(customLogger, iconData)
+	app.hotkeyManager = hotkeysvc.NewManager(customLogger, app.handleHotkeyAction)
 
 	return app
 }
@@ -143,6 +157,19 @@ func (a *CoreApp) Start() error {
 			a.logError("保存智能控温默认配置失败: %v", err)
 		}
 	}
+	if normalizeHotkeyConfig(&cfg) {
+		a.configManager.Set(cfg)
+		if err := a.configManager.Save(); err != nil {
+			a.logError("保存快捷键默认配置失败: %v", err)
+		}
+	}
+	if normalizeManualGearMemoryConfig(&cfg) {
+		a.configManager.Set(cfg)
+		if err := a.configManager.Save(); err != nil {
+			a.logError("保存挡位记忆默认配置失败: %v", err)
+		}
+	}
+	a.syncManualGearLevelMemory(cfg)
 	a.logInfo("配置加载完成，配置路径: %s", cfg.ConfigPath)
 
 	// 同步调试模式配置
@@ -189,6 +216,7 @@ func (a *CoreApp) Start() error {
 	// 初始化系统托盘
 	a.logInfo("开始初始化系统托盘")
 	a.initSystemTray()
+	a.applyHotkeyBindings(cfg)
 
 	// 启动健康监控
 	if cfg.GuiMonitoring {
@@ -224,6 +252,9 @@ func (a *CoreApp) Start() error {
 func (a *CoreApp) Stop() {
 	a.logInfo("核心服务正在停止...")
 	a.stopTemperatureMonitoring()
+	if a.hotkeyManager != nil {
+		a.hotkeyManager.Stop()
+	}
 
 	// 清理资源
 	a.cleanup()
@@ -776,11 +807,19 @@ func (a *CoreApp) UpdateConfig(cfg types.AppConfig) error {
 	defer a.mutex.Unlock()
 
 	oldCfg := a.configManager.Get()
+	cfg.ManualGearLevels = cloneManualGearLevels(oldCfg.ManualGearLevels)
 	cfg.LightStrip, _ = normalizeLightStripConfig(cfg.LightStrip)
 	cfg.SmartControl, _ = smartcontrol.NormalizeConfig(cfg.SmartControl, cfg.FanCurve, cfg.DebugMode)
+	normalizeHotkeyConfig(&cfg)
+	normalizeManualGearMemoryConfig(&cfg)
 
 	cfg.ConfigPath = oldCfg.ConfigPath
-	return a.configManager.Update(cfg)
+	if err := a.configManager.Update(cfg); err != nil {
+		return err
+	}
+	a.syncManualGearLevelMemoryLocked(cfg)
+	a.applyHotkeyBindings(cfg)
+	return nil
 }
 
 // SetFanCurve 设置风扇曲线
@@ -836,7 +875,10 @@ func (a *CoreApp) applyCurrentGearSetting() {
 
 	cfg := a.configManager.Get()
 	setGear := fanData.SetGear
-	level := cfg.ManualLevel
+	if setGear == "" {
+		setGear = cfg.ManualGear
+	}
+	level := a.getRememberedManualLevel(setGear, cfg.ManualLevel)
 
 	a.logInfo("应用当前挡位设置: %s %s", setGear, level)
 	a.deviceManager.SetManualGear(setGear, level)
@@ -847,7 +889,16 @@ func (a *CoreApp) SetManualGear(gear, level string) bool {
 	cfg := a.configManager.Get()
 	cfg.ManualGear = gear
 	cfg.ManualLevel = level
+	if cfg.ManualGearLevels == nil {
+		cfg.ManualGearLevels = map[string]string{}
+	}
+	cfg.ManualGearLevels[gear] = normalizeManualLevel(level)
 	a.configManager.Update(cfg)
+	a.rememberManualGearLevel(gear, level)
+
+	if a.ipcServer != nil {
+		a.ipcServer.BroadcastEvent(ipc.EventConfigUpdate, cfg)
+	}
 
 	return a.deviceManager.SetManualGear(gear, level)
 }
@@ -1015,6 +1066,271 @@ func normalizeLightStripConfig(cfg types.LightStripConfig) (types.LightStripConf
 	}
 
 	return cfg, changed
+}
+
+func normalizeHotkeyConfig(cfg *types.AppConfig) bool {
+	if cfg == nil {
+		return false
+	}
+
+	changed := false
+	if cfg.ManualGearToggleHotkey == "" {
+		cfg.ManualGearToggleHotkey = types.GetDefaultConfig(false).ManualGearToggleHotkey
+		changed = true
+	}
+	if cfg.AutoControlToggleHotkey == "" {
+		cfg.AutoControlToggleHotkey = types.GetDefaultConfig(false).AutoControlToggleHotkey
+		changed = true
+	}
+
+	if _, _, err := hotkeysvc.ParseShortcut(cfg.ManualGearToggleHotkey); err != nil {
+		cfg.ManualGearToggleHotkey = types.GetDefaultConfig(false).ManualGearToggleHotkey
+		changed = true
+	}
+	if _, _, err := hotkeysvc.ParseShortcut(cfg.AutoControlToggleHotkey); err != nil {
+		cfg.AutoControlToggleHotkey = types.GetDefaultConfig(false).AutoControlToggleHotkey
+		changed = true
+	}
+
+	return changed
+}
+
+func normalizeManualGearMemoryConfig(cfg *types.AppConfig) bool {
+	if cfg == nil {
+		return false
+	}
+
+	changed := false
+	if cfg.ManualGearLevels == nil {
+		cfg.ManualGearLevels = map[string]string{}
+		changed = true
+	}
+
+	for _, gear := range []string{"静音", "标准", "强劲", "超频"} {
+		if level, ok := cfg.ManualGearLevels[gear]; !ok {
+			cfg.ManualGearLevels[gear] = "中"
+			changed = true
+		} else {
+			normalized := normalizeManualLevel(level)
+			if normalized != level {
+				cfg.ManualGearLevels[gear] = normalized
+				changed = true
+			}
+		}
+	}
+
+	normalizedCurrent := normalizeManualLevel(cfg.ManualLevel)
+	if normalizedCurrent != cfg.ManualLevel {
+		cfg.ManualLevel = normalizedCurrent
+		changed = true
+	}
+
+	if cfg.ManualGear != "" {
+		if remembered, ok := cfg.ManualGearLevels[cfg.ManualGear]; !ok || remembered != normalizedCurrent {
+			cfg.ManualGearLevels[cfg.ManualGear] = normalizedCurrent
+			changed = true
+		}
+	}
+
+	return changed
+}
+
+func (a *CoreApp) applyHotkeyBindings(cfg types.AppConfig) {
+	if a.hotkeyManager == nil {
+		return
+	}
+	if err := a.hotkeyManager.UpdateBindings(cfg.ManualGearToggleHotkey, cfg.AutoControlToggleHotkey); err != nil {
+		a.logError("更新全局快捷键失败: %v", err)
+	}
+}
+
+func (a *CoreApp) handleHotkeyAction(action hotkeysvc.Action, shortcut string) {
+	a.safeGo("handleHotkeyAction", func() {
+		var message string
+		success := true
+
+		switch action {
+		case hotkeysvc.ActionToggleManualGear:
+			msg, err := a.toggleManualGearByHotkey()
+			if err != nil {
+				success = false
+				message = err.Error()
+			} else {
+				message = msg
+			}
+		case hotkeysvc.ActionToggleAutoMode:
+			msg, err := a.toggleAutoControlByHotkey()
+			if err != nil {
+				success = false
+				message = err.Error()
+			} else {
+				message = msg
+			}
+		default:
+			success = false
+			message = "未知快捷键动作"
+		}
+
+		if a.ipcServer != nil {
+			a.ipcServer.BroadcastEvent(ipc.EventHotkeyTriggered, map[string]any{
+				"action":   string(action),
+				"shortcut": shortcut,
+				"success":  success,
+				"message":  message,
+			})
+		}
+
+		title := "BS2PRO 快捷键"
+		if !success {
+			title = "BS2PRO 快捷键失败"
+		}
+		if a.notifier != nil {
+			a.notifier.Notify(title, message)
+		}
+	})
+}
+
+func (a *CoreApp) toggleAutoControlByHotkey() (string, error) {
+	cfg := a.configManager.Get()
+	target := !cfg.AutoControl
+	if err := a.SetAutoControl(target); err != nil {
+		return "", err
+	}
+	if target {
+		return "智能变频已开启", nil
+	}
+	return "智能变频已关闭", nil
+}
+
+func (a *CoreApp) toggleManualGearByHotkey() (string, error) {
+	cfg := a.configManager.Get()
+
+	if cfg.AutoControl {
+		if err := a.SetAutoControl(false); err != nil {
+			return "", fmt.Errorf("切换到手动模式失败: %w", err)
+		}
+	}
+
+	nextGear, nextLevel := a.getNextManualGearWithMemory(cfg.ManualGear, cfg.ManualLevel)
+	if ok := a.SetManualGear(nextGear, nextLevel); !ok {
+		return "", fmt.Errorf("应用手动挡位失败")
+	}
+
+	rpm := getManualGearRPM(nextGear, nextLevel)
+	if rpm > 0 {
+		return fmt.Sprintf("手动挡位: %s %s (%d RPM)", nextGear, nextLevel, rpm), nil
+	}
+	return fmt.Sprintf("手动挡位: %s %s", nextGear, nextLevel), nil
+}
+
+func (a *CoreApp) getNextManualGearWithMemory(currentGear, currentLevel string) (string, string) {
+	sequence := []string{"静音", "标准", "强劲", "超频"}
+	nextIndex := 0
+
+	for i, gear := range sequence {
+		if gear == currentGear {
+			nextIndex = (i + 1) % len(sequence)
+			break
+		}
+	}
+
+	a.rememberManualGearLevel(currentGear, currentLevel)
+	fallbackLevel := normalizeManualLevel(currentLevel)
+	level := a.getRememberedManualLevel(sequence[nextIndex], fallbackLevel)
+
+	return sequence[nextIndex], level
+}
+
+func normalizeManualLevel(level string) string {
+	if level == "低" || level == "中" || level == "高" {
+		return level
+	}
+	return "中"
+}
+
+func cloneManualGearLevels(source map[string]string) map[string]string {
+	cloned := map[string]string{}
+	for _, gear := range []string{"静音", "标准", "强劲", "超频"} {
+		if source == nil {
+			cloned[gear] = "中"
+			continue
+		}
+		cloned[gear] = normalizeManualLevel(source[gear])
+	}
+	return cloned
+}
+
+func (a *CoreApp) syncManualGearLevelMemory(cfg types.AppConfig) {
+	a.mutex.Lock()
+	defer a.mutex.Unlock()
+
+	a.syncManualGearLevelMemoryLocked(cfg)
+}
+
+func (a *CoreApp) syncManualGearLevelMemoryLocked(cfg types.AppConfig) {
+
+	if a.manualGearLevelMemory == nil {
+		a.manualGearLevelMemory = map[string]string{}
+	}
+
+	defaultLevel := normalizeManualLevel(cfg.ManualLevel)
+	for _, gear := range []string{"静音", "标准", "强劲", "超频"} {
+		if fromCfg, ok := cfg.ManualGearLevels[gear]; ok {
+			a.manualGearLevelMemory[gear] = normalizeManualLevel(fromCfg)
+			continue
+		}
+		a.manualGearLevelMemory[gear] = defaultLevel
+	}
+
+	a.manualGearLevelMemory[cfg.ManualGear] = normalizeManualLevel(cfg.ManualLevel)
+}
+
+func (a *CoreApp) rememberManualGearLevel(gear, level string) {
+	if gear != "静音" && gear != "标准" && gear != "强劲" && gear != "超频" {
+		return
+	}
+
+	a.mutex.Lock()
+	defer a.mutex.Unlock()
+
+	if a.manualGearLevelMemory == nil {
+		a.manualGearLevelMemory = map[string]string{}
+	}
+	a.manualGearLevelMemory[gear] = normalizeManualLevel(level)
+}
+
+func (a *CoreApp) getRememberedManualLevel(gear, fallback string) string {
+	a.mutex.RLock()
+	defer a.mutex.RUnlock()
+
+	if a.manualGearLevelMemory == nil {
+		return normalizeManualLevel(fallback)
+	}
+	if level, ok := a.manualGearLevelMemory[gear]; ok {
+		return normalizeManualLevel(level)
+	}
+	return normalizeManualLevel(fallback)
+}
+
+func getManualGearRPM(gear, level string) int {
+	commands, ok := types.GearCommands[gear]
+	if !ok {
+		return 0
+	}
+
+	for _, cmd := range commands {
+		if (level == "低" && containsLevel(cmd.Name, "低")) ||
+			(level == "中" && containsLevel(cmd.Name, "中")) ||
+			(level == "高" && containsLevel(cmd.Name, "高")) {
+			return cmd.RPM
+		}
+	}
+
+	return 0
+}
+
+func containsLevel(name, level string) bool {
+	return strings.Contains(name, level)
 }
 
 // SetWindowsAutoStart 设置Windows自启动

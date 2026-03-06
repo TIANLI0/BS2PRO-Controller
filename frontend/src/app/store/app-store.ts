@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { types } from '../../../wailsjs/go/models';
 import { configService } from '../services/config-service';
 import { deviceService, type DeviceStatusPayload } from '../services/device-service';
+import { toast } from 'sonner';
 
 const BRIDGE_WARNING_MESSAGE = 'CPU/GPU 温度读取失败，请检查Pawnio是否安装成功，或升级最新版。';
 
@@ -152,6 +153,19 @@ export const useAppStore = create<AppStore>((set, get) => ({
     unsubscribers.push(
       configService.onConfigUpdate((updatedConfig) => {
         set({ config: updatedConfig });
+      })
+    );
+
+    unsubscribers.push(
+      deviceService.onHotkeyTriggered((payload) => {
+        const message = typeof payload?.message === 'string' ? payload.message : '';
+        if (!message) return;
+        const ok = payload?.success !== false;
+        if (ok) {
+          toast.success('功能变动', { description: message, duration: 2600 });
+        } else {
+          toast.error('操作失败', { description: message, duration: 3200 });
+        }
       })
     );
 

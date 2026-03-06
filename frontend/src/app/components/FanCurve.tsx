@@ -383,12 +383,24 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
     return selected >= 0 ? selected : 4;
   }, [config.manualGear, config.manualLevel, manualPoints]);
 
+  const rememberedManualGearLevels = useMemo(() => {
+    return ((config as any).manualGearLevels ?? {}) as Record<string, string>;
+  }, [config]);
+
   const applyManualGearPreset = useCallback(async (gear: string, level: string) => {
     try {
       await apiService.setManualGear(gear, level);
-      onConfigChange(types.AppConfig.createFrom({ ...config, manualGear: gear, manualLevel: level }));
+      onConfigChange(types.AppConfig.createFrom({
+        ...config,
+        manualGear: gear,
+        manualLevel: level,
+        manualGearLevels: {
+          ...rememberedManualGearLevels,
+          [gear]: level,
+        },
+      }));
     } catch { /* noop */ }
-  }, [config, onConfigChange]);
+  }, [config, onConfigChange, rememberedManualGearLevels]);
 
   const handleManualPointSelect = useCallback(async (index: number) => {
     const selected = manualPoints[index];
@@ -397,9 +409,12 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
   }, [applyManualGearPreset, manualPoints]);
 
   const handleGearCardSelect = useCallback(async (gear: string) => {
-    const currentLevel = config.manualLevel || '中';
-    await applyManualGearPreset(gear, currentLevel);
-  }, [applyManualGearPreset, config.manualLevel]);
+    const rememberedLevel = rememberedManualGearLevels[gear];
+    const nextLevel = rememberedLevel === '低' || rememberedLevel === '中' || rememberedLevel === '高'
+      ? rememberedLevel
+      : (config.manualLevel || '中');
+    await applyManualGearPreset(gear, nextLevel);
+  }, [applyManualGearPreset, config, rememberedManualGearLevels]);
 
   /* ── Custom dot renderer ── */
 
@@ -448,7 +463,10 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {manualGearPresets.map((preset) => {
                     const isActiveGear = (config.manualGear || '标准') === preset.gear;
-                    const activeLevel = preset.levels.find((l) => l.level === (isActiveGear ? (config.manualLevel || '中') : '中')) ?? preset.levels[1];
+                    const rememberedLevel = isActiveGear
+                      ? (config.manualLevel || '中')
+                      : rememberedManualGearLevels[preset.gear];
+                    const activeLevel = preset.levels.find((l) => l.level === rememberedLevel) ?? preset.levels[1];
                     return (
                       <button
                         key={preset.gear}

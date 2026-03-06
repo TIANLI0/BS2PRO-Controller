@@ -107,6 +107,7 @@ const (
 	EventDeviceDisconnected = "device-disconnected"
 	EventDeviceError        = "device-error"
 	EventConfigUpdate       = "config-update"
+	EventHotkeyTriggered    = "hotkey-triggered"
 	EventHealthPing         = "health-ping"
 	EventHeartbeat          = "heartbeat"
 )

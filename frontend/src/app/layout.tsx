@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import OverlayScrollContainer from "./components/OverlayScrollContainer";
 import SystemThemeSync from "./components/SystemThemeSync";
+import { Toaster } from "@/components/ui/sonner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,6 +32,7 @@ export default function RootLayout({
       >
         <SystemThemeSync />
         <OverlayScrollContainer>{children}</OverlayScrollContainer>
+        <Toaster richColors closeButton position="top-right" />
       </body>
     </html>
   );

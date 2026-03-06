@@ -120,6 +120,9 @@ export namespace types {
 	}
 	export class AppConfig {
 	    autoControl: boolean;
+	    manualGearToggleHotkey: string;
+	    autoControlToggleHotkey: string;
+	    manualGearLevels: Record<string, string>;
 	    fanCurve: FanCurvePoint[];
 	    gearLight: boolean;
 	    powerOnStart: boolean;
@@ -146,6 +149,9 @@ export namespace types {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.autoControl = source["autoControl"];
+	        this.manualGearToggleHotkey = source["manualGearToggleHotkey"];
+	        this.autoControlToggleHotkey = source["autoControlToggleHotkey"];
+	        this.manualGearLevels = source["manualGearLevels"];
 	        this.fanCurve = this.convertValues(source["fanCurve"], FanCurvePoint);
 	        this.gearLight = source["gearLight"];
 	        this.powerOnStart = source["powerOnStart"];

@@ -41,6 +41,10 @@ class DeviceService {
   onTemperatureUpdate(callback: (data: types.TemperatureData) => void) {
     return apiService.onTemperatureUpdate(callback);
   }
+
+  onHotkeyTriggered(callback: (payload: { action: string; shortcut: string; success: boolean; message: string }) => void) {
+    return apiService.onHotkeyTriggered(callback);
+  }
 }
 
 export const deviceService = new DeviceService();
