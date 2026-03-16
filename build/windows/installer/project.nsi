@@ -485,6 +485,21 @@ Function StopRunningInstances
     nsExec::ExecToStack '"$SYSDIR\taskkill.exe" /F /IM "BS2PRO-Core.exe" /T'
     Pop $0
     Pop $1
+
+    # Stop conflicting SpaceStation service process
+    ClearErrors
+    nsExec::ExecToStack '"$SYSDIR\taskkill.exe" /IM "SpaceStationService.exe" /T'
+    Pop $0
+    Pop $1
+    ${If} $0 == 0
+        DetailPrint "已请求关闭 SpaceStationService.exe..."
+        Sleep 1000
+    ${EndIf}
+
+    # Force kill if still running (ignore errors)
+    nsExec::ExecToStack '"$SYSDIR\taskkill.exe" /F /IM "SpaceStationService.exe" /T'
+    Pop $0
+    Pop $1
     
     # Try to stop the main application gracefully first
     ClearErrors
