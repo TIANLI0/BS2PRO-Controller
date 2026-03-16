@@ -14,18 +14,21 @@ import (
 
 // Manager 系统托盘管理器
 type Manager struct {
-	logger       types.Logger
-	initialized  int32 // atomic: 0=未初始化, 1=已初始化
-	readyState   int32 // atomic: 0=未就绪, 1=就绪
-	mutex        sync.Mutex
-	done         chan struct{} // 关闭此通道以通知所有 goroutine 退出
-	uiQueue      chan func()
-	iconData     []byte
-	menuItems    *MenuItems
-	onShowWindow func()
-	onQuit       func()
-	onToggleAuto func() bool
-	getStatus    func() Status
+	logger          types.Logger
+	initialized     int32 // atomic: 0=未初始化, 1=已初始化
+	readyState      int32 // atomic: 0=未就绪, 1=就绪
+	mutex           sync.Mutex
+	done            chan struct{} // 关闭此通道以通知所有 goroutine 退出
+	uiQueue         chan func()
+	iconData        []byte
+	menuItems       *MenuItems
+	onShowWindow    func()
+	onQuit          func()
+	onToggleAuto    func() bool
+	onSetCurve      func(profileID string) string
+	getCurveOptions func() ([]CurveOption, string)
+	getStatus       func() Status
+	curveMenuItems  map[string]*systray.MenuItem
 
 	// 监控托盘健康状态
 	lastIconRefresh  int64
@@ -44,26 +47,36 @@ type MenuItems struct {
 	CPUTemperature *systray.MenuItem
 	GPUTemperature *systray.MenuItem
 	FanSpeed       *systray.MenuItem
+	CurveSelect    *systray.MenuItem
 	AutoControl    *systray.MenuItem
 	Quit           *systray.MenuItem
 }
 
+// CurveOption 托盘曲线选项
+type CurveOption struct {
+	ID   string
+	Name string
+}
+
 // Status 状态信息
 type Status struct {
-	Connected        bool
-	CPUTemp          int
-	GPUTemp          int
-	CurrentRPM       uint16
-	AutoControlState bool
+	Connected            bool
+	CPUTemp              int
+	GPUTemp              int
+	CurrentRPM           uint16
+	AutoControlState     bool
+	ActiveCurveProfileID string
+	CurveProfiles        []CurveOption
 }
 
 // NewManager 创建新的托盘管理器
 func NewManager(logger types.Logger, iconData []byte) *Manager {
 	return &Manager{
-		logger:   logger,
-		done:     make(chan struct{}),
-		uiQueue:  make(chan func(), 64),
-		iconData: iconData,
+		logger:         logger,
+		done:           make(chan struct{}),
+		uiQueue:        make(chan func(), 64),
+		iconData:       iconData,
+		curveMenuItems: make(map[string]*systray.MenuItem),
 	}
 }
 
@@ -72,11 +85,15 @@ func (m *Manager) SetCallbacks(
 	onShowWindow func(),
 	onQuit func(),
 	onToggleAuto func() bool,
+	onSetCurve func(profileID string) string,
+	getCurveOptions func() ([]CurveOption, string),
 	getStatus func() Status,
 ) {
 	m.onShowWindow = onShowWindow
 	m.onQuit = onQuit
 	m.onToggleAuto = onToggleAuto
+	m.onSetCurve = onSetCurve
+	m.getCurveOptions = getCurveOptions
 	m.getStatus = getStatus
 }
 
@@ -206,6 +223,13 @@ func (m *Manager) createMenu() (items *MenuItems, err error) {
 
 	items.FanSpeed = systray.AddMenuItem("风扇转速", "显示当前风扇转速")
 	items.FanSpeed.Disable()
+	items.CurveSelect = systray.AddMenuItem("选择温控曲线", "直接切换到指定温控曲线")
+
+	if m.getCurveOptions != nil {
+		profiles, activeID := m.getCurveOptions()
+		m.ensureCurveMenuItems(items.CurveSelect, profiles)
+		m.updateCurveMenuSelection(activeID)
+	}
 
 	// 智能变频状态 - 获取当前配置状态
 	autoControlEnabled := false
@@ -353,6 +377,11 @@ func (m *Manager) updateMenuStatus() {
 					m.menuItems.FanSpeed.SetTitle(fmt.Sprintf("风扇转速: %d RPM", status.CurrentRPM))
 				} else {
 					m.menuItems.FanSpeed.SetTitle("风扇转速: 无数据")
+				}
+
+				if m.menuItems.CurveSelect != nil {
+					m.ensureCurveMenuItems(m.menuItems.CurveSelect, status.CurveProfiles)
+					m.updateCurveMenuSelection(status.ActiveCurveProfileID)
 				}
 
 				if status.AutoControlState {
@@ -573,5 +602,88 @@ func (m *Manager) logError(format string, v ...any) {
 func (m *Manager) logDebug(format string, v ...any) {
 	if m.logger != nil {
 		m.logger.Debug(format, v...)
+	}
+}
+
+func (m *Manager) ensureCurveMenuItems(parent *systray.MenuItem, options []CurveOption) {
+	if parent == nil {
+		return
+	}
+
+	if len(options) == 0 {
+		if len(m.curveMenuItems) == 0 {
+			emptyItem := parent.AddSubMenuItem("暂无可用曲线", "")
+			emptyItem.Disable()
+			m.curveMenuItems["__empty__"] = emptyItem
+		}
+		return
+	}
+
+	if empty, ok := m.curveMenuItems["__empty__"]; ok && empty != nil {
+		empty.Hide()
+		delete(m.curveMenuItems, "__empty__")
+	}
+
+	activeIDs := map[string]bool{}
+	for _, option := range options {
+		if option.ID != "" {
+			activeIDs[option.ID] = true
+		}
+	}
+	for id, item := range m.curveMenuItems {
+		if id == "__empty__" || item == nil {
+			continue
+		}
+		if !activeIDs[id] {
+			item.Hide()
+			delete(m.curveMenuItems, id)
+		}
+	}
+
+	for _, option := range options {
+		if option.ID == "" {
+			continue
+		}
+		if existing, ok := m.curveMenuItems[option.ID]; ok && existing != nil {
+			existing.Show()
+			existing.SetTitle(option.Name)
+			continue
+		}
+
+		item := parent.AddSubMenuItemCheckbox(option.Name, "切换温控曲线", false)
+		m.curveMenuItems[option.ID] = item
+
+		profileID := option.ID
+		go func(menuItem *systray.MenuItem, pid string) {
+			for {
+				select {
+				case <-menuItem.ClickedCh:
+					if m.onSetCurve == nil {
+						continue
+					}
+					m.runTrayActionAsync("menu-set-curve", nil, func() {
+						_ = m.onSetCurve(pid)
+						m.enqueueUI("menu-set-curve-ui", func() {
+							m.updateCurveMenuSelection(pid)
+						})
+					})
+				case <-m.done:
+					return
+				}
+			}
+		}(item, profileID)
+	}
+}
+
+func (m *Manager) updateCurveMenuSelection(activeID string) {
+	for id, item := range m.curveMenuItems {
+		if item == nil || id == "__empty__" {
+			continue
+		}
+		if id == activeID {
+			item.Check()
+		} else {
+			item.Uncheck()
+		}
 	}
 }

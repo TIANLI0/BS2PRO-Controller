@@ -6,7 +6,11 @@ export function CheckWindowsAutoStart():Promise<boolean>;
 
 export function ConnectDevice():Promise<boolean>;
 
+export function DeleteFanCurveProfile(arg1:string):Promise<void>;
+
 export function DisconnectDevice():Promise<void>;
+
+export function ExportFanCurveProfiles():Promise<string>;
 
 export function GetAppVersion():Promise<string>;
 
@@ -26,9 +30,13 @@ export function GetDeviceStatus():Promise<Record<string, any>>;
 
 export function GetFanCurve():Promise<Array<types.FanCurvePoint>>;
 
+export function GetFanCurveProfiles():Promise<types.FanCurveProfilesPayload>;
+
 export function GetTemperature():Promise<types.TemperatureData>;
 
 export function HideWindow():Promise<void>;
+
+export function ImportFanCurveProfiles(arg1:string):Promise<void>;
 
 export function InitSystemTray():Promise<void>;
 
@@ -41,6 +49,10 @@ export function ManualSetFanSpeed(arg1:number):Promise<boolean>;
 export function QuitAll():Promise<void>;
 
 export function QuitApp():Promise<void>;
+
+export function SaveFanCurveProfile(arg1:string,arg2:string,arg3:Array<types.FanCurvePoint>,arg4:boolean):Promise<types.FanCurveProfile>;
+
+export function SetActiveFanCurveProfile(arg1:string):Promise<void>;
 
 export function SetAutoControl(arg1:boolean):Promise<void>;
 

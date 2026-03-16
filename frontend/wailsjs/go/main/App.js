@@ -10,8 +10,16 @@ export function ConnectDevice() {
   return window['go']['main']['App']['ConnectDevice']();
 }
 
+export function DeleteFanCurveProfile(arg1) {
+  return window['go']['main']['App']['DeleteFanCurveProfile'](arg1);
+}
+
 export function DisconnectDevice() {
   return window['go']['main']['App']['DisconnectDevice']();
+}
+
+export function ExportFanCurveProfiles() {
+  return window['go']['main']['App']['ExportFanCurveProfiles']();
 }
 
 export function GetAppVersion() {
@@ -50,12 +58,20 @@ export function GetFanCurve() {
   return window['go']['main']['App']['GetFanCurve']();
 }
 
+export function GetFanCurveProfiles() {
+  return window['go']['main']['App']['GetFanCurveProfiles']();
+}
+
 export function GetTemperature() {
   return window['go']['main']['App']['GetTemperature']();
 }
 
 export function HideWindow() {
   return window['go']['main']['App']['HideWindow']();
+}
+
+export function ImportFanCurveProfiles(arg1) {
+  return window['go']['main']['App']['ImportFanCurveProfiles'](arg1);
 }
 
 export function InitSystemTray() {
@@ -80,6 +96,14 @@ export function QuitAll() {
 
 export function QuitApp() {
   return window['go']['main']['App']['QuitApp']();
+}
+
+export function SaveFanCurveProfile(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['SaveFanCurveProfile'](arg1, arg2, arg3, arg4);
+}
+
+export function SetActiveFanCurveProfile(arg1) {
+  return window['go']['main']['App']['SetActiveFanCurveProfile'](arg1);
 }
 
 export function SetAutoControl(arg1) {

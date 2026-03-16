@@ -163,6 +163,12 @@ func (a *CoreApp) Start() error {
 			a.logError("保存快捷键默认配置失败: %v", err)
 		}
 	}
+	if normalizeCurveProfilesConfig(&cfg) {
+		a.configManager.Set(cfg)
+		if err := a.configManager.Save(); err != nil {
+			a.logError("保存温控曲线方案默认配置失败: %v", err)
+		}
+	}
 	if normalizeManualGearMemoryConfig(&cfg) {
 		a.configManager.Set(cfg)
 		if err := a.configManager.Save(); err != nil {
@@ -287,6 +293,29 @@ func (a *CoreApp) initSystemTray() {
 			a.SetAutoControl(newState)
 			return newState
 		},
+		func(profileID string) string {
+			profile, err := a.SetActiveFanCurveProfile(profileID)
+			if err != nil {
+				a.logError("托盘设置温控曲线失败: %v", err)
+				return ""
+			}
+			return profile.Name
+		},
+		func() ([]tray.CurveOption, string) {
+			cfg := a.configManager.Get()
+			options := make([]tray.CurveOption, 0, len(cfg.FanCurveProfiles))
+			for _, p := range cfg.FanCurveProfiles {
+				if p.ID == "" {
+					continue
+				}
+				name := p.Name
+				if strings.TrimSpace(name) == "" {
+					name = "默认"
+				}
+				options = append(options, tray.CurveOption{ID: p.ID, Name: name})
+			}
+			return options, cfg.ActiveFanCurveProfileID
+		},
 		func() tray.Status {
 			a.mutex.RLock()
 			defer a.mutex.RUnlock()
@@ -296,12 +325,26 @@ func (a *CoreApp) initSystemTray() {
 			if fanData != nil {
 				currentRPM = fanData.CurrentRPM
 			}
+			curveOptions := make([]tray.CurveOption, 0, len(cfg.FanCurveProfiles))
+			for _, p := range cfg.FanCurveProfiles {
+				if p.ID == "" {
+					continue
+				}
+				name := p.Name
+				if strings.TrimSpace(name) == "" {
+					name = "默认"
+				}
+				curveOptions = append(curveOptions, tray.CurveOption{ID: p.ID, Name: name})
+			}
+
 			return tray.Status{
-				Connected:        a.isConnected,
-				CPUTemp:          a.currentTemp.CPUTemp,
-				GPUTemp:          a.currentTemp.GPUTemp,
-				CurrentRPM:       currentRPM,
-				AutoControlState: cfg.AutoControl,
+				Connected:            a.isConnected,
+				CPUTemp:              a.currentTemp.CPUTemp,
+				GPUTemp:              a.currentTemp.GPUTemp,
+				CurrentRPM:           currentRPM,
+				AutoControlState:     cfg.AutoControl,
+				ActiveCurveProfileID: cfg.ActiveFanCurveProfileID,
+				CurveProfiles:        curveOptions,
 			}
 		},
 	)
@@ -388,6 +431,58 @@ func (a *CoreApp) handleIPCRequest(req ipc.Request) ipc.Response {
 	case ipc.ReqGetFanCurve:
 		curve := a.configManager.Get().FanCurve
 		return a.dataResponse(curve)
+
+	case ipc.ReqGetFanCurveProfiles:
+		return a.dataResponse(a.GetFanCurveProfiles())
+
+	case ipc.ReqSetActiveFanCurveProfile:
+		var params ipc.SetActiveFanCurveProfileParams
+		if err := json.Unmarshal(req.Data, &params); err != nil {
+			return a.errorResponse("解析参数失败: " + err.Error())
+		}
+		profile, err := a.SetActiveFanCurveProfile(params.ID)
+		if err != nil {
+			return a.errorResponse(err.Error())
+		}
+		return a.dataResponse(profile)
+
+	case ipc.ReqSaveFanCurveProfile:
+		var params ipc.SaveFanCurveProfileParams
+		if err := json.Unmarshal(req.Data, &params); err != nil {
+			return a.errorResponse("解析参数失败: " + err.Error())
+		}
+		profile, err := a.SaveFanCurveProfile(params)
+		if err != nil {
+			return a.errorResponse(err.Error())
+		}
+		return a.dataResponse(profile)
+
+	case ipc.ReqDeleteFanCurveProfile:
+		var params ipc.DeleteFanCurveProfileParams
+		if err := json.Unmarshal(req.Data, &params); err != nil {
+			return a.errorResponse("解析参数失败: " + err.Error())
+		}
+		if err := a.DeleteFanCurveProfile(params.ID); err != nil {
+			return a.errorResponse(err.Error())
+		}
+		return a.successResponse(true)
+
+	case ipc.ReqExportFanCurveProfiles:
+		code, err := a.ExportFanCurveProfiles()
+		if err != nil {
+			return a.errorResponse(err.Error())
+		}
+		return a.dataResponse(code)
+
+	case ipc.ReqImportFanCurveProfiles:
+		var params ipc.ImportFanCurveProfilesParams
+		if err := json.Unmarshal(req.Data, &params); err != nil {
+			return a.errorResponse("解析参数失败: " + err.Error())
+		}
+		if err := a.ImportFanCurveProfiles(params.Code); err != nil {
+			return a.errorResponse(err.Error())
+		}
+		return a.successResponse(true)
 
 	// 控制相关
 	case ipc.ReqSetAutoControl:
@@ -807,8 +902,19 @@ func (a *CoreApp) UpdateConfig(cfg types.AppConfig) error {
 	defer a.mutex.Unlock()
 
 	oldCfg := a.configManager.Get()
+	if cfg.CurveProfileToggleHotkey == "" {
+		cfg.CurveProfileToggleHotkey = oldCfg.CurveProfileToggleHotkey
+	}
+	if len(cfg.FanCurveProfiles) == 0 && len(oldCfg.FanCurveProfiles) > 0 {
+		cfg.FanCurveProfiles = cloneFanCurveProfiles(oldCfg.FanCurveProfiles)
+		cfg.ActiveFanCurveProfileID = oldCfg.ActiveFanCurveProfileID
+	}
 	cfg.ManualGearLevels = cloneManualGearLevels(oldCfg.ManualGearLevels)
 	cfg.LightStrip, _ = normalizeLightStripConfig(cfg.LightStrip)
+	normalizeCurveProfilesConfig(&cfg)
+	if idx := findCurveProfileIndex(cfg.FanCurveProfiles, cfg.ActiveFanCurveProfileID); idx >= 0 {
+		cfg.FanCurveProfiles[idx].Curve = cloneFanCurve(cfg.FanCurve)
+	}
 	cfg.SmartControl, _ = smartcontrol.NormalizeConfig(cfg.SmartControl, cfg.FanCurve, cfg.DebugMode)
 	normalizeHotkeyConfig(&cfg)
 	normalizeManualGearMemoryConfig(&cfg)
@@ -828,7 +934,12 @@ func (a *CoreApp) SetFanCurve(curve []types.FanCurvePoint) error {
 	defer a.mutex.Unlock()
 
 	cfg := a.configManager.Get()
-	cfg.FanCurve = curve
+	normalizeCurveProfilesConfig(&cfg)
+	cfg.FanCurve = cloneFanCurve(curve)
+	idx := findCurveProfileIndex(cfg.FanCurveProfiles, cfg.ActiveFanCurveProfileID)
+	if idx >= 0 {
+		cfg.FanCurveProfiles[idx].Curve = cloneFanCurve(cfg.FanCurve)
+	}
 	cfg.SmartControl, _ = smartcontrol.NormalizeConfig(cfg.SmartControl, cfg.FanCurve, cfg.DebugMode)
 	return a.configManager.Update(cfg)
 }
@@ -1082,6 +1193,10 @@ func normalizeHotkeyConfig(cfg *types.AppConfig) bool {
 		cfg.AutoControlToggleHotkey = types.GetDefaultConfig(false).AutoControlToggleHotkey
 		changed = true
 	}
+	if cfg.CurveProfileToggleHotkey == "" {
+		cfg.CurveProfileToggleHotkey = types.GetDefaultConfig(false).CurveProfileToggleHotkey
+		changed = true
+	}
 
 	if _, _, err := hotkeysvc.ParseShortcut(cfg.ManualGearToggleHotkey); err != nil {
 		cfg.ManualGearToggleHotkey = types.GetDefaultConfig(false).ManualGearToggleHotkey
@@ -1089,6 +1204,10 @@ func normalizeHotkeyConfig(cfg *types.AppConfig) bool {
 	}
 	if _, _, err := hotkeysvc.ParseShortcut(cfg.AutoControlToggleHotkey); err != nil {
 		cfg.AutoControlToggleHotkey = types.GetDefaultConfig(false).AutoControlToggleHotkey
+		changed = true
+	}
+	if _, _, err := hotkeysvc.ParseShortcut(cfg.CurveProfileToggleHotkey); err != nil {
+		cfg.CurveProfileToggleHotkey = types.GetDefaultConfig(false).CurveProfileToggleHotkey
 		changed = true
 	}
 
@@ -1139,7 +1258,7 @@ func (a *CoreApp) applyHotkeyBindings(cfg types.AppConfig) {
 	if a.hotkeyManager == nil {
 		return
 	}
-	if err := a.hotkeyManager.UpdateBindings(cfg.ManualGearToggleHotkey, cfg.AutoControlToggleHotkey); err != nil {
+	if err := a.hotkeyManager.UpdateBindings(cfg.ManualGearToggleHotkey, cfg.AutoControlToggleHotkey, cfg.CurveProfileToggleHotkey); err != nil {
 		a.logError("更新全局快捷键失败: %v", err)
 	}
 }
@@ -1160,6 +1279,14 @@ func (a *CoreApp) handleHotkeyAction(action hotkeysvc.Action, shortcut string) {
 			}
 		case hotkeysvc.ActionToggleAutoMode:
 			msg, err := a.toggleAutoControlByHotkey()
+			if err != nil {
+				success = false
+				message = err.Error()
+			} else {
+				message = msg
+			}
+		case hotkeysvc.ActionToggleCurveProfile:
+			msg, err := a.toggleCurveProfileByHotkey()
 			if err != nil {
 				success = false
 				message = err.Error()
@@ -1188,6 +1315,14 @@ func (a *CoreApp) handleHotkeyAction(action hotkeysvc.Action, shortcut string) {
 			a.notifier.Notify(title, message)
 		}
 	})
+}
+
+func (a *CoreApp) toggleCurveProfileByHotkey() (string, error) {
+	profile, err := a.CycleFanCurveProfile()
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("温控曲线已切换: %s", profile.Name), nil
 }
 
 func (a *CoreApp) toggleAutoControlByHotkey() (string, error) {

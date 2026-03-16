@@ -104,6 +104,40 @@ export namespace types {
 	        this.learnedRateCool = source["learnedRateCool"];
 	    }
 	}
+	export class FanCurveProfile {
+	    id: string;
+	    name: string;
+	    curve: FanCurvePoint[];
+	
+	    static createFrom(source: any = {}) {
+	        return new FanCurveProfile(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.curve = this.convertValues(source["curve"], FanCurvePoint);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class FanCurvePoint {
 	    temperature: number;
 	    rpm: number;
@@ -122,8 +156,11 @@ export namespace types {
 	    autoControl: boolean;
 	    manualGearToggleHotkey: string;
 	    autoControlToggleHotkey: string;
+	    curveProfileToggleHotkey: string;
 	    manualGearLevels: Record<string, string>;
 	    fanCurve: FanCurvePoint[];
+	    fanCurveProfiles: FanCurveProfile[];
+	    activeFanCurveProfileId: string;
 	    gearLight: boolean;
 	    powerOnStart: boolean;
 	    windowsAutoStart: boolean;
@@ -151,8 +188,11 @@ export namespace types {
 	        this.autoControl = source["autoControl"];
 	        this.manualGearToggleHotkey = source["manualGearToggleHotkey"];
 	        this.autoControlToggleHotkey = source["autoControlToggleHotkey"];
+	        this.curveProfileToggleHotkey = source["curveProfileToggleHotkey"];
 	        this.manualGearLevels = source["manualGearLevels"];
 	        this.fanCurve = this.convertValues(source["fanCurve"], FanCurvePoint);
+	        this.fanCurveProfiles = this.convertValues(source["fanCurveProfiles"], FanCurveProfile);
+	        this.activeFanCurveProfileId = source["activeFanCurveProfileId"];
 	        this.gearLight = source["gearLight"];
 	        this.powerOnStart = source["powerOnStart"];
 	        this.windowsAutoStart = source["windowsAutoStart"];
@@ -213,6 +253,39 @@ export namespace types {
 	    }
 	}
 	
+	
+	export class FanCurveProfilesPayload {
+	    profiles: FanCurveProfile[];
+	    activeId: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new FanCurveProfilesPayload(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.profiles = this.convertValues(source["profiles"], FanCurveProfile);
+	        this.activeId = source["activeId"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class FanData {
 	    reportId: number;
 	    magicSync: number;

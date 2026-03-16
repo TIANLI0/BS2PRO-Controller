@@ -70,6 +70,30 @@ class ApiService {
     return await GetFanCurve();
   }
 
+  async getFanCurveProfiles(): Promise<{ profiles: Array<{ id: string; name: string; curve: types.FanCurvePoint[] }>; activeId: string }> {
+    return await (window as any).go?.main?.App?.GetFanCurveProfiles();
+  }
+
+  async setActiveFanCurveProfile(profileID: string): Promise<void> {
+    return await (window as any).go?.main?.App?.SetActiveFanCurveProfile(profileID);
+  }
+
+  async saveFanCurveProfile(profileID: string, name: string, curve: types.FanCurvePoint[], setActive: boolean): Promise<{ id: string; name: string; curve: types.FanCurvePoint[] }> {
+    return await (window as any).go?.main?.App?.SaveFanCurveProfile(profileID, name, curve, setActive);
+  }
+
+  async deleteFanCurveProfile(profileID: string): Promise<void> {
+    return await (window as any).go?.main?.App?.DeleteFanCurveProfile(profileID);
+  }
+
+  async exportFanCurveProfiles(): Promise<string> {
+    return await (window as any).go?.main?.App?.ExportFanCurveProfiles();
+  }
+
+  async importFanCurveProfiles(code: string): Promise<void> {
+    return await (window as any).go?.main?.App?.ImportFanCurveProfiles(code);
+  }
+
   // 智能变频
   async setAutoControl(enabled: boolean): Promise<void> {
     return await SetAutoControl(enabled);

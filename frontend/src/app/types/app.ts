@@ -6,6 +6,12 @@ export interface FanCurvePoint {
   rpm: number;         // 转速 RPM
 }
 
+export interface FanCurveProfile {
+  id: string;
+  name: string;
+  curve: FanCurvePoint[];
+}
+
 // 风扇数据结构
 export interface FanData {
   reportId: number;
@@ -35,7 +41,10 @@ export interface TemperatureData {
 // 应用配置
 export interface AppConfig {
   autoControl: boolean;         // 智能变频开关
+  curveProfileToggleHotkey?: string; // 切换曲线方案快捷键
   fanCurve: FanCurvePoint[];   // 风扇曲线
+  fanCurveProfiles?: FanCurveProfile[];
+  activeFanCurveProfileId?: string;
   gearLight: boolean;          // 挡位灯
   powerOnStart: boolean;       // 通电自启动
   windowsAutoStart: boolean;   // Windows开机自启动

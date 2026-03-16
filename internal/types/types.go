@@ -7,6 +7,19 @@ type FanCurvePoint struct {
 	RPM         int `json:"rpm"`         // 转速 RPM
 }
 
+// FanCurveProfile 温控曲线方案
+type FanCurveProfile struct {
+	ID    string          `json:"id"`
+	Name  string          `json:"name"`
+	Curve []FanCurvePoint `json:"curve"`
+}
+
+// FanCurveProfilesPayload 风扇曲线方案返回载荷
+type FanCurveProfilesPayload struct {
+	Profiles []FanCurveProfile `json:"profiles"`
+	ActiveID string            `json:"activeId"`
+}
+
 // FanData 风扇数据结构
 type FanData struct {
 	ReportID     uint8  `json:"reportId"`
@@ -105,28 +118,31 @@ type SmartControlConfig struct {
 
 // AppConfig 应用配置
 type AppConfig struct {
-	AutoControl             bool               `json:"autoControl"`             // 智能变频开关
-	ManualGearToggleHotkey  string             `json:"manualGearToggleHotkey"`  // 切换手动挡位快捷键
-	AutoControlToggleHotkey string             `json:"autoControlToggleHotkey"` // 开关智能变频快捷键
-	ManualGearLevels        map[string]string  `json:"manualGearLevels"`        // 每个大挡位记忆的小挡位(低中高)
-	FanCurve                []FanCurvePoint    `json:"fanCurve"`                // 风扇曲线
-	GearLight               bool               `json:"gearLight"`               // 挡位灯
-	PowerOnStart            bool               `json:"powerOnStart"`            // 通电自启动
-	WindowsAutoStart        bool               `json:"windowsAutoStart"`        // Windows开机自启动
-	SmartStartStop          string             `json:"smartStartStop"`          // 智能启停
-	Brightness              int                `json:"brightness"`              // 亮度
-	TempUpdateRate          int                `json:"tempUpdateRate"`          // 温度更新频率(秒)
-	TempSampleCount         int                `json:"tempSampleCount"`         // 温度采样次数(用于平均)
-	ConfigPath              string             `json:"configPath"`              // 配置文件路径
-	ManualGear              string             `json:"manualGear"`              // 手动挡位设置
-	ManualLevel             string             `json:"manualLevel"`             // 手动挡位级别(低中高)
-	DebugMode               bool               `json:"debugMode"`               // 调试模式
-	GuiMonitoring           bool               `json:"guiMonitoring"`           // GUI监控开关
-	CustomSpeedEnabled      bool               `json:"customSpeedEnabled"`      // 自定义转速开关
-	CustomSpeedRPM          int                `json:"customSpeedRPM"`          // 自定义转速值(无上下限)
-	IgnoreDeviceOnReconnect bool               `json:"ignoreDeviceOnReconnect"` // 断连后忽略设备状态(保持APP配置)
-	SmartControl            SmartControlConfig `json:"smartControl"`            // 学习型智能控温配置
-	LightStrip              LightStripConfig   `json:"lightStrip"`              // 灯带配置
+	AutoControl              bool               `json:"autoControl"`              // 智能变频开关
+	ManualGearToggleHotkey   string             `json:"manualGearToggleHotkey"`   // 切换手动挡位快捷键
+	AutoControlToggleHotkey  string             `json:"autoControlToggleHotkey"`  // 开关智能变频快捷键
+	CurveProfileToggleHotkey string             `json:"curveProfileToggleHotkey"` // 切换温控曲线方案快捷键
+	ManualGearLevels         map[string]string  `json:"manualGearLevels"`         // 每个大挡位记忆的小挡位(低中高)
+	FanCurve                 []FanCurvePoint    `json:"fanCurve"`                 // 风扇曲线
+	FanCurveProfiles         []FanCurveProfile  `json:"fanCurveProfiles"`         // 风扇曲线方案列表
+	ActiveFanCurveProfileID  string             `json:"activeFanCurveProfileId"`  // 当前激活曲线方案ID
+	GearLight                bool               `json:"gearLight"`                // 挡位灯
+	PowerOnStart             bool               `json:"powerOnStart"`             // 通电自启动
+	WindowsAutoStart         bool               `json:"windowsAutoStart"`         // Windows开机自启动
+	SmartStartStop           string             `json:"smartStartStop"`           // 智能启停
+	Brightness               int                `json:"brightness"`               // 亮度
+	TempUpdateRate           int                `json:"tempUpdateRate"`           // 温度更新频率(秒)
+	TempSampleCount          int                `json:"tempSampleCount"`          // 温度采样次数(用于平均)
+	ConfigPath               string             `json:"configPath"`               // 配置文件路径
+	ManualGear               string             `json:"manualGear"`               // 手动挡位设置
+	ManualLevel              string             `json:"manualLevel"`              // 手动挡位级别(低中高)
+	DebugMode                bool               `json:"debugMode"`                // 调试模式
+	GuiMonitoring            bool               `json:"guiMonitoring"`            // GUI监控开关
+	CustomSpeedEnabled       bool               `json:"customSpeedEnabled"`       // 自定义转速开关
+	CustomSpeedRPM           int                `json:"customSpeedRPM"`           // 自定义转速值(无上下限)
+	IgnoreDeviceOnReconnect  bool               `json:"ignoreDeviceOnReconnect"`  // 断连后忽略设备状态(保持APP配置)
+	SmartControl             SmartControlConfig `json:"smartControl"`             // 学习型智能控温配置
+	LightStrip               LightStripConfig   `json:"lightStrip"`               // 灯带配置
 }
 
 // GetDefaultLightStripConfig 获取默认灯带配置
@@ -237,16 +253,21 @@ func GetDefaultConfig(isAutoStart bool) AppConfig {
 	defaultCurve := GetDefaultFanCurve()
 
 	return AppConfig{
-		AutoControl:             false,
-		ManualGearToggleHotkey:  "Ctrl+Alt+Shift+M",
-		AutoControlToggleHotkey: "Ctrl+Alt+Shift+A",
+		AutoControl:              false,
+		ManualGearToggleHotkey:   "Ctrl+Alt+Shift+M",
+		AutoControlToggleHotkey:  "Ctrl+Alt+Shift+A",
+		CurveProfileToggleHotkey: "Ctrl+Alt+Shift+C",
 		ManualGearLevels: map[string]string{
 			"静音": "中",
 			"标准": "中",
 			"强劲": "中",
 			"超频": "中",
 		},
-		FanCurve:                defaultCurve,
+		FanCurve: defaultCurve,
+		FanCurveProfiles: []FanCurveProfile{
+			{ID: "default", Name: "默认", Curve: defaultCurve},
+		},
+		ActiveFanCurveProfileID: "default",
 		GearLight:               true,
 		PowerOnStart:            false,
 		WindowsAutoStart:        false,

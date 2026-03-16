@@ -14,8 +14,9 @@ import (
 type Action string
 
 const (
-	ActionToggleManualGear Action = "toggle-manual-gear"
-	ActionToggleAutoMode   Action = "toggle-auto-control"
+	ActionToggleManualGear   Action = "toggle-manual-gear"
+	ActionToggleAutoMode     Action = "toggle-auto-control"
+	ActionToggleCurveProfile Action = "toggle-curve-profile"
 )
 
 // Manager 负责注册/更新/注销全局快捷键。
@@ -44,7 +45,7 @@ func NewManager(logger types.Logger, onAction func(action Action, shortcut strin
 }
 
 // UpdateBindings 根据配置更新快捷键绑定。
-func (m *Manager) UpdateBindings(manualGearShortcut, autoControlShortcut string) error {
+func (m *Manager) UpdateBindings(manualGearShortcut, autoControlShortcut, curveProfileShortcut string) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
@@ -57,6 +58,9 @@ func (m *Manager) UpdateBindings(manualGearShortcut, autoControlShortcut string)
 		errs = append(errs, err.Error())
 	}
 	if err := m.setBinding(ActionToggleAutoMode, autoControlShortcut); err != nil {
+		errs = append(errs, err.Error())
+	}
+	if err := m.setBinding(ActionToggleCurveProfile, curveProfileShortcut); err != nil {
 		errs = append(errs, err.Error())
 	}
 
@@ -285,8 +289,8 @@ func parseKey(part string) (hotkeylib.Key, error) {
 		}
 	}
 
-	if strings.HasPrefix(token, "F") {
-		n, err := strconv.Atoi(strings.TrimPrefix(token, "F"))
+	if after, ok := strings.CutPrefix(token, "F"); ok {
+		n, err := strconv.Atoi(after)
 		if err == nil {
 			switch n {
 			case 1:

@@ -96,6 +96,7 @@ function getRequiredColorCount(mode: string): number {
 
 const DEFAULT_MANUAL_HOTKEY = 'Ctrl+Alt+Shift+M';
 const DEFAULT_AUTO_HOTKEY = 'Ctrl+Alt+Shift+A';
+const DEFAULT_CURVE_PROFILE_HOTKEY = 'Ctrl+Alt+Shift+C';
 
 function normalizeHotkeyForDisplay(value: string, fallback: string): string {
   const trimmed = (value || '').trim();
@@ -283,7 +284,10 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
   const [autoHotkeyInput, setAutoHotkeyInput] = useState(
     normalizeHotkeyForDisplay((config as any).autoControlToggleHotkey, DEFAULT_AUTO_HOTKEY)
   );
-  const [recordingTarget, setRecordingTarget] = useState<'manual' | 'auto' | null>(null);
+  const [curveProfileHotkeyInput, setCurveProfileHotkeyInput] = useState(
+    normalizeHotkeyForDisplay((config as any).curveProfileToggleHotkey, DEFAULT_CURVE_PROFILE_HOTKEY)
+  );
+  const [recordingTarget, setRecordingTarget] = useState<'manual' | 'auto' | 'curve' | null>(null);
 
   const setLoading = (key: string, value: boolean) => setLoadingStates((prev) => ({ ...prev, [key]: value }));
 
@@ -438,7 +442,8 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
   useEffect(() => {
     setManualHotkeyInput(normalizeHotkeyForDisplay((config as any).manualGearToggleHotkey, DEFAULT_MANUAL_HOTKEY));
     setAutoHotkeyInput(normalizeHotkeyForDisplay((config as any).autoControlToggleHotkey, DEFAULT_AUTO_HOTKEY));
-  }, [(config as any).manualGearToggleHotkey, (config as any).autoControlToggleHotkey]);
+    setCurveProfileHotkeyInput(normalizeHotkeyForDisplay((config as any).curveProfileToggleHotkey, DEFAULT_CURVE_PROFILE_HOTKEY));
+  }, [(config as any).manualGearToggleHotkey, (config as any).autoControlToggleHotkey, (config as any).curveProfileToggleHotkey]);
 
   /* ── Options data ── */
 
@@ -506,15 +511,21 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
   const saveHotkeys = useCallback(async (silent = false) => {
     setLoading('hotkeys', true);
     try {
-      if (manualHotkeyInput === autoHotkeyInput) {
-        if (!silent) toast.error('两个快捷键不能设置为同一个组合');
+      const manualValue = normalizeHotkeyForDisplay(manualHotkeyInput, DEFAULT_MANUAL_HOTKEY);
+      const autoValue = normalizeHotkeyForDisplay(autoHotkeyInput, DEFAULT_AUTO_HOTKEY);
+      const curveValue = normalizeHotkeyForDisplay(curveProfileHotkeyInput, DEFAULT_CURVE_PROFILE_HOTKEY);
+
+      const uniq = new Set([manualValue, autoValue, curveValue]);
+      if (uniq.size !== 3) {
+        if (!silent) toast.error('三个快捷键不能设置为同一个组合');
         return false;
       }
 
       const newCfg = types.AppConfig.createFrom({
         ...config,
-        manualGearToggleHotkey: normalizeHotkeyForDisplay(manualHotkeyInput, DEFAULT_MANUAL_HOTKEY),
-        autoControlToggleHotkey: normalizeHotkeyForDisplay(autoHotkeyInput, DEFAULT_AUTO_HOTKEY),
+        manualGearToggleHotkey: manualValue,
+        autoControlToggleHotkey: autoValue,
+        curveProfileToggleHotkey: curveValue,
       });
       await apiService.updateConfig(newCfg);
       onConfigChange(newCfg);
@@ -526,9 +537,9 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
     } finally {
       setLoading('hotkeys', false);
     }
-  }, [autoHotkeyInput, config, manualHotkeyInput, onConfigChange]);
+  }, [autoHotkeyInput, config, curveProfileHotkeyInput, manualHotkeyInput, onConfigChange]);
 
-  const handleHotkeyInputKeyDown = (target: 'manual' | 'auto') => (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleHotkeyInputKeyDown = (target: 'manual' | 'auto' | 'curve') => (e: React.KeyboardEvent<HTMLInputElement>) => {
     e.preventDefault();
     e.stopPropagation();
 
@@ -540,7 +551,8 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
 
     if (e.key === 'Backspace' || e.key === 'Delete') {
       if (target === 'manual') setManualHotkeyInput('');
-      else setAutoHotkeyInput('');
+      else if (target === 'auto') setAutoHotkeyInput('');
+      else setCurveProfileHotkeyInput('');
       return;
     }
 
@@ -548,7 +560,8 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
     if (!shortcut) return;
 
     if (target === 'manual') setManualHotkeyInput(shortcut);
-    else setAutoHotkeyInput(shortcut);
+    else if (target === 'auto') setAutoHotkeyInput(shortcut);
+    else setCurveProfileHotkeyInput(shortcut);
   };
 
   const handleHotkeyInputBlur = useCallback(async () => {
@@ -556,9 +569,10 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
     await saveHotkeys(true);
   }, [saveHotkeys]);
 
-  const clearHotkeyInput = useCallback(async (target: 'manual' | 'auto') => {
+  const clearHotkeyInput = useCallback(async (target: 'manual' | 'auto' | 'curve') => {
     if (target === 'manual') setManualHotkeyInput('');
-    else setAutoHotkeyInput('');
+    else if (target === 'auto') setAutoHotkeyInput('');
+    else setCurveProfileHotkeyInput('');
     await saveHotkeys(true);
   }, [saveHotkeys]);
 
@@ -866,6 +880,20 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
                 onBlur={handleHotkeyInputBlur}
                 onKeyDown={handleHotkeyInputKeyDown('auto')}
                 onClear={() => clearHotkeyInput('auto')}
+              />
+
+              <div className="border-t border-border/60" />
+
+              <HotkeyField
+                title="切换温控曲线"
+                description="快速轮换曲线方案，适合办公/游戏/夜间场景一键切换。"
+                value={curveProfileHotkeyInput}
+                placeholder="点击后按下组合键"
+                recording={recordingTarget === 'curve'}
+                onFocus={() => setRecordingTarget('curve')}
+                onBlur={handleHotkeyInputBlur}
+                onKeyDown={handleHotkeyInputKeyDown('curve')}
+                onClear={() => clearHotkeyInput('curve')}
               />
             </div>
           </div>

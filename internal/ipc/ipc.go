@@ -32,10 +32,16 @@ const (
 	ReqGetCurrentFanData RequestType = "GetCurrentFanData"
 
 	// 配置相关
-	ReqGetConfig    RequestType = "GetConfig"
-	ReqUpdateConfig RequestType = "UpdateConfig"
-	ReqSetFanCurve  RequestType = "SetFanCurve"
-	ReqGetFanCurve  RequestType = "GetFanCurve"
+	ReqGetConfig                RequestType = "GetConfig"
+	ReqUpdateConfig             RequestType = "UpdateConfig"
+	ReqSetFanCurve              RequestType = "SetFanCurve"
+	ReqGetFanCurve              RequestType = "GetFanCurve"
+	ReqGetFanCurveProfiles      RequestType = "GetFanCurveProfiles"
+	ReqSetActiveFanCurveProfile RequestType = "SetActiveFanCurveProfile"
+	ReqSaveFanCurveProfile      RequestType = "SaveFanCurveProfile"
+	ReqDeleteFanCurveProfile    RequestType = "DeleteFanCurveProfile"
+	ReqExportFanCurveProfiles   RequestType = "ExportFanCurveProfiles"
+	ReqImportFanCurveProfiles   RequestType = "ImportFanCurveProfiles"
 
 	// 控制相关
 	ReqSetAutoControl    RequestType = "SetAutoControl"
@@ -542,4 +548,27 @@ type SetAutoStartWithMethodParams struct {
 // SetLightStripParams 设置灯带参数
 type SetLightStripParams struct {
 	Config types.LightStripConfig `json:"config"`
+}
+
+// SetActiveFanCurveProfileParams 设置激活曲线方案参数
+type SetActiveFanCurveProfileParams struct {
+	ID string `json:"id"`
+}
+
+// SaveFanCurveProfileParams 保存曲线方案参数
+type SaveFanCurveProfileParams struct {
+	ID        string                `json:"id"`
+	Name      string                `json:"name"`
+	Curve     []types.FanCurvePoint `json:"curve"`
+	SetActive bool                  `json:"setActive"`
+}
+
+// DeleteFanCurveProfileParams 删除曲线方案参数
+type DeleteFanCurveProfileParams struct {
+	ID string `json:"id"`
+}
+
+// ImportFanCurveProfilesParams 导入曲线方案参数
+type ImportFanCurveProfilesParams struct {
+	Code string `json:"code"`
 }
