@@ -48,7 +48,7 @@
 # Built-in PawnIO version for upgrade/repair decisions.
 # You can override this at build time with: -DPAWNIO_BUNDLED_VERSION=x.y.z
 !ifndef PAWNIO_BUNDLED_VERSION
-!define PAWNIO_BUNDLED_VERSION "2.1.0.0"
+!define PAWNIO_BUNDLED_VERSION "2.2.0.0"
 !endif
 
 # The version information for this two must consist of 4 parts
