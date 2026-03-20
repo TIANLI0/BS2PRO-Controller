@@ -1,4 +1,4 @@
-// Package ipc 提供核心服务与 GUI 之间的进程间通信
+// Package ipc provides inter-process communication between core service and GUI
 package ipc
 
 import (
@@ -15,23 +15,23 @@ import (
 )
 
 const (
-	// PipeName 命名管道名称
+	// PipeName named pipe name
 	PipeName = "BS2PRO-Controller-IPC"
-	// PipePath 命名管道完整路径
+	// PipePath named pipe full path
 	PipePath = `\\.\pipe\` + PipeName
 )
 
-// RequestType 请求类型
+// RequestType request type
 type RequestType string
 
 const (
-	// 设备相关
+	// Device related
 	ReqConnect           RequestType = "Connect"
 	ReqDisconnect        RequestType = "Disconnect"
 	ReqGetDeviceStatus   RequestType = "GetDeviceStatus"
 	ReqGetCurrentFanData RequestType = "GetCurrentFanData"
 
-	// 配置相关
+	// Config related
 	ReqGetConfig                RequestType = "GetConfig"
 	ReqUpdateConfig             RequestType = "UpdateConfig"
 	ReqSetFanCurve              RequestType = "SetFanCurve"
@@ -43,7 +43,7 @@ const (
 	ReqExportFanCurveProfiles   RequestType = "ExportFanCurveProfiles"
 	ReqImportFanCurveProfiles   RequestType = "ImportFanCurveProfiles"
 
-	// 控制相关
+	// Control related
 	ReqSetAutoControl    RequestType = "SetAutoControl"
 	ReqSetManualGear     RequestType = "SetManualGear"
 	ReqGetAvailableGears RequestType = "GetAvailableGears"
@@ -54,58 +54,58 @@ const (
 	ReqSetBrightness     RequestType = "SetBrightness"
 	ReqSetLightStrip     RequestType = "SetLightStrip"
 
-	// 温度相关
+	// Temperature related
 	ReqGetTemperature         RequestType = "GetTemperature"
 	ReqTestTemperatureReading RequestType = "TestTemperatureReading"
 	ReqTestBridgeProgram      RequestType = "TestBridgeProgram"
 	ReqGetBridgeProgramStatus RequestType = "GetBridgeProgramStatus"
 
-	// 自启动相关
+	// Auto-start related
 	ReqSetWindowsAutoStart    RequestType = "SetWindowsAutoStart"
 	ReqCheckWindowsAutoStart  RequestType = "CheckWindowsAutoStart"
 	ReqIsRunningAsAdmin       RequestType = "IsRunningAsAdmin"
 	ReqGetAutoStartMethod     RequestType = "GetAutoStartMethod"
 	ReqSetAutoStartWithMethod RequestType = "SetAutoStartWithMethod"
 
-	// 窗口相关
+	// Window related
 	ReqShowWindow RequestType = "ShowWindow"
 	ReqHideWindow RequestType = "HideWindow"
 	ReqQuitApp    RequestType = "QuitApp"
 
-	// 调试相关
+	// Debug related
 	ReqGetDebugInfo          RequestType = "GetDebugInfo"
 	ReqSetDebugMode          RequestType = "SetDebugMode"
 	ReqUpdateGuiResponseTime RequestType = "UpdateGuiResponseTime"
 
-	// 系统相关
+	// System related
 	ReqPing              RequestType = "Ping"
 	ReqIsAutoStartLaunch RequestType = "IsAutoStartLaunch"
 	ReqSubscribeEvents   RequestType = "SubscribeEvents"
 	ReqUnsubscribeEvents RequestType = "UnsubscribeEvents"
 )
 
-// Request IPC 请求
+// Request IPC request
 type Request struct {
 	Type RequestType     `json:"type"`
 	Data json.RawMessage `json:"data,omitempty"`
 }
 
-// Response IPC 响应
+// Response IPC response
 type Response struct {
-	IsResponse bool            `json:"isResponse"` // 标识这是响应而非事件
+	IsResponse bool            `json:"isResponse"` // Identifies this as a response, not an event
 	Success    bool            `json:"success"`
 	Error      string          `json:"error,omitempty"`
 	Data       json.RawMessage `json:"data,omitempty"`
 }
 
-// Event IPC 事件（服务器推送给客户端）
+// Event IPC event (pushed from server to client)
 type Event struct {
-	IsEvent bool            `json:"isEvent"` // 标识这是事件
+	IsEvent bool            `json:"isEvent"` // Identifies this as an event
 	Type    string          `json:"type"`
 	Data    json.RawMessage `json:"data,omitempty"`
 }
 
-// EventType 事件类型
+// EventType event types
 const (
 	EventFanDataUpdate      = "fan-data-update"
 	EventTemperatureUpdate  = "temperature-update"
@@ -118,7 +118,7 @@ const (
 	EventHeartbeat          = "heartbeat"
 )
 
-// Server IPC 服务器
+// Server IPC server
 type Server struct {
 	listener net.Listener
 	clients  map[net.Conn]bool
@@ -128,10 +128,10 @@ type Server struct {
 	running  bool
 }
 
-// RequestHandler 请求处理函数类型
+// RequestHandler request handler function type
 type RequestHandler func(req Request) Response
 
-// NewServer 创建 IPC 服务器
+// NewServer creates an IPC server
 func NewServer(handler RequestHandler, logger types.Logger) *Server {
 	return &Server{
 		clients: make(map[net.Conn]bool),
@@ -140,35 +140,35 @@ func NewServer(handler RequestHandler, logger types.Logger) *Server {
 	}
 }
 
-// Start 启动服务器
+// Start starts the server
 func (s *Server) Start() error {
-	// 创建命名管道监听器
+	// Create named pipe listener
 	cfg := &winio.PipeConfig{
-		SecurityDescriptor: "D:P(A;;GA;;;WD)", // 允许所有用户访问
+		SecurityDescriptor: "D:P(A;;GA;;;WD)", // Allow all users access
 	}
 
 	listener, err := winio.ListenPipe(PipePath, cfg)
 	if err != nil {
-		return fmt.Errorf("创建命名管道失败: %v", err)
+		return fmt.Errorf("failed to create named pipe: %v", err)
 	}
 
 	s.listener = listener
 	s.running = true
-	s.logInfo("IPC 服务器已启动: %s", PipePath)
+	s.logInfo("IPC server started: %s", PipePath)
 
-	// 接受连接
+	// Accept connections
 	go s.acceptConnections()
 
 	return nil
 }
 
-// acceptConnections 接受客户端连接
+// acceptConnections accepts client connections
 func (s *Server) acceptConnections() {
 	for s.running {
 		conn, err := s.listener.Accept()
 		if err != nil {
 			if s.running {
-				s.logError("接受连接失败: %v", err)
+				s.logError("Failed to accept connection: %v", err)
 			}
 			continue
 		}
@@ -177,19 +177,19 @@ func (s *Server) acceptConnections() {
 		s.clients[conn] = true
 		s.mutex.Unlock()
 
-		s.logInfo("新的 IPC 客户端已连接")
+		s.logInfo("New IPC client connected")
 		go s.handleClient(conn)
 	}
 }
 
-// handleClient 处理客户端连接
+// handleClient handles a client connection
 func (s *Server) handleClient(conn net.Conn) {
 	defer func() {
 		s.mutex.Lock()
 		delete(s.clients, conn)
 		s.mutex.Unlock()
 		conn.Close()
-		s.logInfo("IPC 客户端已断开")
+		s.logInfo("IPC client disconnected")
 	}()
 
 	reader := bufio.NewReader(conn)
@@ -197,51 +197,51 @@ func (s *Server) handleClient(conn net.Conn) {
 	for s.running {
 		line, err := reader.ReadBytes('\n')
 		if err != nil {
-			s.logDebug("读取客户端请求失败: %v", err)
+			s.logDebug("Failed to read client request: %v", err)
 			return
 		}
 
-		// 解析请求
+		// Parse request
 		var req Request
 		if err := json.Unmarshal(line, &req); err != nil {
-			s.logError("解析请求失败: %v", err)
+			s.logError("Failed to parse request: %v", err)
 			continue
 		}
 		resp := s.handler(req)
 		resp.IsResponse = true
 
-		// 发送响应
+		// Send response
 		respBytes, err := json.Marshal(resp)
 		if err != nil {
-			s.logError("序列化响应失败: %v", err)
+			s.logError("Failed to serialize response: %v", err)
 			continue
 		}
 
 		_, err = conn.Write(append(respBytes, '\n'))
 		if err != nil {
-			s.logError("发送响应失败: %v", err)
+			s.logError("Failed to send response: %v", err)
 			return
 		}
 	}
 }
 
-// BroadcastEvent 广播事件给所有客户端
+// BroadcastEvent broadcasts an event to all clients
 func (s *Server) BroadcastEvent(eventType string, data any) {
 	dataBytes, err := json.Marshal(data)
 	if err != nil {
-		s.logError("序列化事件数据失败: %v", err)
+		s.logError("Failed to serialize event data: %v", err)
 		return
 	}
 
 	event := Event{
-		IsEvent: true, // 标记为事件
+		IsEvent: true, // Mark as event
 		Type:    eventType,
 		Data:    dataBytes,
 	}
 
 	eventBytes, err := json.Marshal(event)
 	if err != nil {
-		s.logError("序列化事件失败: %v", err)
+		s.logError("Failed to serialize event: %v", err)
 		return
 	}
 
@@ -252,13 +252,13 @@ func (s *Server) BroadcastEvent(eventType string, data any) {
 		go func(c net.Conn) {
 			_, err := c.Write(append(eventBytes, '\n'))
 			if err != nil {
-				s.logDebug("发送事件失败: %v", err)
+				s.logDebug("Failed to send event: %v", err)
 			}
 		}(conn)
 	}
 }
 
-// Stop 停止服务器
+// Stop stops the server
 func (s *Server) Stop() {
 	s.running = false
 	if s.listener != nil {
@@ -272,17 +272,17 @@ func (s *Server) Stop() {
 	s.clients = make(map[net.Conn]bool)
 	s.mutex.Unlock()
 
-	s.logInfo("IPC 服务器已停止")
+	s.logInfo("IPC server stopped")
 }
 
-// HasClients 检查是否有客户端连接
+// HasClients checks if any clients are connected
 func (s *Server) HasClients() bool {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 	return len(s.clients) > 0
 }
 
-// 日志辅助方法
+// Log helper methods
 func (s *Server) logInfo(format string, v ...any) {
 	if s.logger != nil {
 		s.logger.Info(format, v...)
@@ -301,7 +301,7 @@ func (s *Server) logDebug(format string, v ...any) {
 	}
 }
 
-// Client IPC 客户端
+// Client IPC client
 type Client struct {
 	conn         net.Conn
 	mutex        sync.Mutex
@@ -313,7 +313,7 @@ type Client struct {
 	connMutex    sync.RWMutex
 }
 
-// NewClient 创建 IPC 客户端
+// NewClient creates an IPC client
 func NewClient(logger types.Logger) *Client {
 	return &Client{
 		logger:       logger,
@@ -321,7 +321,7 @@ func NewClient(logger types.Logger) *Client {
 	}
 }
 
-// Connect 连接到服务器
+// Connect connects to the server
 func (c *Client) Connect() error {
 	c.connMutex.Lock()
 	defer c.connMutex.Unlock()
@@ -333,21 +333,21 @@ func (c *Client) Connect() error {
 	timeout := 5 * time.Second
 	conn, err := winio.DialPipe(PipePath, &timeout)
 	if err != nil {
-		return fmt.Errorf("连接 IPC 服务器失败: %v", err)
+		return fmt.Errorf("failed to connect to IPC server: %v", err)
 	}
 
 	c.conn = conn
 	c.reader = bufio.NewReader(conn)
 	c.connected = true
-	c.logInfo("已连接到 IPC 服务器")
+	c.logInfo("Connected to IPC server")
 
-	// 启动消息接收循环
+	// Start message receive loop
 	go c.readLoop()
 
 	return nil
 }
 
-// readLoop 统一的消息读取循环
+// readLoop unified message read loop
 func (c *Client) readLoop() {
 	for {
 		c.connMutex.RLock()
@@ -360,20 +360,20 @@ func (c *Client) readLoop() {
 
 		line, err := reader.ReadBytes('\n')
 		if err != nil {
-			c.logDebug("读取消息失败: %v", err)
+			c.logDebug("Failed to read message: %v", err)
 			c.connMutex.Lock()
 			c.connected = false
 			c.connMutex.Unlock()
 			return
 		}
 
-		// 使用通用结构来检测消息类型
+		// Use generic struct to detect message type
 		var msg struct {
 			IsResponse bool `json:"isResponse"`
 			IsEvent    bool `json:"isEvent"`
 		}
 		if err := json.Unmarshal(line, &msg); err != nil {
-			c.logDebug("解析消息类型失败: %v", err)
+			c.logDebug("Failed to parse message type: %v", err)
 			continue
 		}
 
@@ -383,7 +383,7 @@ func (c *Client) readLoop() {
 				select {
 				case c.responseChan <- &resp:
 				default:
-					c.logDebug("响应通道已满，丢弃响应")
+					c.logDebug("Response channel full, discarding response")
 				}
 			}
 		} else if msg.IsEvent {
@@ -397,12 +397,12 @@ func (c *Client) readLoop() {
 	}
 }
 
-// SetEventHandler 设置事件处理函数
+// SetEventHandler sets the event handler function
 func (c *Client) SetEventHandler(handler func(Event)) {
 	c.eventHandler = handler
 }
 
-// SendRequest 发送请求并等待响应
+// SendRequest sends a request and waits for a response
 func (c *Client) SendRequest(reqType RequestType, data any) (*Response, error) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
@@ -410,7 +410,7 @@ func (c *Client) SendRequest(reqType RequestType, data any) (*Response, error) {
 	c.connMutex.RLock()
 	if !c.connected || c.conn == nil {
 		c.connMutex.RUnlock()
-		return nil, fmt.Errorf("未连接到服务器")
+		return nil, fmt.Errorf("not connected to server")
 	}
 	conn := c.conn
 	c.connMutex.RUnlock()
@@ -420,7 +420,7 @@ func (c *Client) SendRequest(reqType RequestType, data any) (*Response, error) {
 		var err error
 		dataBytes, err = json.Marshal(data)
 		if err != nil {
-			return nil, fmt.Errorf("序列化请求数据失败: %v", err)
+			return nil, fmt.Errorf("failed to serialize request data: %v", err)
 		}
 	}
 
@@ -431,10 +431,10 @@ func (c *Client) SendRequest(reqType RequestType, data any) (*Response, error) {
 
 	reqBytes, err := json.Marshal(req)
 	if err != nil {
-		return nil, fmt.Errorf("序列化请求失败: %v", err)
+		return nil, fmt.Errorf("failed to serialize request: %v", err)
 	}
 
-	// 清空响应通道
+	// Clear response channel
 	select {
 	case <-c.responseChan:
 	default:
@@ -442,18 +442,18 @@ func (c *Client) SendRequest(reqType RequestType, data any) (*Response, error) {
 
 	_, err = conn.Write(append(reqBytes, '\n'))
 	if err != nil {
-		return nil, fmt.Errorf("发送请求失败: %v", err)
+		return nil, fmt.Errorf("failed to send request: %v", err)
 	}
 
 	select {
 	case resp := <-c.responseChan:
 		return resp, nil
 	case <-time.After(10 * time.Second):
-		return nil, fmt.Errorf("等待响应超时")
+		return nil, fmt.Errorf("timed out waiting for response")
 	}
 }
 
-// Close 关闭连接
+// Close closes the connection
 func (c *Client) Close() {
 	c.connMutex.Lock()
 	defer c.connMutex.Unlock()
@@ -465,14 +465,14 @@ func (c *Client) Close() {
 	}
 }
 
-// IsConnected 检查是否已连接
+// IsConnected checks if connected
 func (c *Client) IsConnected() bool {
 	c.connMutex.RLock()
 	defer c.connMutex.RUnlock()
 	return c.connected
 }
 
-// 日志辅助方法
+// Log helper methods
 func (c *Client) logInfo(format string, v ...any) {
 	if c.logger != nil {
 		c.logger.Info(format, v...)
@@ -485,7 +485,7 @@ func (c *Client) logDebug(format string, v ...any) {
 	}
 }
 
-// CheckCoreServiceRunning 检查核心服务是否正在运行
+// CheckCoreServiceRunning checks if the core service is running
 func CheckCoreServiceRunning() bool {
 	timeout := 1 * time.Second
 	conn, err := winio.DialPipe(PipePath, &timeout)
@@ -496,66 +496,66 @@ func CheckCoreServiceRunning() bool {
 	return true
 }
 
-// GetCoreLockFilePath 获取核心服务锁文件路径
+// GetCoreLockFilePath gets the core service lock file path
 func GetCoreLockFilePath() string {
 	tempDir := os.TempDir()
 	return fmt.Sprintf("%s/bs2pro-core.lock", tempDir)
 }
 
-// StartCoreRequestParams 启动核心服务的请求参数
+// StartCoreRequestParams request params for starting the core service
 type StartCoreRequestParams struct {
 	ShowGUI bool `json:"showGUI"`
 }
 
-// SetAutoControlParams 设置智能变频参数
+// SetAutoControlParams params for setting smart fan control
 type SetAutoControlParams struct {
 	Enabled bool `json:"enabled"`
 }
 
-// SetManualGearParams 设置手动挡位参数
+// SetManualGearParams params for setting manual gear
 type SetManualGearParams struct {
 	Gear  string `json:"gear"`
 	Level string `json:"level"`
 }
 
-// SetCustomSpeedParams 设置自定义转速参数
+// SetCustomSpeedParams params for setting custom speed
 type SetCustomSpeedParams struct {
 	Enabled bool `json:"enabled"`
 	RPM     int  `json:"rpm"`
 }
 
-// SetBoolParams 布尔参数
+// SetBoolParams boolean params
 type SetBoolParams struct {
 	Enabled bool `json:"enabled"`
 }
 
-// SetStringParams 字符串参数
+// SetStringParams string params
 type SetStringParams struct {
 	Value string `json:"value"`
 }
 
-// SetIntParams 整数参数
+// SetIntParams integer params
 type SetIntParams struct {
 	Value int `json:"value"`
 }
 
-// SetAutoStartWithMethodParams 设置自启动方式参数
+// SetAutoStartWithMethodParams params for setting auto-start method
 type SetAutoStartWithMethodParams struct {
 	Enable bool   `json:"enable"`
 	Method string `json:"method"`
 }
 
-// SetLightStripParams 设置灯带参数
+// SetLightStripParams params for setting light strip
 type SetLightStripParams struct {
 	Config types.LightStripConfig `json:"config"`
 }
 
-// SetActiveFanCurveProfileParams 设置激活曲线方案参数
+// SetActiveFanCurveProfileParams params for setting active fan curve profile
 type SetActiveFanCurveProfileParams struct {
 	ID string `json:"id"`
 }
 
-// SaveFanCurveProfileParams 保存曲线方案参数
+// SaveFanCurveProfileParams params for saving a fan curve profile
 type SaveFanCurveProfileParams struct {
 	ID        string                `json:"id"`
 	Name      string                `json:"name"`
@@ -563,12 +563,12 @@ type SaveFanCurveProfileParams struct {
 	SetActive bool                  `json:"setActive"`
 }
 
-// DeleteFanCurveProfileParams 删除曲线方案参数
+// DeleteFanCurveProfileParams params for deleting a fan curve profile
 type DeleteFanCurveProfileParams struct {
 	ID string `json:"id"`
 }
 
-// ImportFanCurveProfilesParams 导入曲线方案参数
+// ImportFanCurveProfilesParams params for importing fan curve profiles
 type ImportFanCurveProfilesParams struct {
 	Code string `json:"code"`
 }

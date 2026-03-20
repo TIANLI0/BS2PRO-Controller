@@ -74,7 +74,7 @@ namespace TempBridge
                     return;
                 }
 
-                // 初始化硬件监控
+                // Initialize hardware monitoring
                 using (var instanceHandle = AcquirePipeInstance())
                 {
                     if (instanceHandle == null)
@@ -86,11 +86,11 @@ namespace TempBridge
 
                     InitializeHardwareMonitor();
 
-                    // 输出管道名称，让主程序知道如何连接
+                    // Output pipe name so the main program knows how to connect
                     Console.WriteLine($"PIPE:{PipeName}|OWNER");
                     Console.Out.Flush();
 
-                    // 启动管道服务器
+                    // Start pipe server
                     StartPipeServer();
                 }
             }
@@ -98,8 +98,8 @@ namespace TempBridge
             {
                 if (ShouldRunDiagnosticMode(args))
                 {
-                    Console.Error.WriteLine("TempBridge 启动失败");
-                    Console.Error.WriteLine($"错误: {ex.Message}");
+                    Console.Error.WriteLine("TempBridge failed to start");
+                    Console.Error.WriteLine($"Error: {ex.Message}");
                 }
                 else
                 {
@@ -168,8 +168,8 @@ namespace TempBridge
 
         static void RunConsoleDiagnostics()
         {
-            Console.WriteLine("TempBridge 诊断模式");
-            Console.WriteLine($"时间: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+            Console.WriteLine("TempBridge Diagnostic Mode");
+            Console.WriteLine($"Time: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
             Console.WriteLine();
 
             InitializeHardwareMonitor();
@@ -187,7 +187,7 @@ namespace TempBridge
 
         static void PrintTemperatureSummary(TemperatureData data)
         {
-            Console.WriteLine("温度结果");
+            Console.WriteLine("Temperature Results");
             Console.WriteLine($"CPU: {FormatTemperature(data.CpuTemp)}");
             Console.WriteLine($"GPU: {FormatTemperature(data.GpuTemp)}");
             Console.WriteLine($"MAX: {FormatTemperature(data.MaxTemp)}");
@@ -206,7 +206,7 @@ namespace TempBridge
 
         static void PrintHardwareSnapshot()
         {
-            Console.WriteLine("温度传感器快照");
+            Console.WriteLine("Temperature Sensor Snapshot");
 
             bool foundAny = false;
             foreach (IHardware hardware in computer.Hardware)
@@ -216,7 +216,7 @@ namespace TempBridge
 
             if (!foundAny)
             {
-                Console.WriteLine("- 未发现可用的温度传感器");
+                Console.WriteLine("- No temperature sensors found");
             }
         }
 
@@ -283,9 +283,9 @@ namespace TempBridge
             if (!PawnIo.IsInstalled)
             {
                 throw new InvalidOperationException(
-                    "检测到 LibreHardwareMonitor 需要 PawnIO 驱动，但系统未安装。" +
-                    "请先安装 PawnIO（可从 LibreHardwareMonitor 发布包中的 PawnIO_setup.exe 安装），" +
-                    "安装完成后重启程序。"
+                    "LibreHardwareMonitor requires the PawnIO driver, but it is not installed. " +
+                    "Please install PawnIO first (available from PawnIO_setup.exe in the LibreHardwareMonitor release package), " +
+                    "then restart the program."
                 );
             }
         }
@@ -298,7 +298,7 @@ namespace TempBridge
                 {
                     using (var pipeServer = new NamedPipeServerStream(PipeName, PipeDirection.InOut))
                     {
-                        // 等待客户端连接
+                        // Wait for client connection
                         pipeServer.WaitForConnection();
 
                         using (var reader = new StreamReader(pipeServer))
@@ -345,8 +345,8 @@ namespace TempBridge
                 {
                     if (running)
                     {
-                        Console.WriteLine($"管道错误: {ex.Message}");
-                        Thread.Sleep(1000); // 等待一秒后重试
+                        Console.WriteLine($"Pipe error: {ex.Message}");
+                        Thread.Sleep(1000); // Wait one second before retrying
                     }
                 }
             }
@@ -382,7 +382,7 @@ namespace TempBridge
                         return new Response
                         {
                             Success = false,
-                            Error = "未知命令类型"
+                            Error = "Unknown command type"
                         };
                 }
             }
@@ -444,7 +444,7 @@ namespace TempBridge
                     if (cpuTemp == 0 && gpuTemp == 0)
                     {
                         result.Success = false;
-                        result.Error = "未读取到有效的 CPU/GPU 温度（PawnIO 可能尚未就绪，请重启软件或重新安装驱动）";
+                        result.Error = "No valid CPU/GPU temperature readings (PawnIO may not be ready yet, please restart the software or reinstall the driver)";
                     }
                     else
                     {

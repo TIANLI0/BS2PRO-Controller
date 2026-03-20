@@ -13,13 +13,13 @@ const (
 	lightSpeedSlow   byte = 0x0F
 )
 
-// SetLightStrip 设置灯带模式
+// SetLightStrip sets the light strip mode
 func (m *Manager) SetLightStrip(cfg types.LightStripConfig) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
 	if !m.isConnected || m.device == nil {
-		return fmt.Errorf("设备未连接")
+		return fmt.Errorf("device not connected")
 	}
 
 	brightness := clampLightBrightness(cfg.Brightness)
@@ -45,11 +45,11 @@ func (m *Manager) SetLightStrip(cfg types.LightStripConfig) error {
 		colors := ensureMinColors(cfg.Colors, 1)
 		return m.setLightBreathingLocked(colors, speed, brightness)
 	default:
-		return fmt.Errorf("未知灯带模式: %s", cfg.Mode)
+		return fmt.Errorf("unknown light strip mode: %s", cfg.Mode)
 	}
 }
 
-// SetRGBOff 关闭RGB灯光
+// SetRGBOff turns off RGB lights
 func (m *Manager) SetRGBOff() bool {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -213,7 +213,7 @@ func (m *Manager) setLightStaticMultiLocked(colors [3]types.RGBColor, brightness
 
 func (m *Manager) setLightRotationLocked(colors []types.RGBColor, speed, brightness byte) error {
 	if len(colors) < 1 {
-		return fmt.Errorf("旋转需要至少 1 个颜色")
+		return fmt.Errorf("rotation requires at least 1 color")
 	}
 	if len(colors) > 6 {
 		colors = colors[:6]
@@ -289,7 +289,7 @@ func (m *Manager) setLightFlowingLocked(speed, brightness byte) error {
 
 func (m *Manager) setLightBreathingLocked(colors []types.RGBColor, speed, brightness byte) error {
 	if len(colors) == 0 {
-		return fmt.Errorf("颜色列表不能为空")
+		return fmt.Errorf("color list cannot be empty")
 	}
 	if len(colors) > 5 {
 		colors = colors[:5]

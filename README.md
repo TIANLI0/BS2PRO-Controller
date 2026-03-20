@@ -1,278 +1,278 @@
 # BS2PRO-Controller
 
-> 飞智空间站 BS2/BS2PRO 的第三方替代控制器
+> A third-party alternative controller for FlyDigi Space Station BS2/BS2PRO
 
-一个基于 Wails + Go + Next.js 开发的桌面应用，用于控制飞智空间站 BS2/BS2PRO 散热器设备，提供风扇控制、温度监控等功能。
+A desktop application built with Wails + Go + Next.js for controlling FlyDigi Space Station BS2/BS2PRO cooler devices, providing fan control, temperature monitoring, and more.
 
-## 功能特性
+## Features
 
-- 🎮 **设备支持**：支持飞智 BS2 和 BS2PRO 散热器
-- 🌡️ **温度监控**：实时监控 CPU/GPU 温度（支持多种温度数据桥接方式）
-- 💨 **风扇控制**：
-  - 自动模式：根据温度自动调节风速
-  - 学习控温：根据目标温度持续学习并微调曲线偏移
-  - 手动模式：自定义固定风速
-  - 曲线模式：自定义温度-风速曲线
-- 📊 **可视化面板**：直观的温度和风速实时显示
-- 🎯 **系统托盘**：支持最小化到系统托盘，后台运行
-- 🚀 **开机自启**：可设置开机自动启动并最小化运行
-- 🔧 **多进程架构**：GUI 和核心服务分离，稳定可靠
-- 🛠️ **灯带配置**：支持灯带复杂调控，感谢群友 @Whether
+- **Device Support**: Supports FlyDigi BS2 and BS2PRO coolers
+- **Temperature Monitoring**: Real-time CPU/GPU temperature monitoring (supports multiple temperature data bridging methods)
+- **Fan Control**:
+  - Auto Mode: Automatically adjusts fan speed based on temperature
+  - Learning Temperature Control: Continuously learns and fine-tunes curve offset based on target temperature
+  - Manual Mode: Custom fixed fan speed
+  - Curve Mode: Custom temperature-fan speed curve
+- **Visual Dashboard**: Intuitive real-time temperature and fan speed display
+- **System Tray**: Supports minimizing to system tray for background operation
+- **Auto-start on Boot**: Can be set to auto-start and minimize on boot
+- **Multi-process Architecture**: GUI and core services are separated for stability and reliability
+- **LED Strip Configuration**: Supports complex LED strip control, thanks to community member @Whether
 
-## 系统架构
+## System Architecture
 
-项目采用三进程架构：
+The project uses a three-process architecture:
 
-- **GUI 进程** (`BS2PRO-Controller.exe`)：提供用户界面，使用 Wails 框架
-- **核心服务** (`BS2PRO-Core.exe`)：后台运行，负责设备通信和温度监控
-- **温度桥接进程** (`TempBridge.exe`)：通过 C# 程序获取系统温度数据
+- **GUI Process** (`BS2PRO-Controller.exe`): Provides the user interface, built with the Wails framework
+- **Core Service** (`BS2PRO-Core.exe`): Runs in the background, responsible for device communication and temperature monitoring
+- **Temperature Bridge Process** (`TempBridge.exe`): A C# program that retrieves system temperature data
 
-三个进程通过 IPC (进程间通信) 进行数据交互。
+The three processes exchange data via IPC (Inter-Process Communication).
 
-## 技术栈
+## Tech Stack
 
-### 后端
-- **Go 1.25+**：主要开发语言
-- **Wails v2**：跨平台桌面应用框架
-- **go-hid**：HID 设备通信
-- **zap**：日志记录
+### Backend
+- **Go 1.25+**: Primary development language
+- **Wails v2**: Cross-platform desktop application framework
+- **go-hid**: HID device communication
+- **zap**: Logging
 
-### 前端
-- **Next.js 16**：React 框架
-- **TypeScript**：类型安全
-- **Tailwind CSS 4**：样式框架
-- **Recharts**：图表可视化
+### Frontend
+- **Next.js 16**: React framework
+- **TypeScript**: Type safety
+- **Tailwind CSS 4**: Styling framework
+- **Recharts**: Chart visualization
 
-### 温度桥接
-- **C# .NET Framework 4.7.2**：温度数据桥接程序
+### Temperature Bridge
+- **C# .NET Framework 4.7.2**: Temperature data bridge program
 
-## 开发环境要求
+## Development Environment Requirements
 
-### 必需软件
-- **Go 1.21+**：[下载地址](https://golang.org/dl/)
-- **Node.js 18+**：[下载地址](https://nodejs.org/)
-- **Bun**：快速的 JavaScript 运行时 [安装说明](https://bun.sh/)
-- **Wails CLI**：安装命令 `go install github.com/wailsapp/wails/v2/cmd/wails@latest`
-- **.NET SDK 8.0+**：[下载地址](https://dotnet.microsoft.com/download)
-- **go-winres**：Windows 资源工具 `go install github.com/tc-hib/go-winres@latest`
+### Required Software
+- **Go 1.21+**: [Download](https://golang.org/dl/)
+- **Node.js 18+**: [Download](https://nodejs.org/)
+- **Bun**: Fast JavaScript runtime [Installation Guide](https://bun.sh/)
+- **Wails CLI**: Install with `go install github.com/wailsapp/wails/v2/cmd/wails@latest`
+- **.NET SDK 8.0+**: [Download](https://dotnet.microsoft.com/download)
+- **go-winres**: Windows resource tool `go install github.com/tc-hib/go-winres@latest`
 
-### 可选软件
-- **NSIS 3.x**：用于生成安装程序 [下载地址](https://nsis.sourceforge.io/)
+### Optional Software
+- **NSIS 3.x**: For generating installers [Download](https://nsis.sourceforge.io/)
 
-## 快速开始
+## Quick Start
 
-### 1. 克隆项目
+### 1. Clone the Project
 
 ```bash
 git clone https://github.com/TIANLI0/BS2PRO-Controller.git
 cd BS2PRO-Controller
 ```
 
-### 2. 安装依赖
+### 2. Install Dependencies
 
-#### 安装 Go 依赖
+#### Install Go Dependencies
 ```bash
 go mod tidy
 ```
 
-#### 安装前端依赖
+#### Install Frontend Dependencies
 ```bash
 cd frontend
 bun install
 cd ..
 ```
 
-### 3. 开发模式运行
+### 3. Run in Development Mode
 
 ```bash
-# 启动 Wails 开发模式（包含热重载）
+# Start Wails development mode (with hot reload)
 wails dev
 ```
 
-### 4. 构建生产版本
+### 4. Build Production Version
 
-#### 构建温度桥接程序
+#### Build Temperature Bridge Program
 ```bash
 build_bridge.bat
 ```
 
-#### 构建完整应用
+#### Build Complete Application
 ```bash
 build.bat
 ```
 
-构建完成后，可执行文件位于 `build/bin/` 目录：
-- `BS2PRO-Controller.exe` - GUI 主程序
-- `BS2PRO-Core.exe` - 核心服务
-- `bridge/TempBridge.exe` - 温度桥接程序
+After building, the executables are located in the `build/bin/` directory:
+- `BS2PRO-Controller.exe` - GUI main program
+- `BS2PRO-Core.exe` - Core service
+- `bridge/TempBridge.exe` - Temperature bridge program
 
-安装程序位于 `build/bin/` 目录：
-- `BS2PRO-Controller-amd64-installer.exe` - Windows 安装程序
+The installer is located in the `build/bin/` directory:
+- `BS2PRO-Controller-amd64-installer.exe` - Windows installer
 
-## 项目结构
+## Project Structure
 
 ```
 BS2PRO-Controller/
-├── main.go                 # GUI 主程序入口
-├── app.go                  # GUI 应用逻辑
-├── wails.json             # Wails 配置文件
-├── build.bat              # Windows 构建脚本
-├── build_bridge.bat       # 桥接程序构建脚本
+├── main.go                 # GUI main program entry point
+├── app.go                  # GUI application logic
+├── wails.json             # Wails configuration file
+├── build.bat              # Windows build script
+├── build_bridge.bat       # Bridge program build script
 ├── cmd/
-│   └── core/              # 核心服务程序
-│       ├── main.go        # 服务入口
-│       └── app.go         # 服务逻辑
+│   └── core/              # Core service program
+│       ├── main.go        # Service entry point
+│       └── app.go         # Service logic
 │
-├── internal/              # 内部包
-│   ├── autostart/         # 开机自启管理
-│   ├── bridge/            # 温度桥接通信
-│   ├── config/            # 配置管理
-│   ├── device/            # HID 设备通信
-│   ├── ipc/               # 进程间通信
-│   ├── logger/            # 日志模块
-│   ├── temperature/       # 温度监控
-│   ├── tray/              # 系统托盘
-│   ├── types/             # 类型定义
-│   └── version/           # 版本信息
+├── internal/              # Internal packages
+│   ├── autostart/         # Auto-start on boot management
+│   ├── bridge/            # Temperature bridge communication
+│   ├── config/            # Configuration management
+│   ├── device/            # HID device communication
+│   ├── ipc/               # Inter-process communication
+│   ├── logger/            # Logging module
+│   ├── temperature/       # Temperature monitoring
+│   ├── tray/              # System tray
+│   ├── types/             # Type definitions
+│   └── version/           # Version information
 │
 ├── bridge/
-│   └── TempBridge/        # C# 温度桥接程序
-│       └── Program.cs     # 桥接程序源码
+│   └── TempBridge/        # C# temperature bridge program
+│       └── Program.cs     # Bridge program source code
 │
-├── frontend/              # Next.js 前端
+├── frontend/              # Next.js frontend
 │   ├── src/
 │   │   ├── app/
-│   │   │   ├── components/    # React 组件
-│   │   │   ├── services/      # API 服务
-│   │   │   └── types/         # TypeScript 类型
+│   │   │   ├── components/    # React components
+│   │   │   ├── services/      # API services
+│   │   │   └── types/         # TypeScript types
 │   │   └── ...
 │   └── package.json
 │
-└── build/                 # 构建输出目录
+└── build/                 # Build output directory
 ```
 
-## 使用说明
+## Usage Guide
 
-### 首次运行
+### First Run
 
-1. 运行 `BS2PRO-Controller.exe` 启动程序
-2. 程序会自动启动核心服务 `BS2PRO-Core.exe`
-3. 连接你的 BS2/BS2PRO 设备（USB 连接）
-4. 程序会自动检测并连接设备
+1. Run `BS2PRO-Controller.exe` to launch the program
+2. The program will automatically start the core service `BS2PRO-Core.exe`
+3. Connect your BS2/BS2PRO device (USB connection)
+4. The program will automatically detect and connect to the device
 
-### 风扇控制模式
+### Fan Control Modes
 
-#### 自动模式
-- 根据当前温度自动调节风速
-- 适合日常使用
+#### Auto Mode
+- Automatically adjusts fan speed based on current temperature
+- Suitable for daily use
 
-#### 手动模式
-- 设置固定的风速档位（0-9档）
-- 适合特定需求场景
+#### Manual Mode
+- Set a fixed fan speed level (levels 0-9)
+- Suitable for specific use cases
 
-#### 曲线模式
-- 自定义温度-风速曲线
-- 可添加多个控制点
-- 实现精细化的温度控制
+#### Curve Mode
+- Custom temperature-fan speed curve
+- Multiple control points can be added
+- Achieves fine-grained temperature control
 
-### 温度监控
+### Temperature Monitoring
 
-程序支持多种温度监控方式：
+The program supports multiple temperature monitoring methods:
 
-1. **TempBridge**：通过 C# 桥接程序获取系统温度
+1. **TempBridge**: Retrieves system temperature via the C# bridge program
 
 
-### 系统托盘
+### System Tray
 
-- 点击托盘图标打开主窗口
-- 右键菜单提供快捷操作
-- 支持最小化到托盘后台运行
+- Click the tray icon to open the main window
+- Right-click menu provides quick actions
+- Supports minimizing to tray for background operation
 
-## 配置文件
+## Configuration File
 
-配置文件位于 `%APPDATA%\BS2PRO-Controller\config.json`
+The configuration file is located at `%APPDATA%\BS2PRO-Controller\config.json`
 
-主要配置项：
+Main configuration options:
 ```json
 {
-  "autoStart": false,           // 开机自启
-  "minimizeToTray": true,       // 关闭时最小化到托盘
-  "temperatureSource": "auto",  // 温度数据源
-  "updateInterval": 1000,       // 更新间隔（毫秒）
-  "fanCurve": [...],           // 风扇曲线
-  "fanMode": "auto"            // 风扇模式
+  "autoStart": false,           // Auto-start on boot
+  "minimizeToTray": true,       // Minimize to tray on close
+  "temperatureSource": "auto",  // Temperature data source
+  "updateInterval": 1000,       // Update interval (milliseconds)
+  "fanCurve": [...],           // Fan curve
+  "fanMode": "auto"            // Fan mode
 }
 ```
 
-## 日志文件
+## Log Files
 
-日志文件位于 `build/bin/logs/` 目录：
-- `core_YYYYMMDD.log` - 核心服务日志
-- `gui_YYYYMMDD.log` - GUI 程序日志
+Log files are located in the `build/bin/logs/` directory:
+- `core_YYYYMMDD.log` - Core service log
+- `gui_YYYYMMDD.log` - GUI program log
 
-## 常见问题
+## FAQ
 
-### 设备无法连接？
-1. 确保 BS2/BS2PRO 设备已正确连接到电脑
-2. 检查设备驱动是否正常安装
-3. 尝试重新插拔设备
-4. 查看日志文件排查具体错误
+### Device won't connect?
+1. Make sure the BS2/BS2PRO device is properly connected to the computer
+2. Check that the device driver is installed correctly
+3. Try unplugging and re-plugging the device
+4. Check the log files for specific errors
 
-### 温度无法显示？
-1. 检查温度数据源设置
-2. 如使用 TempBridge，确保 `bridge` 目录下的文件完整
-3. 如使用 AIDA64/HWiNFO，确保软件正在运行并开启了共享内存功能
+### Temperature not showing?
+1. Check the temperature data source settings
+2. If using TempBridge, make sure the files in the `bridge` directory are complete
+3. If using AIDA64/HWiNFO, make sure the software is running and shared memory is enabled
 
-### 开机自启无效？
-1. 以管理员身份运行程序后重新设置
-2. 检查注册表项：`HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run`
+### Auto-start on boot not working?
+1. Run the program as administrator and reconfigure the setting
+2. Check the registry entry: `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run`
 
-## 构建说明
+## Build Instructions
 
-### 版本号管理
+### Version Number Management
 
-版本号在 `wails.json` 的 `info.productVersion` 字段中定义，构建脚本会自动读取并嵌入到程序中。
+The version number is defined in the `info.productVersion` field of `wails.json`. The build script automatically reads and embeds it into the program.
 
 ### LDFLAGS
 
-构建时会注入版本信息：
+Version information is injected during build:
 ```bash
--ldflags "-X github.com/TIANLI0/BS2PRO-Controller/internal/version.BuildVersion=版本号 -H=windowsgui"
+-ldflags "-X github.com/TIANLI0/BS2PRO-Controller/internal/version.BuildVersion=VERSION -H=windowsgui"
 ```
 
-### 生成安装程序
+### Generating the Installer
 
-执行 `build.bat` 会自动生成 NSIS 安装程序（需要安装 NSIS）。
+Running `build.bat` will automatically generate an NSIS installer (NSIS must be installed).
 
-## 贡献指南
+## Contributing
 
-欢迎提交 Issue 和 Pull Request！
+Issues and Pull Requests are welcome!
 
-1. Fork 本项目
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 开启 Pull Request
+1. Fork this project
+2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
-## 开源许可
+## License
 
-本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 作者
+## Author
 
 - **TIANLI0** - [GitHub](https://github.com/TIANLI0)
 - Email: wutianli@tianli0.top
 
-## 致谢
+## Acknowledgements
 
-- [Wails](https://wails.io/) - 优秀的 Go 桌面应用框架
-- [Next.js](https://nextjs.org/) - React 应用框架
-- 飞智- BS2/BS2PRO 硬件设备
+- [Wails](https://wails.io/) - Excellent Go desktop application framework
+- [Next.js](https://nextjs.org/) - React application framework
+- FlyDigi - BS2/BS2PRO hardware devices
 
-## 免责声明
+## Disclaimer
 
-本项目为第三方开源项目，与飞智官方无关。使用本软件产生的任何问题由用户自行承担。
+This is a third-party open-source project and is not affiliated with FlyDigi. Any issues arising from the use of this software are the sole responsibility of the user.
 
 ---
 
-⭐ 如果这个项目对你有帮助，请给一个 Star！
+If this project is helpful to you, please give it a Star!

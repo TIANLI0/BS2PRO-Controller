@@ -13,47 +13,47 @@ export interface ManualGearPreset {
 
 export const MANUAL_GEAR_PRESETS: ManualGearPreset[] = [
   {
-    gear: '静音',
+    gear: 'Quiet',
     colorClass: 'text-emerald-500',
     borderClass: 'border-emerald-500/50',
     bgClass: 'bg-emerald-500/12',
     levels: [
-      { level: '低', rpm: 1300 },
-      { level: '中', rpm: 1700 },
-      { level: '高', rpm: 1900 },
+      { level: 'Low', rpm: 1300 },
+      { level: 'Mid', rpm: 1700 },
+      { level: 'High', rpm: 1900 },
     ],
   },
   {
-    gear: '标准',
+    gear: 'Standard',
     colorClass: 'text-blue-500',
     borderClass: 'border-blue-500/50',
     bgClass: 'bg-blue-500/12',
     levels: [
-      { level: '低', rpm: 2100 },
-      { level: '中', rpm: 2310 },
-      { level: '高', rpm: 2760 },
+      { level: 'Low', rpm: 2100 },
+      { level: 'Mid', rpm: 2310 },
+      { level: 'High', rpm: 2760 },
     ],
   },
   {
-    gear: '强劲',
+    gear: 'Power',
     colorClass: 'text-purple-500',
     borderClass: 'border-purple-500/50',
     bgClass: 'bg-purple-500/12',
     levels: [
-      { level: '低', rpm: 2800 },
-      { level: '中', rpm: 3000 },
-      { level: '高', rpm: 3300 },
+      { level: 'Low', rpm: 2800 },
+      { level: 'Mid', rpm: 3000 },
+      { level: 'High', rpm: 3300 },
     ],
   },
   {
-    gear: '超频',
+    gear: 'Overclock',
     colorClass: 'text-orange-500',
     borderClass: 'border-orange-500/50',
     bgClass: 'bg-orange-500/12',
     levels: [
-      { level: '低', rpm: 3500 },
-      { level: '中', rpm: 3700 },
-      { level: '高', rpm: 4000 },
+      { level: 'Low', rpm: 3500 },
+      { level: 'Mid', rpm: 3700 },
+      { level: 'High', rpm: 4000 },
     ],
   },
 ];
@@ -61,7 +61,7 @@ export const MANUAL_GEAR_PRESETS: ManualGearPreset[] = [
 export const getManualGearHighLevelRpm = (gear?: string | null): number | undefined => {
   if (!gear) return undefined;
   const preset = MANUAL_GEAR_PRESETS.find((item) => item.gear === gear);
-  return preset?.levels.find((level) => level.level === '高')?.rpm;
+  return preset?.levels.find((level) => level.level === 'High')?.rpm;
 };
 
 const MAX_GEAR_CODE_TO_RPM: Record<number, number> = {

@@ -60,7 +60,7 @@
         "-ExecutionPolicy",
         "Bypass",
         "-Command",
-        "$ErrorActionPreference='Stop'; if (-not (Get-Command riscv-none-elf-objcopy -ErrorAction SilentlyContinue)) { throw '未找到 riscv-none-elf-objcopy，请先安装 RISC-V GNU Toolchain 并加入 PATH。' }; if (-not (Get-Command riscv-none-elf-objdump -ErrorAction SilentlyContinue)) { throw '未找到 riscv-none-elf-objdump，请先安装 RISC-V GNU Toolchain 并加入 PATH。' }; riscv-none-elf-objcopy -I binary -O elf32-littleriscv -B riscv ota/CH591_For_BS2PRO_Ver0.0.3.5.bin ota/fw.elf; riscv-none-elf-objdump -D -M no-aliases ota/fw.elf > ota/fw.asm; Write-Host 'ELF/ASM generated: ota/fw.elf, ota/fw.asm'"
+        "$ErrorActionPreference='Stop'; if (-not (Get-Command riscv-none-elf-objcopy -ErrorAction SilentlyContinue)) { throw 'riscv-none-elf-objcopy not found. Please install RISC-V GNU Toolchain and add it to PATH.' }; if (-not (Get-Command riscv-none-elf-objdump -ErrorAction SilentlyContinue)) { throw 'riscv-none-elf-objdump not found. Please install RISC-V GNU Toolchain and add it to PATH.' }; riscv-none-elf-objcopy -I binary -O elf32-littleriscv -B riscv ota/CH591_For_BS2PRO_Ver0.0.3.5.bin ota/fw.elf; riscv-none-elf-objdump -D -M no-aliases ota/fw.elf > ota/fw.asm; Write-Host 'ELF/ASM generated: ota/fw.elf, ota/fw.asm'"
       ],
       "problemMatcher": []
     },
@@ -106,7 +106,7 @@
         "-ExecutionPolicy",
         "Bypass",
         "-Command",
-        "$ErrorActionPreference='Stop'; if (-not (Get-Command rizin -ErrorAction SilentlyContinue)) { throw '未找到 rizin，请先安装 rizin 并加入 PATH。' }; rizin -a riscv -b 32 -m 0x0 ota/CH591_For_BS2PRO_Ver0.0.3.5.bin"
+        "$ErrorActionPreference='Stop'; if (-not (Get-Command rizin -ErrorAction SilentlyContinue)) { throw 'rizin not found. Please install rizin and add it to PATH.' }; rizin -a riscv -b 32 -m 0x0 ota/CH591_For_BS2PRO_Ver0.0.3.5.bin"
       ],
       "problemMatcher": []
     }

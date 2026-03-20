@@ -15,7 +15,7 @@
     "productName": "BS2PRO-Controller",
     "productVersion": "2.9.1",
     "copyright": "Copyright © 2026 TIANLI0",
-    "comments": "飞智空间站的BS2/BS2PRO替代控制器"
+    "comments": "Alternative controller for Flydigi Space Station BS2/BS2PRO"
   },
   "nsisType": "multiple"
 }

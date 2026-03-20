@@ -6,7 +6,7 @@ func getCurveEdgeRPMBounds(curve []types.FanCurvePoint) (int, int) {
 	return GetCurveRPMBounds(curve)
 }
 
-// GetCurveRPMBounds 返回用户曲线的最小/最大 RPM 边界。
+// GetCurveRPMBounds returns the min/max RPM bounds of the user curve.
 func GetCurveRPMBounds(curve []types.FanCurvePoint) (int, int) {
 	if len(curve) == 0 {
 		return 0, 4000
@@ -119,13 +119,13 @@ func medianOfThree(a, b, c int) int {
 	return b
 }
 
-// FilterTransientSpike 在控制环节抑制 1 个采样点的短时温度尖峰。
+// FilterTransientSpike suppresses single-sample transient temperature spikes in the control loop.
 func FilterTransientSpike(currentTemp int, recentTemps []int, targetTemp, hysteresis int) (int, bool) {
 	if len(recentTemps) < 3 {
 		return currentTemp, false
 	}
 
-	// 高温区优先保守，避免误抑制真实过热。
+	// In the high temperature zone, be conservative to avoid suppressing real overheating.
 	if currentTemp >= targetTemp+10 {
 		return currentTemp, false
 	}
@@ -140,7 +140,7 @@ func FilterTransientSpike(currentTemp int, recentTemps []int, targetTemp, hyster
 	return currentTemp, false
 }
 
-// isSustainedAboveThreshold 检查最近的温度读数是否持续高于指定阈值至少 minCount 次。
+// isSustainedAboveThreshold checks if recent temperature readings have been sustained above the specified threshold for at least minCount times.
 func isSustainedAboveThreshold(temps []int, threshold, minCount int) bool {
 	if minCount <= 0 || len(temps) < minCount {
 		return false

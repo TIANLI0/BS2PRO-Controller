@@ -1,12 +1,12 @@
-## 数据包控制记录
+## Data Packet Control Log
 
-### 通电自启动（开）
+### Power-on Auto-start (ON)
 
 Frame 1132: 36 bytes on wire (288 bits), 36 bytes captured (288 bits) on interface TCP@127.0.0.1:24352, id 0
     Section number: 1
     Interface id: 0 (TCP@127.0.0.1:24352)
     Encapsulation type: Bluetooth H4 with linux header (99)
-    Arrival Time: Aug 15, 2025 21:33:47.128361000 中国标准时间
+    Arrival Time: Aug 15, 2025 21:33:47.128361000 China Standard Time
     UTC Arrival Time: Aug 15, 2025 13:33:47.128361000 UTC
     Epoch Arrival Time: 1755264827.128361000
     [Time shift for this packet: 0.000000000 seconds]
@@ -28,13 +28,13 @@ Bluetooth HCI ACL Packet
 Bluetooth L2CAP Protocol
 Bluetooth Attribute Protocol
 
-### 通电自启动（关）
+### Power-on Auto-start (OFF)
 
 Frame 1159: 36 bytes on wire (288 bits), 36 bytes captured (288 bits) on interface TCP@127.0.0.1:24352, id 0
     Section number: 1
     Interface id: 0 (TCP@127.0.0.1:24352)
     Encapsulation type: Bluetooth H4 with linux header (99)
-    Arrival Time: Aug 15, 2025 21:33:58.809403000 中国标准时间
+    Arrival Time: Aug 15, 2025 21:33:58.809403000 China Standard Time
     UTC Arrival Time: Aug 15, 2025 13:33:58.809403000 UTC
     Epoch Arrival Time: 1755264838.809403000
     [Time shift for this packet: 0.000000000 seconds]
@@ -57,13 +57,13 @@ Bluetooth L2CAP Protocol
 Bluetooth Attribute Protocol
 
 
-### 风扇转速设置（3300转）
+### Fan Speed Setting (3300 RPM)
 
 Frame 2175: 36 bytes on wire (288 bits), 36 bytes captured (288 bits) on interface TCP@127.0.0.1:24352, id 0
     Section number: 1
     Interface id: 0 (TCP@127.0.0.1:24352)
     Encapsulation type: Bluetooth H4 with linux header (99)
-    Arrival Time: Aug 15, 2025 21:39:48.159705000 中国标准时间
+    Arrival Time: Aug 15, 2025 21:39:48.159705000 China Standard Time
     UTC Arrival Time: Aug 15, 2025 13:39:48.159705000 UTC
     Epoch Arrival Time: 1755265188.159705000
     [Time shift for this packet: 0.000000000 seconds]
@@ -90,13 +90,13 @@ Bluetooth Attribute Protocol
     Handle: 0x003c (Unknown)
     Value: 5aa52104e40c150000000000000000000000000000000000
 
-### 风扇转速设置（1700转）
+### Fan Speed Setting (1700 RPM)
 
 Frame 1771: 36 bytes on wire (288 bits), 36 bytes captured (288 bits) on interface TCP@127.0.0.1:24352, id 0
     Section number: 1
     Interface id: 0 (TCP@127.0.0.1:24352)
     Encapsulation type: Bluetooth H4 with linux header (99)
-    Arrival Time: Aug 15, 2025 21:38:01.018355000 中国标准时间
+    Arrival Time: Aug 15, 2025 21:38:01.018355000 China Standard Time
     UTC Arrival Time: Aug 15, 2025 13:38:01.018355000 UTC
     Epoch Arrival Time: 1755265081.018355000
     [Time shift for this packet: 0.000000000 seconds]

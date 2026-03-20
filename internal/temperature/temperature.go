@@ -1,4 +1,4 @@
-// Package temperature 提供温度读取功能
+// Package temperature provides temperature reading functionality
 package temperature
 
 import (
@@ -13,13 +13,13 @@ import (
 	"github.com/shirou/gopsutil/v4/sensors"
 )
 
-// Reader 温度读取器
+// Reader is a temperature reader
 type Reader struct {
 	bridgeManager *bridge.Manager
 	logger        types.Logger
 }
 
-// NewReader 创建新的温度读取器
+// NewReader creates a new temperature reader
 func NewReader(bridgeManager *bridge.Manager, logger types.Logger) *Reader {
 	return &Reader{
 		bridgeManager: bridgeManager,
@@ -27,20 +27,20 @@ func NewReader(bridgeManager *bridge.Manager, logger types.Logger) *Reader {
 	}
 }
 
-// Read 读取温度
+// Read reads the temperature
 func (r *Reader) Read() types.TemperatureData {
 	temp := types.TemperatureData{
 		UpdateTime: time.Now().Unix(),
 		BridgeOk:   true,
 	}
 
-	// 优先使用桥接程序读取温度
+	// Prefer using the bridge program to read temperature
 	bridgeTemp := r.bridgeManager.GetTemperature()
 	if bridgeTemp.Success {
 		if bridgeTemp.CpuTemp == 0 && bridgeTemp.GpuTemp == 0 {
 			temp.BridgeOk = false
-			temp.BridgeMsg = "桥接程序返回空温度（CPU/GPU 均为 0），请重启软件或重新安装 PawnIO 驱动。"
-			r.logger.Warn("桥接程序返回空温度数据，使用备用方法")
+			temp.BridgeMsg = "Bridge returned empty temperature (both CPU/GPU are 0). Please restart the software or reinstall the PawnIO driver."
+			r.logger.Warn("Bridge returned empty temperature data, using fallback method")
 
 			temp.CPUTemp = r.readCPUTemperature()
 			temp.GPUTemp = r.readGPUTemperature()
@@ -56,32 +56,32 @@ func (r *Reader) Read() types.TemperatureData {
 		return temp
 	}
 
-	// 如果桥接程序失败，使用备用方法
-	r.logger.Warn("桥接程序读取温度失败: %s, 使用备用方法", bridgeTemp.Error)
+	// If the bridge program fails, use fallback method
+	r.logger.Warn("Bridge failed to read temperature: %s, using fallback method", bridgeTemp.Error)
 	temp.BridgeOk = false
 	temp.BridgeMsg = bridgeTemp.Error
 	if strings.TrimSpace(temp.BridgeMsg) == "" {
-		temp.BridgeMsg = "CPU/GPU 温度读取失败，请检查 PawnIO 是否安装成功，或升级最新版。"
+		temp.BridgeMsg = "Failed to read CPU/GPU temperature. Please check if PawnIO is installed correctly, or upgrade to the latest version."
 	}
 
-	// 读取CPU温度
+	// Read CPU temperature
 	temp.CPUTemp = r.readCPUTemperature()
 
-	// 读取GPU温度
+	// Read GPU temperature
 	temp.GPUTemp = r.readGPUTemperature()
 
-	// 计算最高温度
+	// Calculate maximum temperature
 	temp.MaxTemp = max(temp.CPUTemp, temp.GPUTemp)
 
 	return temp
 }
 
-// readCPUTemperature 读取CPU温度
+// readCPUTemperature reads the CPU temperature
 func (r *Reader) readCPUTemperature() int {
 	sensorTemps, err := sensors.SensorsTemperatures()
 	if err == nil {
 		for _, sensor := range sensorTemps {
-			// 查找ACPI ThermalZone TZ00_0或类似的CPU温度传感器
+			// Look for ACPI ThermalZone TZ00_0 or similar CPU temperature sensors
 			if strings.Contains(strings.ToLower(sensor.SensorKey), "tz00") ||
 				strings.Contains(strings.ToLower(sensor.SensorKey), "cpu") ||
 				strings.Contains(strings.ToLower(sensor.SensorKey), "core") {
@@ -90,21 +90,21 @@ func (r *Reader) readCPUTemperature() int {
 		}
 	}
 
-	// 如果传感器方式失败，尝试通过WMI (Windows)
+	// If sensor method fails, try via WMI (Windows)
 	return r.readWindowsCPUTemp()
 }
 
-// readGPUTemperature 读取GPU温度
+// readGPUTemperature reads the GPU temperature
 func (r *Reader) readGPUTemperature() int {
 	vendor := r.detectGPUVendor()
 	return r.readGPUTempByVendor(vendor)
 }
 
-// readWindowsCPUTemp 通过WMI读取Windows CPU温度
+// readWindowsCPUTemp reads Windows CPU temperature via WMI
 func (r *Reader) readWindowsCPUTemp() int {
 	output, err := execCommandHidden("wmic", "/namespace:\\\\root\\wmi", "PATH", "MSAcpi_ThermalZoneTemperature", "get", "CurrentTemperature", "/value")
 	if err != nil {
-		r.logger.Debug("读取Windows CPU温度失败: %v", err)
+		r.logger.Debug("Failed to read Windows CPU temperature: %v", err)
 		return 0
 	}
 
@@ -128,9 +128,9 @@ func (r *Reader) readWindowsCPUTemp() int {
 	return 0
 }
 
-// detectGPUVendor 检测GPU厂商
+// detectGPUVendor detects the GPU vendor
 func (r *Reader) detectGPUVendor() string {
-	// 尝试NVIDIA
+	// Try NVIDIA
 	if _, err := execCommandHidden("nvidia-smi", "--version"); err == nil {
 		return "nvidia"
 	}
@@ -138,7 +138,7 @@ func (r *Reader) detectGPUVendor() string {
 	return "unknown"
 }
 
-// readGPUTempByVendor 根据厂商读取GPU温度
+// readGPUTempByVendor reads GPU temperature based on vendor
 func (r *Reader) readGPUTempByVendor(vendor string) int {
 	switch vendor {
 	case "nvidia":
@@ -150,11 +150,11 @@ func (r *Reader) readGPUTempByVendor(vendor string) int {
 	}
 }
 
-// readNvidiaGPUTemp 安全读取NVIDIA GPU温度
+// readNvidiaGPUTemp safely reads NVIDIA GPU temperature
 func (r *Reader) readNvidiaGPUTemp() int {
 	output, err := execCommandHidden("nvidia-smi", "--query-gpu=temperature.gpu", "--format=csv,noheader,nounits")
 	if err != nil {
-		r.logger.Debug("读取NVIDIA GPU温度失败: %v", err)
+		r.logger.Debug("Failed to read NVIDIA GPU temperature: %v", err)
 		return 0
 	}
 
@@ -170,7 +170,7 @@ func (r *Reader) readNvidiaGPUTemp() int {
 	return 0
 }
 
-// execCommandHidden 执行命令并隐藏窗口
+// execCommandHidden executes a command with a hidden window
 func execCommandHidden(name string, args ...string) ([]byte, error) {
 	cmd := exec.Command(name, args...)
 
@@ -181,7 +181,7 @@ func execCommandHidden(name string, args ...string) ([]byte, error) {
 	return cmd.Output()
 }
 
-// CalculateTargetRPM 根据温度计算目标转速
+// CalculateTargetRPM calculates target RPM based on temperature
 func CalculateTargetRPM(temperature int, fanCurve []types.FanCurvePoint) int {
 	if len(fanCurve) < 2 {
 		return 0
@@ -196,13 +196,13 @@ func CalculateTargetRPM(temperature int, fanCurve []types.FanCurvePoint) int {
 		return lastPoint.RPM
 	}
 
-	// 线性插值计算转速
+	// Calculate RPM using linear interpolation
 	for i := 0; i < len(fanCurve)-1; i++ {
 		p1 := fanCurve[i]
 		p2 := fanCurve[i+1]
 
 		if temperature >= p1.Temperature && temperature <= p2.Temperature {
-			// 线性插值
+			// Linear interpolation
 			ratio := float64(temperature-p1.Temperature) / float64(p2.Temperature-p1.Temperature)
 			rpm := float64(p1.RPM) + ratio*float64(p2.RPM-p1.RPM)
 			return int(rpm)

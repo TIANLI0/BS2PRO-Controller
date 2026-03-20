@@ -2,7 +2,7 @@ package smartcontrol
 
 import "github.com/TIANLI0/BS2PRO-Controller/internal/types"
 
-// NormalizeConfig 归一化智能控温配置
+// NormalizeConfig normalizes the smart temperature control configuration
 func NormalizeConfig(cfg types.SmartControlConfig, curve []types.FanCurvePoint, debugMode bool) (types.SmartControlConfig, bool) {
 	defaults := types.GetDefaultSmartControlConfig(curve)
 	changed := false
@@ -133,7 +133,7 @@ func NormalizeConfig(cfg types.SmartControlConfig, curve []types.FanCurvePoint, 
 	return cfg, changed
 }
 
-// BlendOffsets 将升温/降温偏移融合为兼容视图
+// BlendOffsets blends heating/cooling offsets into a compatible view
 func BlendOffsets(heatOffsets, coolOffsets []int) []int {
 	if len(heatOffsets) == 0 && len(coolOffsets) == 0 {
 		return nil

@@ -18,9 +18,9 @@ import {
 import { types } from '../../../wailsjs/go/models';
 
 const TAB_ITEMS = [
-  { id: 'status', title: '状态', icon: LayoutGrid },
-  { id: 'curve', title: '曲线', icon: LineChart },
-  { id: 'control', title: '设置', icon: Settings2 },
+  { id: 'status', title: 'Status', icon: LayoutGrid },
+  { id: 'curve', title: 'Curve', icon: LineChart },
+  { id: 'control', title: 'Settings', icon: Settings2 },
 ] as const;
 
 type ActiveTab = (typeof TAB_ITEMS)[number]['id'];
@@ -117,7 +117,7 @@ export default function AppShell({
                       }`}
                     >
                       {isConnected ? <Wifi className="h-3.5 w-3.5" /> : <WifiOff className="h-3.5 w-3.5" />}
-                      {isConnected ? '设备已连接' : '设备离线'}
+                      {isConnected ? 'Device Connected' : 'Device Offline'}
                     </span>
                     <span
                       className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-medium ${
@@ -127,7 +127,7 @@ export default function AppShell({
                       }`}
                     >
                       <Sparkles className="h-3.5 w-3.5" />
-                      {autoControl ? '智能控制开启' : '手动模式'}
+                      {autoControl ? 'Smart Control On' : 'Manual Mode'}
                     </span>
                   </div>
                 </div>
@@ -221,7 +221,7 @@ export default function AppShell({
                 <p className="flex-1 text-sm leading-relaxed">{bridgeWarning}</p>
                 <button
                   type="button"
-                  aria-label="关闭告警"
+                  aria-label="Dismiss alert"
                   onClick={onDismissBridgeWarning}
                   className="cursor-pointer rounded p-0.5 transition hover:bg-amber-200/60 dark:hover:bg-amber-800/40"
                 >

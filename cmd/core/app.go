@@ -32,11 +32,11 @@ import (
 //go:embed icon.ico
 var iconData []byte
 
-// CoreApp 核心应用结构
+// CoreApp is the core application structure
 type CoreApp struct {
 	ctx context.Context
 
-	// 管理器
+	// Managers
 	deviceManager    *device.Manager
 	bridgeManager    *bridge.Manager
 	tempReader       *temperature.Reader
@@ -48,7 +48,7 @@ type CoreApp struct {
 	logger           *logger.CustomLogger
 	ipcServer        *ipc.Server
 
-	// 状态
+	// State
 	isConnected        bool
 	monitoringTemp     bool
 	currentTemp        types.TemperatureData
@@ -57,36 +57,36 @@ type CoreApp struct {
 	isAutoStartLaunch  bool
 	debugMode          bool
 
-	// 监控相关
+	// Monitoring related
 	guiLastResponse   int64
 	guiMonitorEnabled bool
 	healthCheckTicker *time.Ticker
 	cleanupChan       chan bool
 	quitChan          chan bool
 
-	// 同步
+	// Synchronization
 	mutex                 sync.RWMutex
 	stopMonitoring        chan bool
 	manualGearLevelMemory map[string]string
 }
 
-// NewCoreApp 创建核心应用实例
+// NewCoreApp creates a new core application instance
 func NewCoreApp(debugMode, isAutoStart bool) *CoreApp {
-	// 初始化日志系统
+	// Initialize logging system
 	installDir := config.GetInstallDir()
 	customLogger, err := logger.NewCustomLogger(debugMode, installDir)
 	if err != nil {
-		// 如果初始化失败，无法记录，直接退出
-		panic(fmt.Sprintf("初始化日志系统失败: %v", err))
+		// If initialization fails, cannot log, exit directly
+		panic(fmt.Sprintf("Failed to initialize logging system: %v", err))
 	} else {
-		customLogger.Info("核心服务启动")
-		customLogger.Info("安装目录: %s", installDir)
-		customLogger.Info("调试模式: %v", debugMode)
-		customLogger.Info("自启动模式: %v", isAutoStart)
+		customLogger.Info("Core service started")
+		customLogger.Info("Install directory: %s", installDir)
+		customLogger.Info("Debug mode: %v", debugMode)
+		customLogger.Info("Auto-start mode: %v", isAutoStart)
 		customLogger.CleanOldLogs()
 	}
 
-	// 创建管理器
+	// Create managers
 	bridgeMgr := bridge.NewManager(customLogger)
 	deviceMgr := device.NewManager(customLogger)
 	tempReader := temperature.NewReader(bridgeMgr, customLogger)
@@ -116,10 +116,10 @@ func NewCoreApp(debugMode, isAutoStart bool) *CoreApp {
 		quitChan:           make(chan bool, 1),
 		guiMonitorEnabled:  true,
 		manualGearLevelMemory: map[string]string{
-			"静音": "中",
-			"标准": "中",
-			"强劲": "中",
-			"超频": "中",
+			"Silent":      "Mid",
+			"Standard":    "Mid",
+			"Performance": "Mid",
+			"Overclock":   "Mid",
 		},
 	}
 	app.notifier = notifier.NewManager(customLogger, iconData)
@@ -128,122 +128,122 @@ func NewCoreApp(debugMode, isAutoStart bool) *CoreApp {
 	return app
 }
 
-// Start 启动核心服务
+// Start starts the core service
 func (a *CoreApp) Start() error {
-	a.logInfo("=== BS2PRO 核心服务启动 ===")
-	a.logInfo("版本: %s", version.Get())
-	a.logInfo("安装目录: %s", config.GetInstallDir())
-	a.logInfo("调试模式: %v", a.debugMode)
-	a.logInfo("当前工作目录: %s", config.GetCurrentWorkingDir())
+	a.logInfo("=== BS2PRO Core Service Starting ===")
+	a.logInfo("Version: %s", version.Get())
+	a.logInfo("Install directory: %s", config.GetInstallDir())
+	a.logInfo("Debug mode: %v", a.debugMode)
+	a.logInfo("Current working directory: %s", config.GetCurrentWorkingDir())
 
-	// 检测是否为自启动
+	// Detect if this is an auto-start launch
 	a.isAutoStartLaunch = autostart.DetectAutoStartLaunch(os.Args)
-	a.logInfo("自启动模式: %v", a.isAutoStartLaunch)
+	a.logInfo("Auto-start mode: %v", a.isAutoStartLaunch)
 
-	// 加载配置
-	a.logInfo("开始加载配置文件")
+	// Load configuration
+	a.logInfo("Loading configuration file")
 	cfg := a.configManager.Load(a.isAutoStartLaunch)
 	if normalizedLight, changed := normalizeLightStripConfig(cfg.LightStrip); changed {
 		cfg.LightStrip = normalizedLight
 		a.configManager.Set(cfg)
 		if err := a.configManager.Save(); err != nil {
-			a.logError("保存灯带默认配置失败: %v", err)
+			a.logError("Failed to save default light strip config: %v", err)
 		}
 	}
 	if normalizedSmart, changed := smartcontrol.NormalizeConfig(cfg.SmartControl, cfg.FanCurve, cfg.DebugMode); changed {
 		cfg.SmartControl = normalizedSmart
 		a.configManager.Set(cfg)
 		if err := a.configManager.Save(); err != nil {
-			a.logError("保存智能控温默认配置失败: %v", err)
+			a.logError("Failed to save default smart control config: %v", err)
 		}
 	}
 	if normalizeHotkeyConfig(&cfg) {
 		a.configManager.Set(cfg)
 		if err := a.configManager.Save(); err != nil {
-			a.logError("保存快捷键默认配置失败: %v", err)
+			a.logError("Failed to save default hotkey config: %v", err)
 		}
 	}
 	if normalizeCurveProfilesConfig(&cfg) {
 		a.configManager.Set(cfg)
 		if err := a.configManager.Save(); err != nil {
-			a.logError("保存温控曲线方案默认配置失败: %v", err)
+			a.logError("Failed to save default fan curve profile config: %v", err)
 		}
 	}
 	if normalizeManualGearMemoryConfig(&cfg) {
 		a.configManager.Set(cfg)
 		if err := a.configManager.Save(); err != nil {
-			a.logError("保存挡位记忆默认配置失败: %v", err)
+			a.logError("Failed to save default gear memory config: %v", err)
 		}
 	}
 	a.syncManualGearLevelMemory(cfg)
-	a.logInfo("配置加载完成，配置路径: %s", cfg.ConfigPath)
+	a.logInfo("Configuration loaded, config path: %s", cfg.ConfigPath)
 
-	// 同步调试模式配置
+	// Sync debug mode from config
 	if cfg.DebugMode {
 		a.debugMode = true
 		if a.logger != nil {
 			a.logger.SetDebugMode(true)
 		}
-		a.logInfo("从配置文件同步调试模式: 启用")
+		a.logInfo("Synced debug mode from config: enabled")
 	}
 
-	// 检查并同步Windows自启动状态
-	a.logInfo("检查Windows自启动状态")
+	// Check and sync Windows auto-start status
+	a.logInfo("Checking Windows auto-start status")
 	actualAutoStart := a.autostartManager.CheckWindowsAutoStart()
 	if actualAutoStart != cfg.WindowsAutoStart {
 		cfg.WindowsAutoStart = actualAutoStart
 		a.configManager.Set(cfg)
 		if err := a.configManager.Save(); err != nil {
-			a.logError("同步Windows自启动状态时保存配置失败: %v", err)
+			a.logError("Failed to save config when syncing Windows auto-start status: %v", err)
 		} else {
-			a.logInfo("已同步Windows自启动状态: %v", actualAutoStart)
+			a.logInfo("Synced Windows auto-start status: %v", actualAutoStart)
 		}
 	}
 
-	// 初始化HID
-	a.logInfo("初始化HID库")
+	// Initialize HID
+	a.logInfo("Initializing HID library")
 	if err := a.deviceManager.Init(); err != nil {
-		a.logError("初始化HID库失败: %v", err)
+		a.logError("Failed to initialize HID library: %v", err)
 		return err
 	}
-	a.logInfo("HID库初始化成功")
+	a.logInfo("HID library initialized successfully")
 
-	// 设置设备回调
+	// Set device callbacks
 	a.deviceManager.SetCallbacks(a.onFanDataUpdate, a.onDeviceDisconnect)
 
-	// 启动 IPC 服务器
-	a.logInfo("启动 IPC 服务器")
+	// Start IPC server
+	a.logInfo("Starting IPC server")
 	a.ipcServer = ipc.NewServer(a.handleIPCRequest, a.logger)
 	if err := a.ipcServer.Start(); err != nil {
-		a.logError("启动 IPC 服务器失败: %v", err)
+		a.logError("Failed to start IPC server: %v", err)
 		return err
 	}
 
-	// 初始化系统托盘
-	a.logInfo("开始初始化系统托盘")
+	// Initialize system tray
+	a.logInfo("Initializing system tray")
 	a.initSystemTray()
 	a.applyHotkeyBindings(cfg)
 
-	// 启动健康监控
+	// Start health monitoring
 	if cfg.GuiMonitoring {
-		a.logInfo("启动健康监控")
+		a.logInfo("Starting health monitoring")
 		a.safeGo("startHealthMonitoring", func() {
 			a.startHealthMonitoring()
 		})
 	}
 
-	a.logInfo("=== BS2PRO 核心服务启动完成 ===")
+	a.logInfo("=== BS2PRO Core Service Started ===")
 
-	// 软件启动后立即开始温度监控（与智能控温开关解耦）
+	// Start temperature monitoring immediately after launch (decoupled from smart control toggle)
 	a.safeGo("startTemperatureMonitoring@Start", func() {
 		a.startTemperatureMonitoring()
 	})
 
-	// 尝试连接设备
+	// Try to connect device
 	a.safeGo("delayedConnectDevice", func() {
 		if a.isAutoStartLaunch {
-			// 自启动时等待更长时间，让设备固件有足够时间完成初始化
-			a.logInfo("自启动模式：等待设备初始化（3秒）")
+			// Wait longer during auto-start to allow device firmware to finish initialization
+			a.logInfo("Auto-start mode: waiting for device initialization (3 seconds)")
 			time.Sleep(3 * time.Second)
 		} else {
 			time.Sleep(1 * time.Second)
@@ -254,35 +254,35 @@ func (a *CoreApp) Start() error {
 	return nil
 }
 
-// Stop 停止核心服务
+// Stop stops the core service
 func (a *CoreApp) Stop() {
-	a.logInfo("核心服务正在停止...")
+	a.logInfo("Core service stopping...")
 	a.stopTemperatureMonitoring()
 	if a.hotkeyManager != nil {
 		a.hotkeyManager.Stop()
 	}
 
-	// 清理资源
+	// Clean up resources
 	a.cleanup()
 
-	// 停止所有监控
+	// Stop all monitoring
 	a.DisconnectDevice()
 
-	// 停止桥接程序
+	// Stop bridge program
 	a.bridgeManager.Stop()
 
-	// 停止 IPC 服务器
+	// Stop IPC server
 	if a.ipcServer != nil {
 		a.ipcServer.Stop()
 	}
 
-	// 停止托盘
+	// Stop tray
 	a.trayManager.Quit()
 
-	a.logInfo("核心服务已停止")
+	a.logInfo("Core service stopped")
 }
 
-// initSystemTray 初始化系统托盘
+// initSystemTray initializes the system tray
 func (a *CoreApp) initSystemTray() {
 	a.trayManager.SetCallbacks(
 		a.onShowWindowRequest,
@@ -296,7 +296,7 @@ func (a *CoreApp) initSystemTray() {
 		func(profileID string) string {
 			profile, err := a.SetActiveFanCurveProfile(profileID)
 			if err != nil {
-				a.logError("托盘设置温控曲线失败: %v", err)
+				a.logError("Tray failed to set fan curve profile: %v", err)
 				return ""
 			}
 			return profile.Name
@@ -310,7 +310,7 @@ func (a *CoreApp) initSystemTray() {
 				}
 				name := p.Name
 				if strings.TrimSpace(name) == "" {
-					name = "默认"
+					name = "Default"
 				}
 				options = append(options, tray.CurveOption{ID: p.ID, Name: name})
 			}
@@ -332,7 +332,7 @@ func (a *CoreApp) initSystemTray() {
 				}
 				name := p.Name
 				if strings.TrimSpace(name) == "" {
-					name = "默认"
+					name = "Default"
 				}
 				curveOptions = append(curveOptions, tray.CurveOption{ID: p.ID, Name: name})
 			}
@@ -351,42 +351,42 @@ func (a *CoreApp) initSystemTray() {
 	a.trayManager.Init()
 }
 
-// onShowWindowRequest 显示窗口请求回调
+// onShowWindowRequest handles show window request callback
 func (a *CoreApp) onShowWindowRequest() {
-	a.logInfo("收到显示窗口请求")
+	a.logInfo("Received show window request")
 
-	// 通知所有已连接的 GUI 客户端显示窗口
+	// Notify all connected GUI clients to show window
 	if a.ipcServer != nil && a.ipcServer.HasClients() {
 		a.ipcServer.BroadcastEvent("show-window", nil)
 	} else {
-		// 没有 GUI 连接，启动 GUI
-		a.logInfo("没有 GUI 连接，尝试启动 GUI")
+		// No GUI connection, launch GUI
+		a.logInfo("No GUI connection, attempting to launch GUI")
 		if err := launchGUI(); err != nil {
-			a.logError("启动 GUI 失败: %v", err)
+			a.logError("Failed to launch GUI: %v", err)
 		}
 	}
 }
 
-// onQuitRequest 退出请求回调
+// onQuitRequest handles quit request callback
 func (a *CoreApp) onQuitRequest() {
-	a.logInfo("收到退出请求")
+	a.logInfo("Received quit request")
 
-	// 通知所有 GUI 客户端退出
+	// Notify all GUI clients to quit
 	if a.ipcServer != nil {
 		a.ipcServer.BroadcastEvent("quit", nil)
 	}
 
-	// 发送退出信号
+	// Send quit signal
 	select {
 	case a.quitChan <- true:
 	default:
 	}
 }
 
-// handleIPCRequest 处理 IPC 请求
+// handleIPCRequest handles IPC requests
 func (a *CoreApp) handleIPCRequest(req ipc.Request) ipc.Response {
 	switch req.Type {
-	// 设备相关
+	// Device related
 	case ipc.ReqConnect:
 		success := a.ConnectDevice()
 		return a.successResponse(success)
@@ -403,7 +403,7 @@ func (a *CoreApp) handleIPCRequest(req ipc.Request) ipc.Response {
 		data := a.deviceManager.GetCurrentFanData()
 		return a.dataResponse(data)
 
-	// 配置相关
+	// Config related
 	case ipc.ReqGetConfig:
 		cfg := a.configManager.Get()
 		return a.dataResponse(cfg)
@@ -411,7 +411,7 @@ func (a *CoreApp) handleIPCRequest(req ipc.Request) ipc.Response {
 	case ipc.ReqUpdateConfig:
 		var cfg types.AppConfig
 		if err := json.Unmarshal(req.Data, &cfg); err != nil {
-			return a.errorResponse("解析配置失败: " + err.Error())
+			return a.errorResponse("Failed to parse config: " + err.Error())
 		}
 		if err := a.UpdateConfig(cfg); err != nil {
 			return a.errorResponse(err.Error())
@@ -421,7 +421,7 @@ func (a *CoreApp) handleIPCRequest(req ipc.Request) ipc.Response {
 	case ipc.ReqSetFanCurve:
 		var curve []types.FanCurvePoint
 		if err := json.Unmarshal(req.Data, &curve); err != nil {
-			return a.errorResponse("解析风扇曲线失败: " + err.Error())
+			return a.errorResponse("Failed to parse fan curve: " + err.Error())
 		}
 		if err := a.SetFanCurve(curve); err != nil {
 			return a.errorResponse(err.Error())
@@ -438,7 +438,7 @@ func (a *CoreApp) handleIPCRequest(req ipc.Request) ipc.Response {
 	case ipc.ReqSetActiveFanCurveProfile:
 		var params ipc.SetActiveFanCurveProfileParams
 		if err := json.Unmarshal(req.Data, &params); err != nil {
-			return a.errorResponse("解析参数失败: " + err.Error())
+			return a.errorResponse("Failed to parse parameters: " + err.Error())
 		}
 		profile, err := a.SetActiveFanCurveProfile(params.ID)
 		if err != nil {
@@ -449,7 +449,7 @@ func (a *CoreApp) handleIPCRequest(req ipc.Request) ipc.Response {
 	case ipc.ReqSaveFanCurveProfile:
 		var params ipc.SaveFanCurveProfileParams
 		if err := json.Unmarshal(req.Data, &params); err != nil {
-			return a.errorResponse("解析参数失败: " + err.Error())
+			return a.errorResponse("Failed to parse parameters: " + err.Error())
 		}
 		profile, err := a.SaveFanCurveProfile(params)
 		if err != nil {
@@ -460,7 +460,7 @@ func (a *CoreApp) handleIPCRequest(req ipc.Request) ipc.Response {
 	case ipc.ReqDeleteFanCurveProfile:
 		var params ipc.DeleteFanCurveProfileParams
 		if err := json.Unmarshal(req.Data, &params); err != nil {
-			return a.errorResponse("解析参数失败: " + err.Error())
+			return a.errorResponse("Failed to parse parameters: " + err.Error())
 		}
 		if err := a.DeleteFanCurveProfile(params.ID); err != nil {
 			return a.errorResponse(err.Error())
@@ -477,18 +477,18 @@ func (a *CoreApp) handleIPCRequest(req ipc.Request) ipc.Response {
 	case ipc.ReqImportFanCurveProfiles:
 		var params ipc.ImportFanCurveProfilesParams
 		if err := json.Unmarshal(req.Data, &params); err != nil {
-			return a.errorResponse("解析参数失败: " + err.Error())
+			return a.errorResponse("Failed to parse parameters: " + err.Error())
 		}
 		if err := a.ImportFanCurveProfiles(params.Code); err != nil {
 			return a.errorResponse(err.Error())
 		}
 		return a.successResponse(true)
 
-	// 控制相关
+	// Control related
 	case ipc.ReqSetAutoControl:
 		var params ipc.SetAutoControlParams
 		if err := json.Unmarshal(req.Data, &params); err != nil {
-			return a.errorResponse("解析参数失败: " + err.Error())
+			return a.errorResponse("Failed to parse parameters: " + err.Error())
 		}
 		if err := a.SetAutoControl(params.Enabled); err != nil {
 			return a.errorResponse(err.Error())
@@ -498,7 +498,7 @@ func (a *CoreApp) handleIPCRequest(req ipc.Request) ipc.Response {
 	case ipc.ReqSetManualGear:
 		var params ipc.SetManualGearParams
 		if err := json.Unmarshal(req.Data, &params); err != nil {
-			return a.errorResponse("解析参数失败: " + err.Error())
+			return a.errorResponse("Failed to parse parameters: " + err.Error())
 		}
 		success := a.SetManualGear(params.Gear, params.Level)
 		return a.successResponse(success)
@@ -510,7 +510,7 @@ func (a *CoreApp) handleIPCRequest(req ipc.Request) ipc.Response {
 	case ipc.ReqSetCustomSpeed:
 		var params ipc.SetCustomSpeedParams
 		if err := json.Unmarshal(req.Data, &params); err != nil {
-			return a.errorResponse("解析参数失败: " + err.Error())
+			return a.errorResponse("Failed to parse parameters: " + err.Error())
 		}
 		if err := a.SetCustomSpeed(params.Enabled, params.RPM); err != nil {
 			return a.errorResponse(err.Error())
@@ -520,7 +520,7 @@ func (a *CoreApp) handleIPCRequest(req ipc.Request) ipc.Response {
 	case ipc.ReqSetGearLight:
 		var params ipc.SetBoolParams
 		if err := json.Unmarshal(req.Data, &params); err != nil {
-			return a.errorResponse("解析参数失败: " + err.Error())
+			return a.errorResponse("Failed to parse parameters: " + err.Error())
 		}
 		success := a.SetGearLight(params.Enabled)
 		return a.successResponse(success)
@@ -528,7 +528,7 @@ func (a *CoreApp) handleIPCRequest(req ipc.Request) ipc.Response {
 	case ipc.ReqSetPowerOnStart:
 		var params ipc.SetBoolParams
 		if err := json.Unmarshal(req.Data, &params); err != nil {
-			return a.errorResponse("解析参数失败: " + err.Error())
+			return a.errorResponse("Failed to parse parameters: " + err.Error())
 		}
 		success := a.SetPowerOnStart(params.Enabled)
 		return a.successResponse(success)
@@ -536,7 +536,7 @@ func (a *CoreApp) handleIPCRequest(req ipc.Request) ipc.Response {
 	case ipc.ReqSetSmartStartStop:
 		var params ipc.SetStringParams
 		if err := json.Unmarshal(req.Data, &params); err != nil {
-			return a.errorResponse("解析参数失败: " + err.Error())
+			return a.errorResponse("Failed to parse parameters: " + err.Error())
 		}
 		success := a.SetSmartStartStop(params.Value)
 		return a.successResponse(success)
@@ -544,7 +544,7 @@ func (a *CoreApp) handleIPCRequest(req ipc.Request) ipc.Response {
 	case ipc.ReqSetBrightness:
 		var params ipc.SetIntParams
 		if err := json.Unmarshal(req.Data, &params); err != nil {
-			return a.errorResponse("解析参数失败: " + err.Error())
+			return a.errorResponse("Failed to parse parameters: " + err.Error())
 		}
 		success := a.SetBrightness(params.Value)
 		return a.successResponse(success)
@@ -552,14 +552,14 @@ func (a *CoreApp) handleIPCRequest(req ipc.Request) ipc.Response {
 	case ipc.ReqSetLightStrip:
 		var params ipc.SetLightStripParams
 		if err := json.Unmarshal(req.Data, &params); err != nil {
-			return a.errorResponse("解析参数失败: " + err.Error())
+			return a.errorResponse("Failed to parse parameters: " + err.Error())
 		}
 		if err := a.SetLightStrip(params.Config); err != nil {
 			return a.errorResponse(err.Error())
 		}
 		return a.successResponse(true)
 
-	// 温度相关
+	// Temperature related
 	case ipc.ReqGetTemperature:
 		a.mutex.RLock()
 		temp := a.currentTemp
@@ -578,11 +578,11 @@ func (a *CoreApp) handleIPCRequest(req ipc.Request) ipc.Response {
 		status := a.bridgeManager.GetStatus()
 		return a.dataResponse(status)
 
-	// 自启动相关
+	// Auto-start related
 	case ipc.ReqSetWindowsAutoStart:
 		var params ipc.SetBoolParams
 		if err := json.Unmarshal(req.Data, &params); err != nil {
-			return a.errorResponse("解析参数失败: " + err.Error())
+			return a.errorResponse("Failed to parse parameters: " + err.Error())
 		}
 		if err := a.SetWindowsAutoStart(params.Enabled); err != nil {
 			return a.errorResponse(err.Error())
@@ -604,20 +604,20 @@ func (a *CoreApp) handleIPCRequest(req ipc.Request) ipc.Response {
 	case ipc.ReqSetAutoStartWithMethod:
 		var params ipc.SetAutoStartWithMethodParams
 		if err := json.Unmarshal(req.Data, &params); err != nil {
-			return a.errorResponse("解析参数失败: " + err.Error())
+			return a.errorResponse("Failed to parse parameters: " + err.Error())
 		}
 		if err := a.autostartManager.SetAutoStartWithMethod(params.Enable, params.Method); err != nil {
 			return a.errorResponse(err.Error())
 		}
 		return a.successResponse(true)
 
-	// 窗口相关
+	// Window related
 	case ipc.ReqShowWindow:
 		a.onShowWindowRequest()
 		return a.successResponse(true)
 
 	case ipc.ReqHideWindow:
-		// GUI 自己处理隐藏
+		// GUI handles hiding itself
 		return a.successResponse(true)
 
 	case ipc.ReqQuitApp:
@@ -626,7 +626,7 @@ func (a *CoreApp) handleIPCRequest(req ipc.Request) ipc.Response {
 		})
 		return a.successResponse(true)
 
-	// 调试相关
+	// Debug related
 	case ipc.ReqGetDebugInfo:
 		info := a.GetDebugInfo()
 		return a.dataResponse(info)
@@ -634,7 +634,7 @@ func (a *CoreApp) handleIPCRequest(req ipc.Request) ipc.Response {
 	case ipc.ReqSetDebugMode:
 		var params ipc.SetBoolParams
 		if err := json.Unmarshal(req.Data, &params); err != nil {
-			return a.errorResponse("解析参数失败: " + err.Error())
+			return a.errorResponse("Failed to parse parameters: " + err.Error())
 		}
 		if err := a.SetDebugMode(params.Enabled); err != nil {
 			return a.errorResponse(err.Error())
@@ -645,7 +645,7 @@ func (a *CoreApp) handleIPCRequest(req ipc.Request) ipc.Response {
 		atomic.StoreInt64(&a.guiLastResponse, time.Now().Unix())
 		return a.successResponse(true)
 
-	// 系统相关
+	// System related
 	case ipc.ReqPing:
 		return a.dataResponse("pong")
 
@@ -653,11 +653,11 @@ func (a *CoreApp) handleIPCRequest(req ipc.Request) ipc.Response {
 		return a.dataResponse(a.isAutoStartLaunch)
 
 	default:
-		return a.errorResponse(fmt.Sprintf("未知的请求类型: %s", req.Type))
+		return a.errorResponse(fmt.Sprintf("Unknown request type: %s", req.Type))
 	}
 }
 
-// 响应辅助方法
+// Response helper methods
 func (a *CoreApp) successResponse(success bool) ipc.Response {
 	data, _ := json.Marshal(success)
 	return ipc.Response{Success: true, Data: data}
@@ -670,31 +670,31 @@ func (a *CoreApp) errorResponse(errMsg string) ipc.Response {
 func (a *CoreApp) dataResponse(data any) ipc.Response {
 	dataBytes, err := json.Marshal(data)
 	if err != nil {
-		return a.errorResponse("序列化数据失败: " + err.Error())
+		return a.errorResponse("Failed to serialize data: " + err.Error())
 	}
 	return ipc.Response{Success: true, Data: dataBytes}
 }
 
-// onFanDataUpdate 风扇数据更新回调
+// onFanDataUpdate handles fan data update callback
 func (a *CoreApp) onFanDataUpdate(fanData *types.FanData) {
 	a.mutex.Lock()
 	cfg := a.configManager.Get()
 
-	// 检查工作模式变化
-	// 如果开启了"断连保持配置模式"，则忽略设备状态变化，避免误判
+	// Check work mode changes
+	// If "keep config on disconnect" mode is enabled, ignore device state changes to avoid false detection
 	if fanData.WorkMode == "挡位工作模式" &&
 		cfg.AutoControl &&
 		a.lastDeviceMode == "自动模式(实时转速)" &&
 		!a.userSetAutoControl &&
 		!cfg.IgnoreDeviceOnReconnect {
 
-		a.logInfo("检测到设备从自动模式切换到挡位工作模式，自动关闭智能变频")
+		a.logInfo("Detected device switched from auto mode to gear mode, automatically disabling smart fan control")
 		cfg.AutoControl = false
 
 		a.configManager.Set(cfg)
 		a.configManager.Save()
 
-		// 广播配置更新
+		// Broadcast config update
 		if a.ipcServer != nil {
 			a.ipcServer.BroadcastEvent(ipc.EventConfigUpdate, cfg)
 		}
@@ -703,7 +703,7 @@ func (a *CoreApp) onFanDataUpdate(fanData *types.FanData) {
 		a.lastDeviceMode == "自动模式(实时转速)" &&
 		!a.userSetAutoControl &&
 		cfg.IgnoreDeviceOnReconnect {
-		a.logInfo("检测到设备模式变化，但已开启断连保持配置模式，保持APP配置不变")
+		a.logInfo("Device mode change detected, but keep-config-on-disconnect mode is enabled, keeping app config unchanged")
 	}
 
 	a.lastDeviceMode = fanData.WorkMode
@@ -714,13 +714,13 @@ func (a *CoreApp) onFanDataUpdate(fanData *types.FanData) {
 
 	a.mutex.Unlock()
 
-	// 广播风扇数据更新
+	// Broadcast fan data update
 	if a.ipcServer != nil {
 		a.ipcServer.BroadcastEvent(ipc.EventFanDataUpdate, fanData)
 	}
 }
 
-// onDeviceDisconnect 设备断开回调
+// onDeviceDisconnect handles device disconnect callback
 func (a *CoreApp) onDeviceDisconnect() {
 	a.mutex.Lock()
 	wasConnected := a.isConnected
@@ -728,22 +728,22 @@ func (a *CoreApp) onDeviceDisconnect() {
 	a.mutex.Unlock()
 
 	if wasConnected {
-		a.logInfo("设备连接已断开，将在健康检查时尝试自动重连")
+		a.logInfo("Device disconnected, will attempt auto-reconnect during health check")
 	}
 
 	if a.ipcServer != nil {
 		a.ipcServer.BroadcastEvent(ipc.EventDeviceDisconnected, nil)
 	}
 
-	// 启动自动重连机制
+	// Start auto-reconnect mechanism
 	a.safeGo("scheduleReconnect", func() {
 		a.scheduleReconnect()
 	})
 }
 
-// scheduleReconnect 安排设备重连
+// scheduleReconnect schedules device reconnection
 func (a *CoreApp) scheduleReconnect() {
-	// 延迟一段时间后尝试重连，避免频繁重试
+	// Delay before reconnect attempts to avoid frequent retries
 	retryDelays := []time.Duration{
 		2 * time.Second,
 		5 * time.Second,
@@ -752,49 +752,49 @@ func (a *CoreApp) scheduleReconnect() {
 	}
 
 	for i, delay := range retryDelays {
-		// 检查是否已经连接（可能其他途径已重连）
+		// Check if already connected (may have reconnected via other means)
 		a.mutex.RLock()
 		connected := a.isConnected
 		a.mutex.RUnlock()
 
 		if connected {
-			a.logInfo("设备已重新连接，停止重连尝试")
+			a.logInfo("Device reconnected, stopping reconnect attempts")
 			return
 		}
 
-		a.logInfo("等待 %v 后尝试第 %d 次重连...", delay, i+1)
+		a.logInfo("Waiting %v before reconnect attempt #%d...", delay, i+1)
 		time.Sleep(delay)
 
-		// 再次检查连接状态
+		// Check connection status again
 		a.mutex.RLock()
 		connected = a.isConnected
 		a.mutex.RUnlock()
 
 		if connected {
-			a.logInfo("设备已重新连接，停止重连尝试")
+			a.logInfo("Device reconnected, stopping reconnect attempts")
 			return
 		}
 
-		a.logInfo("尝试第 %d 次重连设备...", i+1)
+		a.logInfo("Attempting device reconnect #%d...", i+1)
 		if a.ConnectDevice() {
-			a.logInfo("设备重连成功")
+			a.logInfo("Device reconnected successfully")
 
-			// 如果开启了断连保持配置模式，重新应用APP配置
+			// If keep-config-on-disconnect mode is enabled, reapply app config
 			cfg := a.configManager.Get()
 			if cfg.IgnoreDeviceOnReconnect {
-				a.logInfo("断连保持配置模式已开启，重新应用APP配置")
+				a.logInfo("Keep-config-on-disconnect mode enabled, reapplying app config")
 				a.reapplyConfigAfterReconnect()
 			}
 
 			return
 		}
-		a.logError("第 %d 次重连失败", i+1)
+		a.logError("Reconnect attempt #%d failed", i+1)
 	}
 
-	a.logError("所有重连尝试均失败，等待下次健康检查")
+	a.logError("All reconnect attempts failed, waiting for next health check")
 }
 
-// ConnectDevice 连接设备
+// ConnectDevice connects to the device
 func (a *CoreApp) ConnectDevice() bool {
 	success, deviceInfo := a.deviceManager.Connect()
 	if success {
@@ -807,18 +807,18 @@ func (a *CoreApp) ConnectDevice() bool {
 		}
 
 		if err := a.applyConfiguredLightStrip(); err != nil {
-			a.logError("应用灯带配置失败: %v", err)
+			a.logError("Failed to apply light strip config: %v", err)
 		}
 		a.safeGo("startTemperatureMonitoring@ConnectDevice", func() {
 			a.startTemperatureMonitoring()
 		})
 	} else if a.ipcServer != nil {
-		a.ipcServer.BroadcastEvent(ipc.EventDeviceError, "连接失败")
+		a.ipcServer.BroadcastEvent(ipc.EventDeviceError, "Connection failed")
 	}
 	return success
 }
 
-// DisconnectDevice 断开设备连接
+// DisconnectDevice disconnects from the device
 func (a *CoreApp) DisconnectDevice() {
 	a.mutex.Lock()
 	a.isConnected = false
@@ -831,43 +831,43 @@ func (a *CoreApp) DisconnectDevice() {
 	}
 }
 
-// reapplyConfigAfterReconnect 重连后重新应用APP配置
+// reapplyConfigAfterReconnect reapplies app config after device reconnection
 func (a *CoreApp) reapplyConfigAfterReconnect() {
 	cfg := a.configManager.Get()
 
-	// 重新应用智能变频配置
+	// Reapply smart fan control config
 	if cfg.AutoControl {
-		a.logInfo("重新启动智能变频")
+		a.logInfo("Restarting smart fan control")
 	} else if cfg.CustomSpeedEnabled {
-		// 重新应用自定义转速
-		a.logInfo("重新应用自定义转速: %d RPM", cfg.CustomSpeedRPM)
+		// Reapply custom speed
+		a.logInfo("Reapplying custom speed: %d RPM", cfg.CustomSpeedRPM)
 		if !a.deviceManager.SetCustomFanSpeed(cfg.CustomSpeedRPM) {
-			a.logError("重新应用自定义转速失败")
+			a.logError("Failed to reapply custom speed")
 		}
 	}
 
-	// 重新应用挡位灯配置
+	// Reapply gear light config
 	if cfg.GearLight {
-		a.logInfo("重新开启挡位灯")
+		a.logInfo("Re-enabling gear light")
 		if !a.deviceManager.SetGearLight(true) {
-			a.logError("重新开启挡位灯失败")
+			a.logError("Failed to re-enable gear light")
 		}
 	}
 
-	// 重新应用通电自启动配置
+	// Reapply power-on auto-start config
 	if cfg.PowerOnStart {
-		a.logInfo("重新开启通电自启动")
+		a.logInfo("Re-enabling power-on auto-start")
 		if !a.deviceManager.SetPowerOnStart(true) {
-			a.logError("重新开启通电自启动失败")
+			a.logError("Failed to re-enable power-on auto-start")
 		}
 	}
 
 	if err := a.applyConfiguredLightStrip(); err != nil {
-		a.logError("重连后重新应用灯带配置失败: %v", err)
+		a.logError("Failed to reapply light strip config after reconnect: %v", err)
 	}
 }
 
-// GetDeviceStatus 获取设备状态
+// GetDeviceStatus gets device status
 func (a *CoreApp) GetDeviceStatus() map[string]any {
 	a.mutex.RLock()
 	defer a.mutex.RUnlock()
@@ -896,7 +896,7 @@ func (a *CoreApp) GetDeviceStatus() map[string]any {
 	}
 }
 
-// UpdateConfig 更新配置
+// UpdateConfig updates the configuration
 func (a *CoreApp) UpdateConfig(cfg types.AppConfig) error {
 	a.mutex.Lock()
 	defer a.mutex.Unlock()
@@ -928,7 +928,7 @@ func (a *CoreApp) UpdateConfig(cfg types.AppConfig) error {
 	return nil
 }
 
-// SetFanCurve 设置风扇曲线
+// SetFanCurve sets the fan curve
 func (a *CoreApp) SetFanCurve(curve []types.FanCurvePoint) error {
 	a.mutex.Lock()
 	defer a.mutex.Unlock()
@@ -944,7 +944,7 @@ func (a *CoreApp) SetFanCurve(curve []types.FanCurvePoint) error {
 	return a.configManager.Update(cfg)
 }
 
-// SetAutoControl 设置智能变频
+// SetAutoControl sets smart fan control
 func (a *CoreApp) SetAutoControl(enabled bool) error {
 	a.mutex.Lock()
 	defer a.mutex.Unlock()
@@ -952,7 +952,7 @@ func (a *CoreApp) SetAutoControl(enabled bool) error {
 	cfg := a.configManager.Get()
 
 	if enabled && cfg.CustomSpeedEnabled {
-		return fmt.Errorf("自定义转速模式下无法开启智能变频")
+		return fmt.Errorf("cannot enable smart fan control while custom speed mode is active")
 	}
 
 	cfg.AutoControl = enabled
@@ -977,7 +977,7 @@ func (a *CoreApp) SetAutoControl(enabled bool) error {
 	return err
 }
 
-// applyCurrentGearSetting 应用当前挡位设置
+// applyCurrentGearSetting applies the current gear setting
 func (a *CoreApp) applyCurrentGearSetting() {
 	fanData := a.deviceManager.GetCurrentFanData()
 	if fanData == nil {
@@ -991,11 +991,11 @@ func (a *CoreApp) applyCurrentGearSetting() {
 	}
 	level := a.getRememberedManualLevel(setGear, cfg.ManualLevel)
 
-	a.logInfo("应用当前挡位设置: %s %s", setGear, level)
+	a.logInfo("Applying current gear setting: %s %s", setGear, level)
 	a.deviceManager.SetManualGear(setGear, level)
 }
 
-// SetManualGear 设置手动挡位
+// SetManualGear sets the manual gear
 func (a *CoreApp) SetManualGear(gear, level string) bool {
 	cfg := a.configManager.Get()
 	cfg.ManualGear = gear
@@ -1014,7 +1014,7 @@ func (a *CoreApp) SetManualGear(gear, level string) bool {
 	return a.deviceManager.SetManualGear(gear, level)
 }
 
-// SetCustomSpeed 设置自定义转速
+// SetCustomSpeed sets the custom fan speed
 func (a *CoreApp) SetCustomSpeed(enabled bool, rpm int) error {
 	a.mutex.Lock()
 	defer a.mutex.Unlock()
@@ -1048,7 +1048,7 @@ func (a *CoreApp) SetCustomSpeed(enabled bool, rpm int) error {
 	return err
 }
 
-// SetGearLight 设置挡位灯
+// SetGearLight sets the gear indicator light
 func (a *CoreApp) SetGearLight(enabled bool) bool {
 	if !a.deviceManager.SetGearLight(enabled) {
 		return false
@@ -1058,14 +1058,14 @@ func (a *CoreApp) SetGearLight(enabled bool) bool {
 	cfg.GearLight = enabled
 	a.configManager.Update(cfg)
 
-	// 广播配置更新
+	// Broadcast config update
 	if a.ipcServer != nil {
 		a.ipcServer.BroadcastEvent(ipc.EventConfigUpdate, cfg)
 	}
 	return true
 }
 
-// SetPowerOnStart 设置通电自启动
+// SetPowerOnStart sets power-on auto-start
 func (a *CoreApp) SetPowerOnStart(enabled bool) bool {
 	if !a.deviceManager.SetPowerOnStart(enabled) {
 		return false
@@ -1075,14 +1075,14 @@ func (a *CoreApp) SetPowerOnStart(enabled bool) bool {
 	cfg.PowerOnStart = enabled
 	a.configManager.Update(cfg)
 
-	// 广播配置更新
+	// Broadcast config update
 	if a.ipcServer != nil {
 		a.ipcServer.BroadcastEvent(ipc.EventConfigUpdate, cfg)
 	}
 	return true
 }
 
-// SetSmartStartStop 设置智能启停
+// SetSmartStartStop sets smart start/stop
 func (a *CoreApp) SetSmartStartStop(mode string) bool {
 	if !a.deviceManager.SetSmartStartStop(mode) {
 		return false
@@ -1092,14 +1092,14 @@ func (a *CoreApp) SetSmartStartStop(mode string) bool {
 	cfg.SmartStartStop = mode
 	a.configManager.Update(cfg)
 
-	// 广播配置更新
+	// Broadcast config update
 	if a.ipcServer != nil {
 		a.ipcServer.BroadcastEvent(ipc.EventConfigUpdate, cfg)
 	}
 	return true
 }
 
-// SetBrightness 设置亮度
+// SetBrightness sets the brightness
 func (a *CoreApp) SetBrightness(percentage int) bool {
 	if !a.deviceManager.SetBrightness(percentage) {
 		return false
@@ -1109,14 +1109,14 @@ func (a *CoreApp) SetBrightness(percentage int) bool {
 	cfg.Brightness = percentage
 	a.configManager.Update(cfg)
 
-	// 广播配置更新
+	// Broadcast config update
 	if a.ipcServer != nil {
 		a.ipcServer.BroadcastEvent(ipc.EventConfigUpdate, cfg)
 	}
 	return true
 }
 
-// SetLightStrip 设置灯带
+// SetLightStrip sets the light strip configuration
 func (a *CoreApp) SetLightStrip(lightCfg types.LightStripConfig) error {
 	lightCfg, _ = normalizeLightStripConfig(lightCfg)
 
@@ -1148,7 +1148,7 @@ func (a *CoreApp) applyConfiguredLightStrip() error {
 		cfg.LightStrip = lightCfg
 		a.configManager.Set(cfg)
 		if err := a.configManager.Save(); err != nil {
-			a.logError("保存灯带默认配置失败: %v", err)
+			a.logError("Failed to save default light strip config: %v", err)
 		}
 	}
 
@@ -1225,9 +1225,9 @@ func normalizeManualGearMemoryConfig(cfg *types.AppConfig) bool {
 		changed = true
 	}
 
-	for _, gear := range []string{"静音", "标准", "强劲", "超频"} {
+	for _, gear := range []string{"Silent", "Standard", "Performance", "Overclock"} {
 		if level, ok := cfg.ManualGearLevels[gear]; !ok {
-			cfg.ManualGearLevels[gear] = "中"
+			cfg.ManualGearLevels[gear] = "Mid"
 			changed = true
 		} else {
 			normalized := normalizeManualLevel(level)
@@ -1259,7 +1259,7 @@ func (a *CoreApp) applyHotkeyBindings(cfg types.AppConfig) {
 		return
 	}
 	if err := a.hotkeyManager.UpdateBindings(cfg.ManualGearToggleHotkey, cfg.AutoControlToggleHotkey, cfg.CurveProfileToggleHotkey); err != nil {
-		a.logError("更新全局快捷键失败: %v", err)
+		a.logError("Failed to update global hotkeys: %v", err)
 	}
 }
 
@@ -1295,7 +1295,7 @@ func (a *CoreApp) handleHotkeyAction(action hotkeysvc.Action, shortcut string) {
 			}
 		default:
 			success = false
-			message = "未知快捷键动作"
+			message = "Unknown hotkey action"
 		}
 
 		if a.ipcServer != nil {
@@ -1307,9 +1307,9 @@ func (a *CoreApp) handleHotkeyAction(action hotkeysvc.Action, shortcut string) {
 			})
 		}
 
-		title := "BS2PRO 快捷键"
+		title := "BS2PRO Hotkey"
 		if !success {
-			title = "BS2PRO 快捷键失败"
+			title = "BS2PRO Hotkey Failed"
 		}
 		if a.notifier != nil {
 			a.notifier.Notify(title, message)
@@ -1322,7 +1322,7 @@ func (a *CoreApp) toggleCurveProfileByHotkey() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("温控曲线已切换: %s", profile.Name), nil
+	return fmt.Sprintf("Fan curve switched to: %s", profile.Name), nil
 }
 
 func (a *CoreApp) toggleAutoControlByHotkey() (string, error) {
@@ -1332,9 +1332,9 @@ func (a *CoreApp) toggleAutoControlByHotkey() (string, error) {
 		return "", err
 	}
 	if target {
-		return "智能变频已开启", nil
+		return "Smart fan control enabled", nil
 	}
-	return "智能变频已关闭", nil
+	return "Smart fan control disabled", nil
 }
 
 func (a *CoreApp) toggleManualGearByHotkey() (string, error) {
@@ -1342,24 +1342,24 @@ func (a *CoreApp) toggleManualGearByHotkey() (string, error) {
 
 	if cfg.AutoControl {
 		if err := a.SetAutoControl(false); err != nil {
-			return "", fmt.Errorf("切换到手动模式失败: %w", err)
+			return "", fmt.Errorf("failed to switch to manual mode: %w", err)
 		}
 	}
 
 	nextGear, nextLevel := a.getNextManualGearWithMemory(cfg.ManualGear, cfg.ManualLevel)
 	if ok := a.SetManualGear(nextGear, nextLevel); !ok {
-		return "", fmt.Errorf("应用手动挡位失败")
+		return "", fmt.Errorf("failed to apply manual gear")
 	}
 
 	rpm := getManualGearRPM(nextGear, nextLevel)
 	if rpm > 0 {
-		return fmt.Sprintf("手动挡位: %s %s (%d RPM)", nextGear, nextLevel, rpm), nil
+		return fmt.Sprintf("Manual gear: %s %s (%d RPM)", nextGear, nextLevel, rpm), nil
 	}
-	return fmt.Sprintf("手动挡位: %s %s", nextGear, nextLevel), nil
+	return fmt.Sprintf("Manual gear: %s %s", nextGear, nextLevel), nil
 }
 
 func (a *CoreApp) getNextManualGearWithMemory(currentGear, currentLevel string) (string, string) {
-	sequence := []string{"静音", "标准", "强劲", "超频"}
+	sequence := []string{"Silent", "Standard", "Performance", "Overclock"}
 	nextIndex := 0
 
 	for i, gear := range sequence {
@@ -1377,17 +1377,17 @@ func (a *CoreApp) getNextManualGearWithMemory(currentGear, currentLevel string) 
 }
 
 func normalizeManualLevel(level string) string {
-	if level == "低" || level == "中" || level == "高" {
+	if level == "Low" || level == "Mid" || level == "High" {
 		return level
 	}
-	return "中"
+	return "Mid"
 }
 
 func cloneManualGearLevels(source map[string]string) map[string]string {
 	cloned := map[string]string{}
-	for _, gear := range []string{"静音", "标准", "强劲", "超频"} {
+	for _, gear := range []string{"Silent", "Standard", "Performance", "Overclock"} {
 		if source == nil {
-			cloned[gear] = "中"
+			cloned[gear] = "Mid"
 			continue
 		}
 		cloned[gear] = normalizeManualLevel(source[gear])
@@ -1409,7 +1409,7 @@ func (a *CoreApp) syncManualGearLevelMemoryLocked(cfg types.AppConfig) {
 	}
 
 	defaultLevel := normalizeManualLevel(cfg.ManualLevel)
-	for _, gear := range []string{"静音", "标准", "强劲", "超频"} {
+	for _, gear := range []string{"Silent", "Standard", "Performance", "Overclock"} {
 		if fromCfg, ok := cfg.ManualGearLevels[gear]; ok {
 			a.manualGearLevelMemory[gear] = normalizeManualLevel(fromCfg)
 			continue
@@ -1421,7 +1421,7 @@ func (a *CoreApp) syncManualGearLevelMemoryLocked(cfg types.AppConfig) {
 }
 
 func (a *CoreApp) rememberManualGearLevel(gear, level string) {
-	if gear != "静音" && gear != "标准" && gear != "强劲" && gear != "超频" {
+	if gear != "Silent" && gear != "Standard" && gear != "Performance" && gear != "Overclock" {
 		return
 	}
 
@@ -1454,9 +1454,9 @@ func getManualGearRPM(gear, level string) int {
 	}
 
 	for _, cmd := range commands {
-		if (level == "低" && containsLevel(cmd.Name, "低")) ||
-			(level == "中" && containsLevel(cmd.Name, "中")) ||
-			(level == "高" && containsLevel(cmd.Name, "高")) {
+		if (level == "Low" && containsLevel(cmd.Name, "Low")) ||
+			(level == "Mid" && containsLevel(cmd.Name, "Mid")) ||
+			(level == "High" && containsLevel(cmd.Name, "High")) {
 			return cmd.RPM
 		}
 	}
@@ -1468,7 +1468,7 @@ func containsLevel(name, level string) bool {
 	return strings.Contains(name, level)
 }
 
-// SetWindowsAutoStart 设置Windows自启动
+// SetWindowsAutoStart sets Windows auto-start
 func (a *CoreApp) SetWindowsAutoStart(enable bool) error {
 	err := a.autostartManager.SetWindowsAutoStart(enable)
 	if err == nil {
@@ -1476,7 +1476,7 @@ func (a *CoreApp) SetWindowsAutoStart(enable bool) error {
 		cfg.WindowsAutoStart = enable
 		a.configManager.Update(cfg)
 
-		// 广播配置更新
+		// Broadcast config update
 		if a.ipcServer != nil {
 			a.ipcServer.BroadcastEvent(ipc.EventConfigUpdate, cfg)
 		}
@@ -1484,7 +1484,7 @@ func (a *CoreApp) SetWindowsAutoStart(enable bool) error {
 	return err
 }
 
-// GetDebugInfo 获取调试信息
+// GetDebugInfo gets debug information
 func (a *CoreApp) GetDebugInfo() map[string]any {
 	info := map[string]any{
 		"debugMode":       a.debugMode,
@@ -1499,7 +1499,7 @@ func (a *CoreApp) GetDebugInfo() map[string]any {
 	return info
 }
 
-// SetDebugMode 设置调试模式
+// SetDebugMode sets debug mode
 func (a *CoreApp) SetDebugMode(enabled bool) error {
 	a.mutex.Lock()
 	defer a.mutex.Unlock()
@@ -1512,9 +1512,9 @@ func (a *CoreApp) SetDebugMode(enabled bool) error {
 	if a.logger != nil {
 		a.logger.SetDebugMode(enabled)
 		if enabled {
-			a.logger.Info("调试模式已开启，后续日志将包含调试级别")
+			a.logger.Info("Debug mode enabled, subsequent logs will include debug level")
 		} else {
-			a.logger.Info("调试模式已关闭，调试级别日志将被忽略")
+			a.logger.Info("Debug mode disabled, debug level logs will be suppressed")
 		}
 	}
 
@@ -1541,13 +1541,13 @@ func (a *CoreApp) stopTemperatureMonitoring() {
 	}
 }
 
-// startTemperatureMonitoring 开始温度监控
+// startTemperatureMonitoring starts temperature monitoring
 func (a *CoreApp) startTemperatureMonitoring() {
 	if a.monitoringTemp {
 		return
 	}
 
-	// 清理可能残留的停止信号，避免新监控循环被立即中断。
+	// Clear any residual stop signals to avoid the new monitoring loop being interrupted immediately.
 	select {
 	case <-a.stopMonitoring:
 	default:
@@ -1555,14 +1555,14 @@ func (a *CoreApp) startTemperatureMonitoring() {
 
 	a.monitoringTemp = true
 
-	// 注意：不在此处立即调用 EnterAutoMode，因为在启动时温度数据（桥接程序）可能尚未就绪。
-	// 如果在温度读取成功之前切换到软件控制模式，设备将不会收到转速指令，导致风扇停转。
-	// EnterAutoMode 和转速设置会在首次成功读取温度后，由 SetFanSpeed 内部统一完成。
+	// Note: Do not call EnterAutoMode here immediately, because temperature data (bridge program) may not be ready at startup.
+	// If we switch to software control mode before temperature is successfully read, the device won't receive speed commands, causing the fan to stop.
+	// EnterAutoMode and speed settings will be handled internally by SetFanSpeed after the first successful temperature read.
 
 	cfg := a.configManager.Get()
 	updateInterval := time.Duration(cfg.TempUpdateRate) * time.Second
 
-	// 温度采样缓冲区
+	// Temperature sample buffer
 	sampleCount := max(cfg.TempSampleCount, 1)
 	tempSamples := make([]int, 0, sampleCount)
 	recentAvgTemps := make([]int, 0, 24)
@@ -1585,7 +1585,7 @@ func (a *CoreApp) startTemperatureMonitoring() {
 			a.currentTemp = temp
 			a.mutex.Unlock()
 
-			// 广播温度更新
+			// Broadcast temperature update
 			if a.ipcServer != nil {
 				a.ipcServer.BroadcastEvent(ipc.EventTemperatureUpdate, temp)
 			}
@@ -1596,25 +1596,25 @@ func (a *CoreApp) startTemperatureMonitoring() {
 				cfg.SmartControl = smartCfg
 				a.configManager.Set(cfg)
 				if err := a.configManager.Save(); err != nil {
-					a.logError("保存智能控温配置失败: %v", err)
+					a.logError("Failed to save smart control config: %v", err)
 				}
 			}
 
 			if cfg.AutoControl && temp.MaxTemp > 0 {
-				// 更新采样配置
+				// Update sample config
 				newSampleCount := max(cfg.TempSampleCount, 1)
 				if newSampleCount != sampleCount {
 					sampleCount = newSampleCount
 					tempSamples = make([]int, 0, sampleCount)
 				}
 
-				// 添加新采样
+				// Add new sample
 				tempSamples = append(tempSamples, temp.MaxTemp)
 				if len(tempSamples) > sampleCount {
 					tempSamples = tempSamples[len(tempSamples)-sampleCount:]
 				}
 
-				// 计算平均温度
+				// Calculate average temperature
 				avgTemp := 0
 				for _, t := range tempSamples {
 					avgTemp += t
@@ -1687,7 +1687,7 @@ func (a *CoreApp) startTemperatureMonitoring() {
 
 					if learningDirty && time.Since(lastLearningSave) >= 25*time.Second {
 						if err := a.configManager.Save(); err != nil {
-							a.logError("保存学习曲线失败: %v", err)
+							a.logError("Failed to save learned curve: %v", err)
 						} else {
 							lastLearningSave = time.Now()
 							learningDirty = false
@@ -1699,7 +1699,7 @@ func (a *CoreApp) startTemperatureMonitoring() {
 				}
 
 				if baseRPM > 0 {
-					a.logDebug("智能控温: 温度=%d°C 平均=%d°C 控制温度=%d°C 基础=%dRPM 目标=%dRPM", temp.MaxTemp, avgTemp, controlTemp, baseRPM, targetRPM)
+					a.logDebug("Smart control: temp=%d°C avg=%d°C control_temp=%d°C base=%dRPM target=%dRPM", temp.MaxTemp, avgTemp, controlTemp, baseRPM, targetRPM)
 				}
 
 				lastControlTemp = controlTemp
@@ -1709,14 +1709,14 @@ func (a *CoreApp) startTemperatureMonitoring() {
 
 	if learningDirty {
 		if err := a.configManager.Save(); err != nil {
-			a.logError("退出监控时保存学习曲线失败: %v", err)
+			a.logError("Failed to save learned curve when exiting monitoring: %v", err)
 		}
 	}
 }
 
-// startHealthMonitoring 启动健康监控
+// startHealthMonitoring starts health monitoring
 func (a *CoreApp) startHealthMonitoring() {
-	a.logInfo("启动健康监控系统")
+	a.logInfo("Starting health monitoring system")
 
 	a.healthCheckTicker = time.NewTicker(30 * time.Second)
 
@@ -1728,7 +1728,7 @@ func (a *CoreApp) startHealthMonitoring() {
 			case <-a.healthCheckTicker.C:
 				a.performHealthCheck()
 			case <-a.cleanupChan:
-				a.logInfo("健康监控系统已停止")
+				a.logInfo("Health monitoring system stopped")
 				return
 			}
 		}
@@ -1741,46 +1741,46 @@ func (a *CoreApp) startHealthMonitoring() {
 	}
 }
 
-// performHealthCheck 执行健康检查
+// performHealthCheck performs a health check
 func (a *CoreApp) performHealthCheck() {
 	defer func() {
 		if r := recover(); r != nil {
-			a.logError("健康检查中发生panic: %v", r)
+			a.logError("Panic during health check: %v", r)
 		}
 	}()
 
 	a.trayManager.CheckHealth()
 	a.checkDeviceHealth()
 
-	a.logDebug("健康检查完成 - 托盘:%v 设备连接:%v",
+	a.logDebug("Health check completed - tray:%v device_connected:%v",
 		a.trayManager.IsInitialized(), a.isConnected)
 }
 
-// checkDeviceHealth 检查设备健康状态
+// checkDeviceHealth checks device health status
 func (a *CoreApp) checkDeviceHealth() {
 	a.mutex.RLock()
 	connected := a.isConnected
 	a.mutex.RUnlock()
 
 	if !connected {
-		a.logInfo("健康检查: 设备未连接，尝试重新连接")
+		a.logInfo("Health check: device not connected, attempting reconnect")
 		a.safeGo("healthReconnect", func() {
 			if a.ConnectDevice() {
-				a.logInfo("健康检查: 设备重连成功")
+				a.logInfo("Health check: device reconnected successfully")
 			} else {
-				a.logDebug("健康检查: 设备重连失败，等待下次检查")
+				a.logDebug("Health check: device reconnect failed, waiting for next check")
 			}
 		})
 	} else {
-		// 验证设备实际连接状态
+		// Verify actual device connection status
 		if !a.deviceManager.IsConnected() {
-			a.logError("健康检查: 检测到设备状态不一致，触发断开回调")
+			a.logError("Health check: detected inconsistent device status, triggering disconnect callback")
 			a.onDeviceDisconnect()
 		}
 	}
 }
 
-// cleanup 清理资源
+// cleanup cleans up resources
 func (a *CoreApp) cleanup() {
 	if a.healthCheckTicker != nil {
 		a.healthCheckTicker.Stop()
@@ -1792,12 +1792,12 @@ func (a *CoreApp) cleanup() {
 	}
 
 	if a.logger != nil {
-		a.logger.Info("核心服务正在退出，清理资源")
+		a.logger.Info("Core service exiting, cleaning up resources")
 		a.logger.Close()
 	}
 }
 
-// 日志辅助方法
+// Logging helper methods
 func (a *CoreApp) logInfo(format string, v ...any) {
 	if a.logger != nil {
 		a.logger.Info(format, v...)
@@ -1828,11 +1828,11 @@ func (a *CoreApp) safeGo(name string, fn func()) {
 	}()
 }
 
-// launchGUI 启动 GUI 程序
+// launchGUI launches the GUI program
 func launchGUI() error {
 	exePath, err := os.Executable()
 	if err != nil {
-		return fmt.Errorf("获取可执行文件路径失败: %v", err)
+		return fmt.Errorf("failed to get executable path: %v", err)
 	}
 
 	exeDir := filepath.Dir(exePath)
@@ -1841,7 +1841,7 @@ func launchGUI() error {
 	if _, err := os.Stat(guiPath); os.IsNotExist(err) {
 		guiPath = filepath.Join(exeDir, "..", "BS2PRO-Controller.exe")
 		if _, err := os.Stat(guiPath); os.IsNotExist(err) {
-			return fmt.Errorf("GUI 程序不存在: %s", guiPath)
+			return fmt.Errorf("GUI program not found: %s", guiPath)
 		}
 	}
 
@@ -1851,11 +1851,11 @@ func launchGUI() error {
 	}
 
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("启动 GUI 程序失败: %v", err)
+		return fmt.Errorf("failed to launch GUI program: %v", err)
 	}
 
-	// 使用 fmt 而非日志系统，避免循环依赖
-	fmt.Printf("GUI 程序已启动，PID: %d\n", cmd.Process.Pid)
+	// Use fmt instead of logging system to avoid circular dependency
+	fmt.Printf("GUI program launched, PID: %d\n", cmd.Process.Pid)
 
 	go func() {
 		cmd.Wait()

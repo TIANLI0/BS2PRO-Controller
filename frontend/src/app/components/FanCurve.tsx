@@ -75,7 +75,7 @@ const TemperatureIndicator = memo(function TemperatureIndicator({
     <svg className="absolute inset-0 pointer-events-none overflow-visible" style={{ width: '100%', height: '100%' }}>
       <line x1={position.x} y1={position.top} x2={position.x} y2={position.top + position.height} stroke="var(--chart-temperature-indicator)" strokeWidth={2} strokeDasharray="5 5" />
       <rect x={position.x - 45} y={position.top - 22} width={90} height={20} rx={4} fill="var(--chart-temperature-indicator)" />
-      <text x={position.x} y={position.top - 8} textAnchor="middle" fill="white" fontSize={11} fontWeight={500}>当前 {temperature}°C</text>
+      <text x={position.x} y={position.top - 8} textAnchor="middle" fill="white" fontSize={11} fontWeight={500}>Current {temperature}°C</text>
     </svg>
   );
 });
@@ -88,7 +88,7 @@ const ConfigTooltipLabel = memo(function ConfigTooltipLabel({ label, description
       <span>{label}</span>
       <Tooltip>
         <TooltipTrigger asChild>
-          <button type="button" className="inline-flex cursor-pointer items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground" aria-label={`${label}说明`}>
+          <button type="button" className="inline-flex cursor-pointer items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground" aria-label={`${label} info`}>
             <Info className="h-3.5 w-3.5" />
           </button>
         </TooltipTrigger>
@@ -386,14 +386,14 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
     try {
       setIsSaving(true);
       const profileID = activeProfileId || (((config as any).activeFanCurveProfileId || '') as string);
-      const profileName = activeProfile?.name || '当前曲线';
+      const profileName = activeProfile?.name || 'Current Curve';
       await apiService.saveFanCurveProfile(profileID, profileName, localCurve, true);
       await loadCurveProfiles();
       await syncConfigFromBackend();
       setHasUnsavedChanges(false);
       return true;
     } catch (e) {
-      toast.error(`保存曲线失败: ${e}`);
+      toast.error(`Failed to save curve: ${e}`);
       return false;
     } finally {
       setIsSaving(false);
@@ -437,16 +437,16 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
       await apiService.setActiveFanCurveProfile(id);
       await loadCurveProfiles();
       await syncConfigFromBackend();
-      toast.success('温控曲线已切换');
+      toast.success('Fan curve profile switched');
     } catch (e) {
-      toast.error(`切换失败: ${e}`);
+      toast.error(`Failed to switch: ${e}`);
     } finally {
       setProfileOpLoading(false);
     }
   }, [loadCurveProfiles, syncConfigFromBackend]);
 
   const saveCurrentProfileName = useCallback(async () => {
-    const fallbackName = activeProfile?.name || '当前曲线';
+    const fallbackName = activeProfile?.name || 'Current Curve';
     const safeName = getSafeProfileName(profileNameInput, fallbackName);
     try {
       setProfileOpLoading(true);
@@ -454,9 +454,9 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
       await apiService.saveFanCurveProfile(activeProfileId, safeName, profileCurve, false);
       await loadCurveProfiles();
       await syncConfigFromBackend();
-      toast.success('方案命名已更新');
+      toast.success('Profile name updated');
     } catch (e) {
-      toast.error(`更新命名失败: ${e}`);
+      toast.error(`Failed to update name: ${e}`);
     } finally {
       setProfileOpLoading(false);
     }
@@ -466,16 +466,16 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
     const rawName = (profileNameInput || '').trim();
     const activeName = (activeProfile?.name || '').trim();
     const shouldUseDefaultNewName = !rawName || rawName === activeName;
-    const safeName = shouldUseDefaultNewName ? '新曲线' : getSafeProfileName(rawName, '新曲线');
+    const safeName = shouldUseDefaultNewName ? 'New Curve' : getSafeProfileName(rawName, 'New Curve');
     try {
       setProfileOpLoading(true);
       await apiService.saveFanCurveProfile('', safeName, localCurve, true);
       await loadCurveProfiles();
       await syncConfigFromBackend();
       setProfileNameInput('');
-      toast.success('已另存为新方案');
+      toast.success('Saved as new profile');
     } catch (e) {
-      toast.error(`另存失败: ${e}`);
+      toast.error(`Failed to save as new: ${e}`);
     } finally {
       setProfileOpLoading(false);
     }
@@ -488,9 +488,9 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
       await apiService.deleteFanCurveProfile(activeProfileId);
       await loadCurveProfiles();
       await syncConfigFromBackend();
-      toast.success('已删除曲线方案');
+      toast.success('Curve profile deleted');
     } catch (e) {
-      toast.error(`删除失败: ${e}`);
+      toast.error(`Failed to delete: ${e}`);
     } finally {
       setProfileOpLoading(false);
     }
@@ -509,19 +509,19 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
       setExportCode(code);
       if (navigator?.clipboard?.writeText) {
         await navigator.clipboard.writeText(code);
-        toast.success('导出字符串已复制');
+        toast.success('Export string copied');
       } else {
-        toast.success('导出字符串已生成');
+        toast.success('Export string generated');
       }
     } catch (e) {
-      toast.error(`导出失败: ${e}`);
+      toast.error(`Export failed: ${e}`);
     }
   }, [hasUnsavedChanges, loadCurveProfiles, persistCurrentCurve]);
 
   const importProfiles = useCallback(async () => {
     const code = importCode.trim();
     if (!code) {
-      toast.error('请先粘贴导入字符串');
+      toast.error('Please paste the import string first');
       return;
     }
     try {
@@ -530,9 +530,9 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
       await loadCurveProfiles();
       await syncConfigFromBackend();
       setImportCode('');
-      toast.success('曲线方案导入成功');
+      toast.success('Curve profiles imported successfully');
     } catch (e) {
-      toast.error(`导入失败: ${e}`);
+      toast.error(`Import failed: ${e}`);
     } finally {
       setProfileOpLoading(false);
     }
@@ -630,7 +630,7 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
   }, [manualGearPresets]);
 
   const selectedManualPointIndex = useMemo(() => {
-    const selected = manualPoints.findIndex((p) => p.gear === (config.manualGear || '标准') && p.level === (config.manualLevel || '中'));
+    const selected = manualPoints.findIndex((p) => p.gear === (config.manualGear || 'Standard') && p.level === (config.manualLevel || 'Mid'));
     return selected >= 0 ? selected : 4;
   }, [config.manualGear, config.manualLevel, manualPoints]);
 
@@ -661,9 +661,9 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
 
   const handleGearCardSelect = useCallback(async (gear: string) => {
     const rememberedLevel = rememberedManualGearLevels[gear];
-    const nextLevel = rememberedLevel === '低' || rememberedLevel === '中' || rememberedLevel === '高'
+    const nextLevel = rememberedLevel === 'Low' || rememberedLevel === 'Mid' || rememberedLevel === 'High'
       ? rememberedLevel
-      : (config.manualLevel || '中');
+      : (config.manualLevel || 'Mid');
     await applyManualGearPreset(gear, nextLevel);
   }, [applyManualGearPreset, config, rememberedManualGearLevels]);
 
@@ -690,9 +690,9 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <Spline className="h-4 w-4 text-primary" />
-              <h2 className="text-base font-semibold text-foreground">风扇曲线</h2>
-              {hasUnsavedChanges && <Badge variant="warning">未保存</Badge>}
-              {isInteracting && <Badge variant="info">编辑中</Badge>}
+              <h2 className="text-base font-semibold text-foreground">Fan Curve</h2>
+              {hasUnsavedChanges && <Badge variant="warning">Unsaved</Badge>}
+              {isInteracting && <Badge variant="info">Editing</Badge>}
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -702,7 +702,7 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
                 onChange={switchProfile}
                 loading={profileOpLoading}
               />
-              <ToggleSwitch enabled={config.autoControl} onChange={handleAutoControlChange} label="智能变频" size="sm" color="blue" />
+              <ToggleSwitch enabled={config.autoControl} onChange={handleAutoControlChange} label="Smart Speed" size="sm" color="blue" />
             </div>
           </div>
         </motion.div>
@@ -713,15 +713,15 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
               <div className="rounded-2xl border border-border/70 bg-card p-4 space-y-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">手动挡位</span>
-                  <span className="text-xs text-muted-foreground">12 控制点滑块</span>
+                  <span className="text-sm font-medium">Manual Gear</span>
+                  <span className="text-xs text-muted-foreground">12 control point slider</span>
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {manualGearPresets.map((preset) => {
-                    const isActiveGear = (config.manualGear || '标准') === preset.gear;
+                    const isActiveGear = (config.manualGear || 'Standard') === preset.gear;
                     const rememberedLevel = isActiveGear
-                      ? (config.manualLevel || '中')
+                      ? (config.manualLevel || 'Mid')
                       : rememberedManualGearLevels[preset.gear];
                     const activeLevel = preset.levels.find((l) => l.level === rememberedLevel) ?? preset.levels[1];
                     return (
@@ -772,7 +772,7 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
                   <div className="flex items-start justify-between px-2 text-[11px]">
                     {manualPoints.map((point) => (
                       <span key={`${point.key}-label`} className={clsx('w-6 text-center truncate', point.colorClass)}>
-                        {point.levelIndex + 1}档
+                        G{point.levelIndex + 1}
                       </span>
                     ))}
                   </div>
@@ -791,11 +791,11 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-                <XAxis dataKey="temperature" type="number" domain={[temperatureRange.min, temperatureRange.max]} ticks={temperatureRange.ticks} tickLine={false} axisLine={{ stroke: 'var(--chart-axis)' }} tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} allowDataOverflow label={{ value: '温度 (°C)', position: 'insideBottom', offset: -10, fill: 'var(--chart-tick)', fontSize: 12 }} />
-                <YAxis type="number" domain={[rpmRange.min, rpmRange.max]} ticks={rpmRange.ticks} tickLine={false} axisLine={{ stroke: 'var(--chart-axis)' }} tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} allowDataOverflow label={{ value: '转速 (RPM)', angle: -90, position: 'insideLeft', fill: 'var(--chart-tick)', fontSize: 12 }} />
+                <XAxis dataKey="temperature" type="number" domain={[temperatureRange.min, temperatureRange.max]} ticks={temperatureRange.ticks} tickLine={false} axisLine={{ stroke: 'var(--chart-axis)' }} tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} allowDataOverflow label={{ value: 'Temp (°C)', position: 'insideBottom', offset: -10, fill: 'var(--chart-tick)', fontSize: 12 }} />
+                <YAxis type="number" domain={[rpmRange.min, rpmRange.max]} ticks={rpmRange.ticks} tickLine={false} axisLine={{ stroke: 'var(--chart-axis)' }} tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} allowDataOverflow label={{ value: 'Speed (RPM)', angle: -90, position: 'insideLeft', fill: 'var(--chart-tick)', fontSize: 12 }} />
                 <RechartsTooltip
-                  formatter={(value: number, name: string) => name === 'coupledRpm' ? [`${value} RPM`, '学习曲线'] : [`${value} RPM`, '基础曲线']}
-                  labelFormatter={(v) => `温度: ${v}°C`}
+                  formatter={(value: number, name: string) => name === 'coupledRpm' ? [`${value} RPM`, 'Learned Curve'] : [`${value} RPM`, 'Base Curve']}
+                  labelFormatter={(v) => `Temp: ${v}°C`}
                   contentStyle={{ backgroundColor: 'var(--chart-tooltip-bg)', border: '1px solid', borderColor: 'var(--chart-tooltip-border)', borderRadius: '8px', boxShadow: 'var(--chart-tooltip-shadow)', padding: '8px 12px', color: 'var(--chart-tooltip-text)' }}
                   labelStyle={{ color: 'var(--chart-tooltip-text)', fontWeight: 600 }}
                   itemStyle={{ color: 'var(--chart-tooltip-text)' }}
@@ -811,19 +811,19 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
         {/* ── Tips + Actions ── */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap gap-2">
-            <span className="rounded-full border border-border/70 bg-background/60 px-3 py-1 text-[11px] text-muted-foreground backdrop-blur-lg">拖拽蓝色圆点调整转速</span>
-            {showCoupledCurve && <span className="rounded-full border border-border/70 bg-background/60 px-3 py-1 text-[11px] text-muted-foreground backdrop-blur-lg">实线: 基础 · 虚线: 学习</span>}
+            <span className="rounded-full border border-border/70 bg-background/60 px-3 py-1 text-[11px] text-muted-foreground backdrop-blur-lg">Drag blue dots to adjust speed</span>
+            {showCoupledCurve && <span className="rounded-full border border-border/70 bg-background/60 px-3 py-1 text-[11px] text-muted-foreground backdrop-blur-lg">Solid: Base · Dashed: Learned</span>}
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="secondary" size="sm" onClick={resetCurve} icon={<RotateCw className="h-3.5 w-3.5" />}>重置</Button>
-            <Button variant="primary" size="sm" onClick={saveCurve} disabled={!hasUnsavedChanges} loading={isSaving} icon={<Check className="h-3.5 w-3.5" />}>保存</Button>
+            <Button variant="secondary" size="sm" onClick={resetCurve} icon={<RotateCw className="h-3.5 w-3.5" />}>Reset</Button>
+            <Button variant="primary" size="sm" onClick={saveCurve} disabled={!hasUnsavedChanges} loading={isSaving} icon={<Check className="h-3.5 w-3.5" />}>Save</Button>
           </div>
         </div>
 
         <section className="rounded-2xl border border-border/70 bg-card p-4 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">曲线方案</span>
+              <span className="text-sm font-medium">Curve Profiles</span>
             </div>
           </div>
 
@@ -851,13 +851,13 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
                 onChange={(e) => handleProfileNameInputChange(e.target.value, Boolean((e.nativeEvent as InputEvent).isComposing))}
                 onCompositionStart={handleProfileNameCompositionStart}
                 onCompositionEnd={(e) => handleProfileNameCompositionEnd(e.currentTarget.value)}
-                placeholder="当前方案命名（最多6字）"
+                placeholder="Profile name (max 6 chars)"
                 className="h-10"
               />
             </div>
-            <Button variant="secondary" size="sm" onClick={saveCurrentProfileName} loading={profileOpLoading} icon={<Check className="h-3.5 w-3.5" />}>保存命名</Button>
-            <Button variant="secondary" size="sm" onClick={createNewProfile} loading={profileOpLoading} icon={<Plus className="h-3.5 w-3.5" />}>另存为新方案</Button>
-            <Button variant="danger" size="sm" onClick={removeActiveProfile} loading={profileOpLoading} icon={<Trash2 className="h-3.5 w-3.5" />} disabled={curveProfiles.length <= 1}>删除当前方案</Button>
+            <Button variant="secondary" size="sm" onClick={saveCurrentProfileName} loading={profileOpLoading} icon={<Check className="h-3.5 w-3.5" />}>Save Name</Button>
+            <Button variant="secondary" size="sm" onClick={createNewProfile} loading={profileOpLoading} icon={<Plus className="h-3.5 w-3.5" />}>Save as New</Button>
+            <Button variant="danger" size="sm" onClick={removeActiveProfile} loading={profileOpLoading} icon={<Trash2 className="h-3.5 w-3.5" />} disabled={curveProfiles.length <= 1}>Delete Profile</Button>
           </div>
         </section>
 
@@ -867,17 +867,17 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
               <div className="rounded-2xl border border-border/70 bg-card p-4 space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <span className="text-sm font-medium">智能学习控温</span>
+                  <span className="text-sm font-medium">Smart Learning Control</span>
                   <ToggleSwitch
                     enabled={config.debugMode && smartControl.enabled}
                     onChange={(e) => {
                       if (e && !config.debugMode) {
-                        toast.error('学习模式暂不稳定，请先开启调试模式后再启用。');
+                        toast.error('Learning mode is unstable. Please enable debug mode first.');
                         return;
                       }
                       updateSmartControl({ enabled: config.debugMode && e });
                     }}
-                    label="启用"
+                    label="Enable"
                     size="sm"
                     color="blue"
                   />
@@ -896,13 +896,13 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="space-y-1.5">
                           <div className="flex items-center justify-between text-xs text-muted-foreground">
-                            <ConfigTooltipLabel label="响应风格" description="静音更稳重，性能更激进。" />
+                            <ConfigTooltipLabel label="Response Style" description="Quiet is more stable, Performance is more aggressive." />
                           </div>
                           <div className="grid grid-cols-3 gap-1 rounded-xl border border-border/70 bg-background/40 p-1">
                             {([
-                              { key: 'quiet', label: '静音' },
-                              { key: 'balanced', label: '平衡' },
-                              { key: 'performance', label: '性能' },
+                              { key: 'quiet', label: 'Quiet' },
+                              { key: 'balanced', label: 'Balanced' },
+                              { key: 'performance', label: 'Performance' },
                             ] as const).map((option) => (
                               <button
                                 key={option.key}
@@ -922,14 +922,14 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
                         </div>
                         <div className="space-y-1.5">
                           <div className="flex items-center justify-between text-xs text-muted-foreground">
-                            <ConfigTooltipLabel label="目标温度" description="智能控制会尽量把温度稳定在这个值附近。" />
+                            <ConfigTooltipLabel label="Target Temp" description="Smart control will try to stabilize temperature around this value." />
                             <span>{smartControl.targetTemp}°C</span>
                           </div>
                           <Slider value={smartControl.targetTemp} onChange={(v) => updateSmartControl({ targetTemp: v })} min={55} max={85} step={1} showValue={false} />
                         </div>
                         <div className="space-y-1.5">
                           <div className="flex items-center justify-between text-xs text-muted-foreground">
-                            <ConfigTooltipLabel label="抗尖峰强度" description="越高越能忽略 1-2 秒温度尖峰，但会稍慢响应真实升温。" />
+                            <ConfigTooltipLabel label="Anti-spike" description="Higher values ignore 1-2 second temperature spikes, but slow down response to real temperature rises." />
                             <span>{smartControl.hysteresis}</span>
                           </div>
                           <Slider value={smartControl.hysteresis} onChange={(v) => updateSmartControl({ hysteresis: v })} min={1} max={6} step={1} showValue={false} />
@@ -939,14 +939,14 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-1.5">
                           <div className="flex items-center justify-between text-xs text-muted-foreground">
-                            <ConfigTooltipLabel label="学习速率" description="学习偏移更新速度，建议保持中等。" />
+                            <ConfigTooltipLabel label="Learn Rate" description="Learning offset update speed. Recommended to keep at medium." />
                             <span>{smartControl.learnRate}</span>
                           </div>
                           <Slider value={smartControl.learnRate} onChange={(v) => updateSmartControl({ learnRate: v })} min={1} max={10} step={1} showValue={false} />
                         </div>
                         <div className="space-y-1.5">
                           <div className="flex items-center justify-between text-xs text-muted-foreground">
-                            <ConfigTooltipLabel label="学习范围" description="允许学习偏移的最大幅度，过高会导致偏离用户曲线。" />
+                            <ConfigTooltipLabel label="Learn Range" description="Maximum allowed learning offset. Too high may deviate from user curve." />
                             <span>{smartControl.maxLearnOffset} RPM</span>
                           </div>
                           <Slider value={smartControl.maxLearnOffset} onChange={(v) => updateSmartControl({ maxLearnOffset: v })} min={100} max={1200} step={50} showValue={false} />
@@ -954,21 +954,21 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
                       </div>
 
                       <div className="flex justify-end">
-                        <Button variant="secondary" size="sm" onClick={resetLearning}>重置学习</Button>
+                        <Button variant="secondary" size="sm" onClick={resetLearning}>Reset Learning</Button>
                       </div>
 
                       {/* Learning visualization */}
                       <div className="rounded-xl border border-border/70 bg-muted/30 p-3 space-y-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="text-xs font-medium text-muted-foreground">学习状态</span>
-                          <span className="text-xs text-muted-foreground">温区 {learningInsight.currentTempLabel}</span>
+                          <span className="text-xs font-medium text-muted-foreground">Learning Status</span>
+                          <span className="text-xs text-muted-foreground">Temp Zone {learningInsight.currentTempLabel}</span>
                         </div>
 
                         <div className="grid grid-cols-3 gap-2">
                           {[
-                            ['当前偏移', `${learningInsight.currentOffset > 0 ? '+' : ''}${learningInsight.currentOffset} RPM`, learningInsight.currentOffset > 0 ? 'text-amber-600' : learningInsight.currentOffset < 0 ? 'text-primary' : ''],
-                            ['平均强度', `${learningInsight.avgAbsOffset} RPM`, ''],
-                            ['最大偏移', `${learningInsight.maxAbsOffset} RPM`, ''],
+                            ['Current Offset', `${learningInsight.currentOffset > 0 ? '+' : ''}${learningInsight.currentOffset} RPM`, learningInsight.currentOffset > 0 ? 'text-amber-600' : learningInsight.currentOffset < 0 ? 'text-primary' : ''],
+                            ['Avg Intensity', `${learningInsight.avgAbsOffset} RPM`, ''],
+                            ['Max Offset', `${learningInsight.maxAbsOffset} RPM`, ''],
                           ].map(([label, value, clr]) => (
                             <div key={label} className="rounded-lg bg-card px-3 py-2">
                               <div className="text-[11px] text-muted-foreground">{label}</div>
@@ -987,7 +987,7 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
                             ))}
                           </div>
                         ) : (
-                          <p className="text-xs text-muted-foreground">暂未形成显著偏移（|偏移| &lt; 20 RPM）。</p>
+                          <p className="text-xs text-muted-foreground">No significant offset formed yet (|offset| &lt; 20 RPM).</p>
                         )}
                       </div>
                     </motion.div>
@@ -1000,16 +1000,16 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
 
         <section className="rounded-2xl border border-border/70 bg-card p-4 space-y-3">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-sm font-medium">导入 / 导出曲线方案</span>
-            <span className="text-xs text-muted-foreground">可复制粘贴短字符串</span>
+            <span className="text-sm font-medium">Import / Export Curve Profiles</span>
+            <span className="text-xs text-muted-foreground">Copy and paste short strings</span>
           </div>
 
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <div className="space-y-2 rounded-xl border border-border/70 bg-background/30 p-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-muted-foreground">导出</span>
+                <span className="text-xs font-medium text-muted-foreground">Export</span>
                 <div className="flex items-center gap-2">
-                  <Button variant="secondary" size="sm" onClick={exportProfiles} icon={<Download className="h-3.5 w-3.5" />}>生成</Button>
+                  <Button variant="secondary" size="sm" onClick={exportProfiles} icon={<Download className="h-3.5 w-3.5" />}>Generate</Button>
                   <Button
                     variant="outline"
                     size="sm"
@@ -1017,13 +1017,13 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
                       if (!exportCode) return;
                       if (navigator?.clipboard?.writeText) {
                         await navigator.clipboard.writeText(exportCode);
-                        toast.success('已复制导出字符串');
+                        toast.success('Export string copied');
                       }
                     }}
                     icon={<Clipboard className="h-3.5 w-3.5" />}
                     disabled={!exportCode}
                   >
-                    复制
+                    Copy
                   </Button>
                 </div>
               </div>
@@ -1032,21 +1032,21 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
                 readOnly
                 rows={3}
                 className="w-full rounded-lg border border-border/70 bg-background px-3 py-2 text-xs leading-relaxed"
-                placeholder="点击“生成”后显示导出字符串"
+                placeholder="Click 'Generate' to display export string"
               />
             </div>
 
             <div className="space-y-2 rounded-xl border border-border/70 bg-background/30 p-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-muted-foreground">导入</span>
-                <Button variant="secondary" size="sm" onClick={importProfiles} loading={profileOpLoading} icon={<Upload className="h-3.5 w-3.5" />}>导入</Button>
+                <span className="text-xs font-medium text-muted-foreground">Import</span>
+                <Button variant="secondary" size="sm" onClick={importProfiles} loading={profileOpLoading} icon={<Upload className="h-3.5 w-3.5" />}>Import</Button>
               </div>
               <textarea
                 value={importCode}
                 onChange={(e) => setImportCode(e.target.value)}
                 rows={3}
                 className="w-full rounded-lg border border-border/70 bg-background px-3 py-2 text-xs leading-relaxed"
-                placeholder="粘贴 B2C1. 开头的导入字符串"
+                placeholder="Paste import string starting with B2C1."
               />
             </div>
           </div>
@@ -1073,14 +1073,14 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
                   </div>
                 </div>
 
-                <h3 className="mb-3 text-center text-lg font-bold text-foreground">注意</h3>
+                <h3 className="mb-3 text-center text-lg font-bold text-foreground">Warning</h3>
                 <p className="mb-6 rounded-xl border border-amber-300/40 bg-amber-500/10 p-4 text-sm leading-relaxed text-foreground">
-                  低于1000转非飞智官方设计最低转速标准，由此引发的任何问题需要由用户自行承担！
+                  Below 1000 RPM is not the officially designed minimum speed. Any issues arising from this are at the user's own risk!
                 </p>
 
                 <div className="flex justify-end">
                   <Button variant="secondary" size="sm" onClick={() => setShowLowRpmWarning(false)}>
-                    我已知悉
+                    I Understand
                   </Button>
                 </div>
               </motion.div>

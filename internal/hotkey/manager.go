@@ -10,7 +10,7 @@ import (
 	hotkeylib "golang.design/x/hotkey"
 )
 
-// Action 定义快捷键触发的动作。
+// Action defines the action triggered by a hotkey.
 type Action string
 
 const (
@@ -19,7 +19,7 @@ const (
 	ActionToggleCurveProfile Action = "toggle-curve-profile"
 )
 
-// Manager 负责注册/更新/注销全局快捷键。
+// Manager is responsible for registering/updating/unregistering global hotkeys.
 type Manager struct {
 	logger   types.Logger
 	onAction func(action Action, shortcut string)
@@ -35,7 +35,7 @@ type binding struct {
 	stopChan chan struct{}
 }
 
-// NewManager 创建快捷键管理器。
+// NewManager creates a hotkey manager.
 func NewManager(logger types.Logger, onAction func(action Action, shortcut string)) *Manager {
 	return &Manager{
 		logger:   logger,
@@ -44,7 +44,7 @@ func NewManager(logger types.Logger, onAction func(action Action, shortcut strin
 	}
 }
 
-// UpdateBindings 根据配置更新快捷键绑定。
+// UpdateBindings updates hotkey bindings based on configuration.
 func (m *Manager) UpdateBindings(manualGearShortcut, autoControlShortcut, curveProfileShortcut string) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -70,7 +70,7 @@ func (m *Manager) UpdateBindings(manualGearShortcut, autoControlShortcut, curveP
 	return nil
 }
 
-// Stop 释放所有快捷键资源。
+// Stop releases all hotkey resources.
 func (m *Manager) Stop() {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -101,12 +101,12 @@ func (m *Manager) setBinding(action Action, shortcut string) error {
 
 	mods, key, err := ParseShortcut(shortcut)
 	if err != nil {
-		return fmt.Errorf("%s 快捷键无效: %w", action, err)
+		return fmt.Errorf("%s invalid shortcut: %w", action, err)
 	}
 
 	hk := hotkeylib.New(mods, key)
 	if err := hk.Register(); err != nil {
-		return fmt.Errorf("%s 注册失败(%s): %w", action, shortcut, err)
+		return fmt.Errorf("%s registration failed (%s): %w", action, shortcut, err)
 	}
 
 	b := &binding{
@@ -117,7 +117,7 @@ func (m *Manager) setBinding(action Action, shortcut string) error {
 	m.bindings[action] = b
 
 	go m.listen(action, b)
-	m.logInfo("快捷键已注册: %s -> %s", action, shortcut)
+	m.logInfo("Hotkey registered: %s -> %s", action, shortcut)
 	return nil
 }
 
@@ -128,7 +128,7 @@ func (m *Manager) unregisterBinding(action Action) {
 	}
 	close(b.stopChan)
 	if err := b.hk.Unregister(); err != nil {
-		m.logDebug("快捷键注销失败: %s (%v)", action, err)
+		m.logDebug("Hotkey unregister failed: %s (%v)", action, err)
 	}
 	delete(m.bindings, action)
 }
@@ -146,7 +146,7 @@ func (m *Manager) listen(action Action, b *binding) {
 	}
 }
 
-// ParseShortcut 解析快捷键字符串，支持 Ctrl/Alt/Shift/Win + A-Z/0-9/F1-F12。
+// ParseShortcut parses a shortcut string, supporting Ctrl/Alt/Shift/Win + A-Z/0-9/F1-F12.
 func ParseShortcut(input string) ([]hotkeylib.Modifier, hotkeylib.Key, error) {
 	normalized := normalizeShortcut(input)
 	if normalized == "" {

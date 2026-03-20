@@ -16,8 +16,8 @@ func capturePanic(app *CoreApp, source string, recovered any) string {
 	logDir := resolveCrashLogDir(app)
 
 	if err := os.MkdirAll(logDir, 0755); err != nil {
-		fmt.Fprintf(os.Stderr, "创建崩溃日志目录失败: %v\n", err)
-		fmt.Fprintf(os.Stderr, "panic来源: %s, panic: %v\n%s\n", source, recovered, string(stack))
+		fmt.Fprintf(os.Stderr, "Failed to create crash log directory: %v\n", err)
+		fmt.Fprintf(os.Stderr, "panic source: %s, panic: %v\n%s\n", source, recovered, string(stack))
 		return ""
 	}
 
@@ -36,20 +36,20 @@ func capturePanic(app *CoreApp, source string, recovered any) string {
 	builder.WriteString("\n")
 
 	if err := os.WriteFile(filePath, []byte(builder.String()), 0644); err != nil {
-		fmt.Fprintf(os.Stderr, "写入崩溃报告失败: %v\n", err)
-		fmt.Fprintf(os.Stderr, "panic来源: %s, panic: %v\n%s\n", source, recovered, string(stack))
+		fmt.Fprintf(os.Stderr, "Failed to write crash report: %v\n", err)
+		fmt.Fprintf(os.Stderr, "panic source: %s, panic: %v\n%s\n", source, recovered, string(stack))
 		return ""
 	}
 
 	if app != nil {
-		app.logError("[%s] 捕获到panic: %v", source, recovered)
-		app.logError("[%s] panic堆栈:\n%s", source, string(stack))
+		app.logError("[%s] Caught panic: %v", source, recovered)
+		app.logError("[%s] Panic stack trace:\n%s", source, string(stack))
 		if app.logger != nil {
 			app.logger.Close()
 		}
 	}
 
-	fmt.Fprintf(os.Stderr, "程序发生panic，崩溃报告已写入: %s\n", filePath)
+	fmt.Fprintf(os.Stderr, "Program panic occurred, crash report written to: %s\n", filePath)
 	return filePath
 }
 

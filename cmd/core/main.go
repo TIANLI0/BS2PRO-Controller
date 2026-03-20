@@ -29,7 +29,7 @@ func main() {
 		}
 	}()
 
-	// 检测命令行参数
+	// Parse command line arguments
 	debugMode := false
 	isAutoStart := false
 
@@ -42,23 +42,23 @@ func main() {
 		}
 	}
 
-	// 创建核心应用
+	// Create core application
 	app = NewCoreApp(debugMode, isAutoStart)
 
-	// 启动应用
+	// Start application
 	if err := app.Start(); err != nil {
-		panic(fmt.Sprintf("启动核心服务失败: %v", err))
+		panic(fmt.Sprintf("Failed to start core service: %v", err))
 	}
 
-	// 等待退出信号
+	// Wait for exit signal
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	select {
 	case <-sigChan:
-		app.logInfo("收到系统退出信号")
+		app.logInfo("Received system exit signal")
 	case <-app.quitChan:
-		app.logInfo("收到应用退出请求")
+		app.logInfo("Received application quit request")
 	}
 
 	app.Stop()

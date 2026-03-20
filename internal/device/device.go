@@ -1,4 +1,4 @@
-// Package device 提供 HID 设备通信功能
+// Package device provides HID device communication functionality
 package device
 
 import (
@@ -13,52 +13,52 @@ import (
 )
 
 const (
-	// VendorID 设备厂商ID
+	// VendorID device vendor ID
 	VendorID = 0x37D7
-	// ProductID1 产品ID 1 BS2PRO
+	// ProductID1 product ID 1 BS2PRO
 	ProductID1 = 0x1002
-	// ProductID2 产品ID 2 BS2
+	// ProductID2 product ID 2 BS2
 	ProductID2 = 0x1001
 )
 
-// Manager HID 设备管理器
+// Manager HID device manager
 type Manager struct {
 	device         *hid.Device
 	isConnected    bool
-	productID      uint16 // 当前连接的产品ID
+	productID      uint16 // Currently connected product ID
 	mutex          sync.RWMutex
 	logger         types.Logger
 	currentFanData *types.FanData
 
-	// 回调函数
+	// Callback functions
 	onFanDataUpdate func(data *types.FanData)
 	onDisconnect    func()
 }
 
-// NewManager 创建新的设备管理器
+// NewManager creates a new device manager
 func NewManager(logger types.Logger) *Manager {
 	return &Manager{
 		logger: logger,
 	}
 }
 
-// SetCallbacks 设置回调函数
+// SetCallbacks sets callback functions
 func (m *Manager) SetCallbacks(onFanDataUpdate func(data *types.FanData), onDisconnect func()) {
 	m.onFanDataUpdate = onFanDataUpdate
 	m.onDisconnect = onDisconnect
 }
 
-// Init 初始化 HID 库
+// Init initializes the HID library
 func (m *Manager) Init() error {
 	return hid.Init()
 }
 
-// Exit 清理 HID 库
+// Exit cleans up the HID library
 func (m *Manager) Exit() error {
 	return hid.Exit()
 }
 
-// Connect 连接 HID 设备
+// Connect connects to the HID device
 func (m *Manager) Connect() (bool, map[string]string) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -73,20 +73,20 @@ func (m *Manager) Connect() (bool, map[string]string) {
 
 	var connectedProductID uint16
 	for _, productID := range productIDs {
-		m.logInfo("正在连接设备 - 厂商ID: 0x%04X, 产品ID: 0x%04X", VendorID, productID)
+		m.logInfo("Connecting to device - Vendor ID: 0x%04X, Product ID: 0x%04X", VendorID, productID)
 
 		device, err = hid.OpenFirst(VendorID, productID)
 		if err == nil {
-			m.logInfo("成功连接到产品ID: 0x%04X", productID)
+			m.logInfo("Successfully connected to Product ID: 0x%04X", productID)
 			connectedProductID = productID
 			break
 		} else {
-			m.logError("产品ID 0x%04X 连接失败: %v", productID, err)
+			m.logError("Product ID 0x%04X connection failed: %v", productID, err)
 		}
 	}
 
 	if err != nil {
-		m.logError("所有设备连接尝试都失败")
+		m.logError("All device connection attempts failed")
 		return false, nil
 	}
 
@@ -99,11 +99,11 @@ func (m *Manager) Connect() (bool, map[string]string) {
 		modelName = "BS2"
 	}
 
-	// 获取设备信息
+	// Get device info
 	deviceInfo, err := device.GetDeviceInfo()
 	var info map[string]string
 	if err == nil {
-		m.logInfo("设备连接成功: %s %s (型号: %s)", deviceInfo.MfrStr, deviceInfo.ProductStr, modelName)
+		m.logInfo("Device connected: %s %s (Model: %s)", deviceInfo.MfrStr, deviceInfo.ProductStr, modelName)
 		info = map[string]string{
 			"manufacturer": deviceInfo.MfrStr,
 			"product":      deviceInfo.ProductStr,
@@ -112,7 +112,7 @@ func (m *Manager) Connect() (bool, map[string]string) {
 			"productId":    fmt.Sprintf("0x%04X", connectedProductID),
 		}
 	} else {
-		m.logError("设备连接成功,但获取设备信息失败: %v", err)
+		m.logError("Device connected, but failed to get device info: %v", err)
 		info = map[string]string{
 			"manufacturer": "Unknown",
 			"product":      modelName,
@@ -122,13 +122,13 @@ func (m *Manager) Connect() (bool, map[string]string) {
 		}
 	}
 
-	// 开始监控设备数据
+	// Start monitoring device data
 	go m.monitorDeviceData()
 
 	return true, info
 }
 
-// Disconnect 断开设备连接
+// Disconnect disconnects the device
 func (m *Manager) Disconnect() {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -137,35 +137,35 @@ func (m *Manager) Disconnect() {
 		return
 	}
 
-	// 关闭设备
+	// Close device
 	if m.device != nil {
 		m.device.Close()
 		m.device = nil
 	}
 
 	m.isConnected = false
-	m.logInfo("设备连接已断开")
+	m.logInfo("Device disconnected")
 
 	if m.onDisconnect != nil {
 		m.onDisconnect()
 	}
 }
 
-// IsConnected 检查设备是否已连接
+// IsConnected checks if the device is connected
 func (m *Manager) IsConnected() bool {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 	return m.isConnected
 }
 
-// GetProductID 获取当前连接设备的产品ID
+// GetProductID gets the product ID of the currently connected device
 func (m *Manager) GetProductID() uint16 {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 	return m.productID
 }
 
-// GetModelName 获取当前连接设备的型号名称
+// GetModelName gets the model name of the currently connected device
 func (m *Manager) GetModelName() string {
 	productID := m.GetProductID()
 	if productID == ProductID2 {
@@ -177,14 +177,14 @@ func (m *Manager) GetModelName() string {
 	return "Unknown"
 }
 
-// GetCurrentFanData 获取当前风扇数据
+// GetCurrentFanData gets the current fan data
 func (m *Manager) GetCurrentFanData() *types.FanData {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 	return m.currentFanData
 }
 
-// monitorDeviceData 监控设备数据
+// monitorDeviceData monitors device data
 func (m *Manager) monitorDeviceData() {
 	m.mutex.RLock()
 	if !m.isConnected || m.device == nil {
@@ -193,10 +193,10 @@ func (m *Manager) monitorDeviceData() {
 	}
 	m.mutex.RUnlock()
 
-	// 设置非阻塞模式
+	// Set non-blocking mode
 	err := m.device.SetNonblock(true)
 	if err != nil {
-		m.logError("设置非阻塞模式失败: %v", err)
+		m.logError("Failed to set non-blocking mode: %v", err)
 	}
 
 	buffer := make([]byte, 64)
@@ -210,34 +210,34 @@ func (m *Manager) monitorDeviceData() {
 		m.mutex.RUnlock()
 
 		if !connected || device == nil {
-			m.logInfo("设备已断开，停止数据监控")
+			m.logInfo("Device disconnected, stopping data monitoring")
 			break
 		}
 
 		n, err := device.ReadWithTimeout(buffer, 1*time.Second)
 		if err != nil {
 			if err == hid.ErrTimeout {
-				consecutiveErrors = 0 // 超时是正常的，重置错误计数
+				consecutiveErrors = 0 // Timeout is normal, reset error count
 				continue
 			}
 
 			consecutiveErrors++
-			m.logError("读取设备数据失败 (%d/%d): %v", consecutiveErrors, maxConsecutiveErrors, err)
+			m.logError("Failed to read device data (%d/%d): %v", consecutiveErrors, maxConsecutiveErrors, err)
 
 			if consecutiveErrors >= maxConsecutiveErrors {
-				m.logError("连续读取失败次数过多，设备可能已断开")
+				m.logError("Too many consecutive read failures, device may be disconnected")
 				break
 			}
 
-			// 短暂等待后重试
+			// Brief wait before retry
 			time.Sleep(500 * time.Millisecond)
 			continue
 		}
 
-		consecutiveErrors = 0 // 成功读取，重置错误计数
+		consecutiveErrors = 0 // Successful read, reset error count
 
 		if n > 0 {
-			// 解析风扇数据
+			// Parse fan data
 			fanData := m.parseFanData(buffer, n)
 			if fanData != nil {
 				m.mutex.Lock()
@@ -250,15 +250,15 @@ func (m *Manager) monitorDeviceData() {
 			}
 		}
 
-		// 短暂休眠，避免高CPU占用
+		// Brief sleep to avoid high CPU usage
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	// 设备监控循环退出，触发断开处理
+	// Device monitoring loop exited, trigger disconnect handling
 	m.handleDeviceDisconnected()
 }
 
-// handleDeviceDisconnected 处理设备断开
+// handleDeviceDisconnected handles device disconnection
 func (m *Manager) handleDeviceDisconnected() {
 	m.mutex.Lock()
 	wasConnected := m.isConnected
@@ -267,7 +267,7 @@ func (m *Manager) handleDeviceDisconnected() {
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					m.logError("关闭设备时发生错误: %v", r)
+					m.logError("Error occurred while closing device: %v", r)
 				}
 			}()
 			m.device.Close()
@@ -279,20 +279,20 @@ func (m *Manager) handleDeviceDisconnected() {
 	m.mutex.Unlock()
 
 	if wasConnected {
-		m.logInfo("设备连接已断开")
+		m.logInfo("Device disconnected")
 		if m.onDisconnect != nil {
 			m.onDisconnect()
 		}
 	}
 }
 
-// parseFanData 解析风扇数据
+// parseFanData parses fan data
 func (m *Manager) parseFanData(data []byte, length int) *types.FanData {
 	if length < 11 {
 		return nil
 	}
 
-	// 检查同步头
+	// Check sync header
 	magic := binary.BigEndian.Uint16(data[1:3])
 	if magic != 0x5AA5 {
 		return nil
@@ -312,7 +312,7 @@ func (m *Manager) parseFanData(data []byte, length int) *types.FanData {
 		Reserved1:    data[7],
 	}
 
-	// 解析转速 (小端序)
+	// Parse RPM (little-endian)
 	if length >= 10 {
 		fanData.CurrentRPM = binary.LittleEndian.Uint16(data[8:10])
 	}
@@ -320,7 +320,7 @@ func (m *Manager) parseFanData(data []byte, length int) *types.FanData {
 		fanData.TargetRPM = binary.LittleEndian.Uint16(data[10:12])
 	}
 
-	// 解析挡位设置
+	// Parse gear settings
 	maxGear, setGear := m.parseGearSettings(fanData.GearSettings)
 	fanData.MaxGear = maxGear
 	fanData.SetGear = setGear
@@ -330,52 +330,52 @@ func (m *Manager) parseFanData(data []byte, length int) *types.FanData {
 	return fanData
 }
 
-// parseGearSettings 解析挡位设置
+// parseGearSettings parses gear settings
 func (m *Manager) parseGearSettings(gearByte uint8) (maxGear, setGear string) {
 	maxGearCode := (gearByte >> 4) & 0x0F
 	setGearCode := gearByte & 0x0F
 
 	maxGearMap := map[uint8]string{
-		0x2: "标准",
-		0x4: "强劲",
-		0x6: "超频",
+		0x2: "Standard",
+		0x4: "Power",
+		0x6: "Overclock",
 	}
 
 	setGearMap := map[uint8]string{
-		0x8: "静音",
-		0xA: "标准",
-		0xC: "强劲",
-		0xE: "超频",
+		0x8: "Silent",
+		0xA: "Standard",
+		0xC: "Power",
+		0xE: "Overclock",
 	}
 
 	if val, ok := maxGearMap[maxGearCode]; ok {
 		maxGear = val
 	} else {
-		maxGear = fmt.Sprintf("未知(0x%X)", maxGearCode)
+		maxGear = fmt.Sprintf("Unknown(0x%X)", maxGearCode)
 	}
 
 	if val, ok := setGearMap[setGearCode]; ok {
 		setGear = val
 	} else {
-		setGear = fmt.Sprintf("未知(0x%X)", setGearCode)
+		setGear = fmt.Sprintf("Unknown(0x%X)", setGearCode)
 	}
 
 	return
 }
 
-// parseWorkMode 解析工作模式
+// parseWorkMode parses the work mode
 func (m *Manager) parseWorkMode(mode uint8) string {
 	switch mode {
 	case 0x04, 0x02, 0x06, 0x0A, 0x08, 0x00:
-		return "挡位工作模式"
+		return "Gear Mode"
 	case 0x05, 0x03, 0x07, 0x0B, 0x09, 0x01:
-		return "自动模式(实时转速)"
+		return "Auto Mode (Real-time RPM)"
 	default:
-		return fmt.Sprintf("未知模式(0x%02X)", mode)
+		return fmt.Sprintf("Unknown Mode(0x%02X)", mode)
 	}
 }
 
-// SetFanSpeed 设置风扇转速
+// SetFanSpeed sets the fan speed
 func (m *Manager) SetFanSpeed(rpm int) bool {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -388,43 +388,43 @@ func (m *Manager) SetFanSpeed(rpm int) bool {
 		return false
 	}
 
-	// 首先进入实时转速模式
+	// First enter real-time RPM mode
 	enterModeCmd := []byte{0x02, 0x5A, 0xA5, 0x23, 0x02, 0x25, 0x00}
-	// 补齐到23字节
+	// Pad to 23 bytes
 	enterModeCmd = append(enterModeCmd, make([]byte, 23-len(enterModeCmd))...)
 
 	_, err := m.device.Write(enterModeCmd)
 	if err != nil {
-		m.logError("进入实时转速模式失败: %v", err)
+		m.logError("Failed to enter real-time RPM mode: %v", err)
 		return false
 	}
 
 	time.Sleep(50 * time.Millisecond)
 
-	// 构造转速设置命令
+	// Construct RPM setting command
 	speedBytes := make([]byte, 2)
 	binary.LittleEndian.PutUint16(speedBytes, uint16(rpm))
 
-	// 计算校验和
+	// Calculate checksum
 	checksum := (0x5A + 0xA5 + 0x21 + 0x04 + int(speedBytes[0]) + int(speedBytes[1]) + 1) & 0xFF
 
 	cmd := []byte{0x02, 0x5A, 0xA5, 0x21, 0x04}
 	cmd = append(cmd, speedBytes...)
 	cmd = append(cmd, byte(checksum))
-	// 补齐到23字节
+	// Pad to 23 bytes
 	cmd = append(cmd, make([]byte, 23-len(cmd))...)
 
 	_, err = m.device.Write(cmd)
 	if err != nil {
-		m.logError("设置风扇转速失败: %v", err)
+		m.logError("Failed to set fan speed: %v", err)
 		return false
 	}
 
-	m.logDebug("已设置风扇转速: %d RPM", rpm)
+	m.logDebug("Fan speed set to: %d RPM", rpm)
 	return true
 }
 
-// SetCustomFanSpeed 设置自定义风扇转速（无限制）
+// SetCustomFanSpeed sets custom fan speed (no limits)
 func (m *Manager) SetCustomFanSpeed(rpm int) bool {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -433,14 +433,14 @@ func (m *Manager) SetCustomFanSpeed(rpm int) bool {
 		return false
 	}
 
-	m.logWarn("警告：设置自定义转速 %d RPM（无上下限限制）", rpm)
+	m.logWarn("Warning: setting custom speed %d RPM (no upper/lower limits)", rpm)
 
 	enterModeCmd := []byte{0x02, 0x5A, 0xA5, 0x23, 0x02, 0x25, 0x00}
 	enterModeCmd = append(enterModeCmd, make([]byte, 23-len(enterModeCmd))...)
 
 	_, err := m.device.Write(enterModeCmd)
 	if err != nil {
-		m.logError("进入实时转速模式失败: %v", err)
+		m.logError("Failed to enter real-time RPM mode: %v", err)
 		return false
 	}
 
@@ -449,7 +449,7 @@ func (m *Manager) SetCustomFanSpeed(rpm int) bool {
 	speedBytes := make([]byte, 2)
 	binary.LittleEndian.PutUint16(speedBytes, uint16(rpm))
 
-	// 计算校验和
+	// Calculate checksum
 	checksum := (0x5A + 0xA5 + 0x21 + 0x04 + int(speedBytes[0]) + int(speedBytes[1]) + 1) & 0xFF
 
 	cmd := []byte{0x02, 0x5A, 0xA5, 0x21, 0x04}
@@ -459,38 +459,38 @@ func (m *Manager) SetCustomFanSpeed(rpm int) bool {
 
 	_, err = m.device.Write(cmd)
 	if err != nil {
-		m.logError("设置自定义风扇转速失败: %v", err)
+		m.logError("Failed to set custom fan speed: %v", err)
 		return false
 	}
 
-	m.logInfo("已设置自定义风扇转速: %d RPM", rpm)
+	m.logInfo("Custom fan speed set to: %d RPM", rpm)
 	return true
 }
 
-// EnterAutoMode 进入自动模式
+// EnterAutoMode enters auto mode
 func (m *Manager) EnterAutoMode() error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
 	if !m.isConnected || m.device == nil {
-		return fmt.Errorf("设备未连接")
+		return fmt.Errorf("device not connected")
 	}
 
-	// 发送进入实时转速模式的命令
+	// Send command to enter real-time RPM mode
 	enterModeCmd := []byte{0x02, 0x5A, 0xA5, 0x23, 0x02, 0x25, 0x00}
-	// 补齐到23字节
+	// Pad to 23 bytes
 	enterModeCmd = append(enterModeCmd, make([]byte, 23-len(enterModeCmd))...)
 
 	_, err := m.device.Write(enterModeCmd)
 	if err != nil {
-		return fmt.Errorf("进入自动模式失败: %v", err)
+		return fmt.Errorf("failed to enter auto mode: %v", err)
 	}
 
-	m.logInfo("已切换到自动模式，开始智能变频")
+	m.logInfo("Switched to auto mode, starting smart fan control")
 	return nil
 }
 
-// SetManualGear 设置手动挡位
+// SetManualGear sets the manual gear
 func (m *Manager) SetManualGear(gear, level string) bool {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -501,7 +501,7 @@ func (m *Manager) SetManualGear(gear, level string) bool {
 
 	commands, exists := types.GearCommands[gear]
 	if !exists {
-		m.logError("未找到挡位 %s 的命令", gear)
+		m.logError("Command not found for gear %s", gear)
 		return false
 	}
 
@@ -509,16 +509,16 @@ func (m *Manager) SetManualGear(gear, level string) bool {
 	for i := range commands {
 		cmd := &commands[i]
 		switch level {
-		case "低":
-			if strings.Contains(cmd.Name, "低") {
+		case "低", "low":
+			if strings.Contains(cmd.Name, "低") || strings.Contains(cmd.Name, "low") {
 				selectedCommand = cmd
 			}
-		case "中":
-			if strings.Contains(cmd.Name, "中") {
+		case "中", "medium":
+			if strings.Contains(cmd.Name, "中") || strings.Contains(cmd.Name, "medium") {
 				selectedCommand = cmd
 			}
-		case "高":
-			if strings.Contains(cmd.Name, "高") {
+		case "高", "high":
+			if strings.Contains(cmd.Name, "高") || strings.Contains(cmd.Name, "high") {
 				selectedCommand = cmd
 			}
 		}
@@ -528,24 +528,24 @@ func (m *Manager) SetManualGear(gear, level string) bool {
 	}
 
 	if selectedCommand == nil {
-		m.logError("未找到挡位 %s %s 的命令", gear, level)
+		m.logError("Command not found for gear %s level %s", gear, level)
 		return false
 	}
 
-	// 发送命令，确保第一个字节是ReportID
+	// Send command, ensure first byte is ReportID
 	cmdWithReportID := append([]byte{0x02}, selectedCommand.Command...)
 
 	_, err := m.device.Write(cmdWithReportID)
 	if err != nil {
-		m.logError("设置挡位 %s %s 失败: %v", gear, level, err)
+		m.logError("Failed to set gear %s %s: %v", gear, level, err)
 		return false
 	}
 
-	m.logInfo("设置挡位成功: %s %s (目标转速: %d RPM)", gear, level, selectedCommand.RPM)
+	m.logInfo("Gear set successfully: %s %s (target RPM: %d)", gear, level, selectedCommand.RPM)
 	return true
 }
 
-// SetGearLight 设置挡位灯
+// SetGearLight sets the gear indicator light
 func (m *Manager) SetGearLight(enabled bool) bool {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -561,19 +561,19 @@ func (m *Manager) SetGearLight(enabled bool) bool {
 		cmd = []byte{0x02, 0x5A, 0xA5, 0x48, 0x03, 0x00, 0x4B}
 	}
 
-	// 补齐到23字节
+	// Pad to 23 bytes
 	cmd = append(cmd, make([]byte, 23-len(cmd))...)
 
 	_, err := m.device.Write(cmd)
 	if err != nil {
-		m.logError("设置挡位灯失败: %v", err)
+		m.logError("Failed to set gear light: %v", err)
 		return false
 	}
 
 	return true
 }
 
-// SetPowerOnStart 设置通电自启动
+// SetPowerOnStart sets power-on auto-start
 func (m *Manager) SetPowerOnStart(enabled bool) bool {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -589,19 +589,19 @@ func (m *Manager) SetPowerOnStart(enabled bool) bool {
 		cmd = []byte{0x02, 0x5A, 0xA5, 0x0C, 0x03, 0x01, 0x10}
 	}
 
-	// 补齐到23字节
+	// Pad to 23 bytes
 	cmd = append(cmd, make([]byte, 23-len(cmd))...)
 
 	_, err := m.device.Write(cmd)
 	if err != nil {
-		m.logError("设置通电自启动失败: %v", err)
+		m.logError("Failed to set power-on auto-start: %v", err)
 		return false
 	}
 
 	return true
 }
 
-// SetSmartStartStop 设置智能启停
+// SetSmartStartStop sets smart start/stop
 func (m *Manager) SetSmartStartStop(mode string) bool {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -622,19 +622,19 @@ func (m *Manager) SetSmartStartStop(mode string) bool {
 		return false
 	}
 
-	// 补齐到23字节
+	// Pad to 23 bytes
 	cmd = append(cmd, make([]byte, 23-len(cmd))...)
 
 	_, err := m.device.Write(cmd)
 	if err != nil {
-		m.logError("设置智能启停失败: %v", err)
+		m.logError("Failed to set smart start/stop: %v", err)
 		return false
 	}
 
 	return true
 }
 
-// SetBrightness 设置亮度
+// SetBrightness sets the brightness
 func (m *Manager) SetBrightness(percentage int) bool {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -651,11 +651,11 @@ func (m *Manager) SetBrightness(percentage int) bool {
 	switch percentage {
 	case 0:
 		cmd = []byte{0x02, 0x5A, 0xA5, 0x47, 0x0D, 0x1C, 0x00, 0xFF}
-		// 补齐到23字节
+		// Pad to 23 bytes
 		cmd = append(cmd, make([]byte, 23-len(cmd))...)
 	case 100:
 		cmd = []byte{0x02, 0x5A, 0xA5, 0x43, 0x02, 0x45}
-		// 补齐到23字节
+		// Pad to 23 bytes
 		cmd = append(cmd, make([]byte, 23-len(cmd))...)
 	default:
 		return false
@@ -663,14 +663,14 @@ func (m *Manager) SetBrightness(percentage int) bool {
 
 	_, err := m.device.Write(cmd)
 	if err != nil {
-		m.logError("设置亮度失败: %v", err)
+		m.logError("Failed to set brightness: %v", err)
 		return false
 	}
 
 	return true
 }
 
-// 日志辅助方法
+// Log helper methods
 func (m *Manager) logInfo(format string, v ...any) {
 	if m.logger != nil {
 		m.logger.Info(format, v...)
