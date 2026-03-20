@@ -1032,7 +1032,7 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
                 readOnly
                 rows={3}
                 className="w-full rounded-lg border border-border/70 bg-background px-3 py-2 text-xs leading-relaxed"
-                placeholder=”Click 'Generate' to display export string”
+                placeholder="Click 'Generate' to display export string"
               />
             </div>
 
