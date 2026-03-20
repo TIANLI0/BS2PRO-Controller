@@ -12,54 +12,54 @@ import (
 )
 
 func main() {
-	// 获取CPU信息
+	// Get CPU information
 	cpus, err := cpu.Info()
 	if err != nil {
 		fmt.Println("Error getting CPU info:", err)
 		return
 	}
 
-	// 打印CPU信息
+	// Print CPU information
 	for _, cpu := range cpus {
 		fmt.Printf("CPU: %s\n", cpu.ModelName)
 		fmt.Printf("Core Count: %d\n", cpu.Cores)
 		fmt.Printf("MHz: %f\n", cpu.Mhz)
 	}
 
-	// 获取CPU使用率
+	// Get CPU usage
 	cpuPercent, err := cpu.Percent(0, false)
 	if err == nil && len(cpuPercent) > 0 {
 		fmt.Printf("CPU Usage: %.2f%%\n", cpuPercent[0])
 	}
 
-	// 获取主机信息（包括温度信息，如果可用）
+	// Get host information (including temperature info if available)
 	hostInfo, err := host.Info()
 	if err == nil {
 		fmt.Printf("Host: %s\n", hostInfo.Hostname)
-		fmt.Printf("系统: %s\n", hostInfo.Platform)
-		fmt.Printf("系统版本: %s\n", hostInfo.PlatformVersion)
+		fmt.Printf("OS: %s\n", hostInfo.Platform)
+		fmt.Printf("OS Version: %s\n", hostInfo.PlatformVersion)
 	}
 
-	// 尝试获取传感器信息（可能需要管理员权限）
+	// Try to get sensor information (may require admin privileges)
 	fmt.Println("\n--- Sensor Information ---")
 	sensors, err := sensors.SensorsTemperatures()
 	if err != nil {
-		fmt.Printf("获取传感器数据时出错: %v\n", err)
+		fmt.Printf("Error getting sensor data: %v\n", err)
 	} else {
-		// 打印传感器信息
+		// Print sensor information
 		for _, sensor := range sensors {
 			fmt.Printf("Sensor: %s\n", sensor.SensorKey)
 			fmt.Printf("Temperature: %.2f°C\n", sensor.Temperature)
 		}
 	}
 
-	// 尝试获取GPU信息
+	// Try to get GPU information
 	fmt.Println("\n--- GPU Information ---")
 	gpus, err := GetNvidiaGPUInfo()
 	if err != nil {
-		fmt.Printf("获取GPU信息时出错: %v\n", err)
+		fmt.Printf("Error getting GPU info: %v\n", err)
 	} else {
-		// 打印GPU信息
+		// Print GPU information
 		for _, gpu := range gpus {
 			fmt.Printf("GPU: %s\n", gpu.Name)
 			fmt.Printf("Temperature: %d°C\n", gpu.Temperature)
@@ -68,16 +68,16 @@ func main() {
 
 }
 
-// GPUInfo 表示单个GPU的信息
+// GPUInfo represents information for a single GPU
 type GPUInfo struct {
 	Name        string `json:"name"`
-	Temperature int    `json:"temperature"` // 单位: °C
+	Temperature int    `json:"temperature"` // Unit: °C
 }
 
-// GetNvidiaGPUInfo 使用 nvidia-smi 获取 GPU 名称和温度
-// 返回 GPUInfo 切片，每个元素对应一个GPU
+// GetNvidiaGPUInfo uses nvidia-smi to get GPU name and temperature
+// Returns a slice of GPUInfo, each element corresponding to a GPU
 func GetNvidiaGPUInfo() ([]GPUInfo, error) {
-	// 使用 nvidia-smi 查询 GPU 名称和温度，CSV 格式输出
+	// Use nvidia-smi to query GPU name and temperature, CSV format output
 	cmd := exec.Command("nvidia-smi",
 		"--query-gpu=name,temperature.gpu",
 		"--format=csv,noheader,nounits")
@@ -96,7 +96,7 @@ func GetNvidiaGPUInfo() ([]GPUInfo, error) {
 			continue
 		}
 
-		// 格式: "GPU Name", temperature
+		// Format: "GPU Name", temperature
 		parts := strings.Split(line, ",")
 		if len(parts) != 2 {
 			return nil, fmt.Errorf("unexpected nvidia-smi output format: %s", line)

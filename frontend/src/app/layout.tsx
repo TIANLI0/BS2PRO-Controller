@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "BS2PRO Controller",
-  description: "BS2PRO 压风控制器桌面端",
+  description: "BS2PRO Fan Controller Desktop App",
 };
 
 export default function RootLayout({

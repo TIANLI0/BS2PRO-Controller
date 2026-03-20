@@ -70,7 +70,7 @@ ManifestDPIAware true
 # !define MUI_WELCOMEFINISHPAGE_BITMAP "resources\leftimage.bmp" #Include this to add a bitmap on the left side of the Welcome Page. Must be a size of 164x314
 !define MUI_FINISHPAGE_NOAUTOCLOSE # Wait on the INSTFILES page so the user can take a look into the details of the installation steps
 !define MUI_FINISHPAGE_RUN "$INSTDIR\${PRODUCT_EXECUTABLE}"
-!define MUI_FINISHPAGE_RUN_TEXT "安装完成后立即启动 BS2PRO 控制器"
+!define MUI_FINISHPAGE_RUN_TEXT "Launch BS2PRO Controller after installation"
 !define MUI_ABORTWARNING # This will warn the user if they exit from the installer.
 
 !insertmacro MUI_PAGE_WELCOME # Welcome to the installer page.
@@ -82,14 +82,14 @@ ManifestDPIAware true
 
 !insertmacro MUI_UNPAGE_INSTFILES # Uinstalling page
 
-!insertmacro MUI_LANGUAGE "SimpChinese" # Set the Language of the installer
+!insertmacro MUI_LANGUAGE "English" # Set the Language of the installer
 
 ## The following two statements can be used to sign the installer and the uninstaller. The path to the binaries are provided in %1
 #!uninstfinalize 'signtool --file "%1"'
 #!finalize 'signtool --file "%1"'
 
 Name "${INFO_PRODUCTNAME}"
-Caption "${INFO_PRODUCTNAME} 安装程序 v${INFO_PRODUCTVERSION}"
+Caption "${INFO_PRODUCTNAME} Installer v${INFO_PRODUCTVERSION}"
 BrandingText "${INFO_PRODUCTNAME} v${INFO_PRODUCTVERSION}"
 OutFile "..\..\bin\${INFO_PROJECTNAME}-${ARCH}-installer.exe" # Name of the installer's file.
 InstallDir "$PROGRAMFILES64\${INFO_PRODUCTNAME}" # Default installing folder (single level)
@@ -102,7 +102,7 @@ Function .onInit
    !insertmacro CheckNetFramework 472
    Pop $0
    ${If} $0 == "false"
-       MessageBox MB_OK|MB_ICONSTOP "需要 .NET Framework 4.7.2 或更高版本。$\n$\n请先安装 .NET Framework 4.7.2。"
+       MessageBox MB_OK|MB_ICONSTOP ".NET Framework 4.7.2 or later is required.$\n$\nPlease install .NET Framework 4.7.2 first."
        Abort
    ${EndIf}
    
@@ -115,7 +115,7 @@ FunctionEnd
 
 # Function to clean up legacy/duplicate registry keys
 Function CleanLegacyRegistryKeys
-    DetailPrint "正在清理历史注册表项..."
+    DetailPrint "Cleaning up legacy registry keys..."
     SetRegView 64
     
     # List of known legacy/duplicate registry key names
@@ -129,25 +129,25 @@ Function CleanLegacyRegistryKeys
     # Check and remove BS2PRO-controllerBS2PRO-controller
     ReadRegStr $R0 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\BS2PRO-controllerBS2PRO-controller" "UninstallString"
     ${If} $R0 != ""
-        DetailPrint "发现重复注册表键: BS2PRO-controllerBS2PRO-controller"
+        DetailPrint "Found duplicate registry key: BS2PRO-controllerBS2PRO-controller"
         DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\BS2PRO-controllerBS2PRO-controller"
-        DetailPrint "已删除重复注册表键"
+        DetailPrint "Deleted duplicate registry key"
     ${EndIf}
     
     # Check and remove TIANLI0BS2PRO-Controller
     ReadRegStr $R0 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\TIANLI0BS2PRO-Controller" "UninstallString"
     ${If} $R0 != ""
-        DetailPrint "发现旧版注册表键: TIANLI0BS2PRO-Controller"
+        DetailPrint "Found legacy registry key: TIANLI0BS2PRO-Controller"
         DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\TIANLI0BS2PRO-Controller"
-        DetailPrint "已删除旧版注册表键"
+        DetailPrint "Deleted legacy registry key"
     ${EndIf}
     
     # Check and remove TIANLI0BS2PRO (current wails.json would generate this)
     ReadRegStr $R0 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\TIANLI0BS2PRO" "UninstallString"
     ${If} $R0 != ""
-        DetailPrint "发现重复注册表键: TIANLI0BS2PRO"
+        DetailPrint "Found duplicate registry key: TIANLI0BS2PRO"
         DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\TIANLI0BS2PRO"
-        DetailPrint "已删除重复注册表键"
+        DetailPrint "Deleted duplicate registry key"
     ${EndIf}
     
     Pop $R1
@@ -156,7 +156,7 @@ FunctionEnd
 
 # Function to detect existing installation and set install directory
 Function DetectExistingInstallation
-    DetailPrint "正在检查已有安装..."
+    DetailPrint "Checking for existing installation..."
     SetRegView 64
     
     Push $R0
@@ -175,9 +175,9 @@ Function DetectExistingInstallation
         ReadRegStr $R2 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\TIANLI0BS2PRO" "DisplayVersion"
     ${EndIf}
     ${If} $R2 != ""
-        DetailPrint "本地已安装版本: $R2"
+        DetailPrint "Locally installed version: $R2"
     ${Else}
-        DetailPrint "本地未检测到已安装版本信息"
+        DetailPrint "No locally installed version detected"
     ${EndIf}
     
     # First, check all possible registry keys to find installation path
@@ -188,12 +188,12 @@ Function DetectExistingInstallation
     ${If} $R0 != ""
         ${If} ${FileExists} "$R0\${PRODUCT_EXECUTABLE}"
             StrCpy $INSTDIR $R0
-            DetailPrint "发现已有安装 (正确键-安装位置): $INSTDIR"
+            DetailPrint "Found existing installation (correct key - install location): $INSTDIR"
             Goto found_installation
         ${EndIf}
         ${If} ${FileExists} "$R0\BS2PRO-Core.exe"
             StrCpy $INSTDIR $R0
-            DetailPrint "发现已有安装 (正确键-安装位置-Core): $INSTDIR"
+            DetailPrint "Found existing installation (correct key - install location - Core): $INSTDIR"
             Goto found_installation
         ${EndIf}
     ${EndIf}
@@ -206,12 +206,12 @@ Function DetectExistingInstallation
         ${GetParent} $R0 $R1
         ${If} ${FileExists} "$R1\${PRODUCT_EXECUTABLE}"
             StrCpy $INSTDIR $R1
-            DetailPrint "发现已有安装 (从正确的注册表键): $INSTDIR"
+            DetailPrint "Found existing installation (from correct registry key): $INSTDIR"
             Goto found_installation
         ${EndIf}
         ${If} ${FileExists} "$R1\BS2PRO-Core.exe"
             StrCpy $INSTDIR $R1
-            DetailPrint "发现已有安装 (从正确的注册表键-Core): $INSTDIR"
+            DetailPrint "Found existing installation (from correct registry key - Core): $INSTDIR"
             Goto found_installation
         ${EndIf}
     ${EndIf}
@@ -222,12 +222,12 @@ Function DetectExistingInstallation
     ${If} $R0 != ""
         ${If} ${FileExists} "$R0\${PRODUCT_EXECUTABLE}"
             StrCpy $INSTDIR $R0
-            DetailPrint "发现旧版安装 (重复键-安装位置): $INSTDIR"
+            DetailPrint "Found legacy installation (duplicate key - install location): $INSTDIR"
             Goto found_installation
         ${EndIf}
         ${If} ${FileExists} "$R0\BS2PRO-Core.exe"
             StrCpy $INSTDIR $R0
-            DetailPrint "发现旧版安装 (重复键-安装位置-Core): $INSTDIR"
+            DetailPrint "Found legacy installation (duplicate key - install location - Core): $INSTDIR"
             Goto found_installation
         ${EndIf}
     ${EndIf}
@@ -240,12 +240,12 @@ Function DetectExistingInstallation
         ${GetParent} $R0 $R1
         ${If} ${FileExists} "$R1\${PRODUCT_EXECUTABLE}"
             StrCpy $INSTDIR $R1
-            DetailPrint "发现旧版安装 (重复键): $INSTDIR"
+            DetailPrint "Found legacy installation (duplicate key): $INSTDIR"
             Goto found_installation
         ${EndIf}
         ${If} ${FileExists} "$R1\BS2PRO-Core.exe"
             StrCpy $INSTDIR $R1
-            DetailPrint "发现旧版安装 (重复键-Core): $INSTDIR"
+            DetailPrint "Found legacy installation (duplicate key - Core): $INSTDIR"
             Goto found_installation
         ${EndIf}
     ${EndIf}
@@ -259,12 +259,12 @@ Function DetectExistingInstallation
         ${GetParent} $R0 $R1
         ${If} ${FileExists} "$R1\${PRODUCT_EXECUTABLE}"
             StrCpy $INSTDIR $R1
-            DetailPrint "发现旧版安装 (从图标路径): $INSTDIR"
+            DetailPrint "Found legacy installation (from icon path): $INSTDIR"
             Goto found_installation
         ${EndIf}
         ${If} ${FileExists} "$R1\BS2PRO-Core.exe"
             StrCpy $INSTDIR $R1
-            DetailPrint "发现旧版安装 (从图标路径-Core): $INSTDIR"
+            DetailPrint "Found legacy installation (from icon path - Core): $INSTDIR"
             Goto found_installation
         ${EndIf}
     ${EndIf}
@@ -274,12 +274,12 @@ Function DetectExistingInstallation
     ${If} $R0 != ""
         ${If} ${FileExists} "$R0\${PRODUCT_EXECUTABLE}"
             StrCpy $INSTDIR $R0
-            DetailPrint "发现旧版安装 (旧格式键-安装位置): $INSTDIR"
+            DetailPrint "Found legacy installation (old format key - install location): $INSTDIR"
             Goto found_installation
         ${EndIf}
         ${If} ${FileExists} "$R0\BS2PRO-Core.exe"
             StrCpy $INSTDIR $R0
-            DetailPrint "发现旧版安装 (旧格式键-安装位置-Core): $INSTDIR"
+            DetailPrint "Found legacy installation (old format key - install location - Core): $INSTDIR"
             Goto found_installation
         ${EndIf}
     ${EndIf}
@@ -292,12 +292,12 @@ Function DetectExistingInstallation
         ${GetParent} $R0 $R1
         ${If} ${FileExists} "$R1\${PRODUCT_EXECUTABLE}"
             StrCpy $INSTDIR $R1
-            DetailPrint "发现旧版安装 (旧格式键): $INSTDIR"
+            DetailPrint "Found legacy installation (old format key): $INSTDIR"
             Goto found_installation
         ${EndIf}
         ${If} ${FileExists} "$R1\BS2PRO-Core.exe"
             StrCpy $INSTDIR $R1
-            DetailPrint "发现旧版安装 (旧格式键-Core): $INSTDIR"
+            DetailPrint "Found legacy installation (old format key - Core): $INSTDIR"
             Goto found_installation
         ${EndIf}
     ${EndIf}
@@ -307,12 +307,12 @@ Function DetectExistingInstallation
     ${If} $R0 != ""
         ${If} ${FileExists} "$R0\${PRODUCT_EXECUTABLE}"
             StrCpy $INSTDIR $R0
-            DetailPrint "发现旧版安装 (TIANLI0BS2PRO-安装位置): $INSTDIR"
+            DetailPrint "Found legacy installation (TIANLI0BS2PRO - install location): $INSTDIR"
             Goto found_installation
         ${EndIf}
         ${If} ${FileExists} "$R0\BS2PRO-Core.exe"
             StrCpy $INSTDIR $R0
-            DetailPrint "发现旧版安装 (TIANLI0BS2PRO-安装位置-Core): $INSTDIR"
+            DetailPrint "Found legacy installation (TIANLI0BS2PRO - install location - Core): $INSTDIR"
             Goto found_installation
         ${EndIf}
     ${EndIf}
@@ -325,12 +325,12 @@ Function DetectExistingInstallation
         ${GetParent} $R0 $R1
         ${If} ${FileExists} "$R1\${PRODUCT_EXECUTABLE}"
             StrCpy $INSTDIR $R1
-            DetailPrint "发现旧版安装 (TIANLI0BS2PRO): $INSTDIR"
+            DetailPrint "Found legacy installation (TIANLI0BS2PRO): $INSTDIR"
             Goto found_installation
         ${EndIf}
         ${If} ${FileExists} "$R1\BS2PRO-Core.exe"
             StrCpy $INSTDIR $R1
-            DetailPrint "发现旧版安装 (TIANLI0BS2PRO-Core): $INSTDIR"
+            DetailPrint "Found legacy installation (TIANLI0BS2PRO - Core): $INSTDIR"
             Goto found_installation
         ${EndIf}
     ${EndIf}
@@ -346,12 +346,12 @@ Function DetectExistingInstallation
         ${GetParent} $R0 $R1  # Get parent directory
         ${If} ${FileExists} "$R1\${PRODUCT_EXECUTABLE}"
             StrCpy $INSTDIR $R1
-            DetailPrint "发现已有安装 (从图标): $INSTDIR"
+            DetailPrint "Found existing installation (from icon): $INSTDIR"
             Goto found_installation
         ${EndIf}
         ${If} ${FileExists} "$R1\BS2PRO-Core.exe"
             StrCpy $INSTDIR $R1
-            DetailPrint "发现已有安装 (从图标-Core): $INSTDIR"
+            DetailPrint "Found existing installation (from icon - Core): $INSTDIR"
             Goto found_installation
         ${EndIf}
     ${EndIf}
@@ -361,12 +361,12 @@ Function DetectExistingInstallation
     ${If} $R0 != ""
         ${If} ${FileExists} "$R0\${PRODUCT_EXECUTABLE}"
             StrCpy $INSTDIR $R0
-            DetailPrint "发现已有安装 (从安装位置): $INSTDIR"
+            DetailPrint "Found existing installation (from install location): $INSTDIR"
             Goto found_installation
         ${EndIf}
         ${If} ${FileExists} "$R0\BS2PRO-Core.exe"
             StrCpy $INSTDIR $R0
-            DetailPrint "发现已有安装 (从安装位置-Core): $INSTDIR"
+            DetailPrint "Found existing installation (from install location - Core): $INSTDIR"
             Goto found_installation
         ${EndIf}
     ${EndIf}
@@ -374,57 +374,57 @@ Function DetectExistingInstallation
     # Fourth, check common installation locations (single level path)
     ${If} ${FileExists} "$PROGRAMFILES64\${INFO_PRODUCTNAME}\${PRODUCT_EXECUTABLE}"
         StrCpy $INSTDIR "$PROGRAMFILES64\${INFO_PRODUCTNAME}"
-        DetailPrint "发现已有安装: $INSTDIR"
+        DetailPrint "Found existing installation: $INSTDIR"
         Goto found_installation
     ${EndIf}
     
     ${If} ${FileExists} "$PROGRAMFILES32\${INFO_PRODUCTNAME}\${PRODUCT_EXECUTABLE}"
         StrCpy $INSTDIR "$PROGRAMFILES32\${INFO_PRODUCTNAME}"
-        DetailPrint "发现已有安装: $INSTDIR"
+        DetailPrint "Found existing installation: $INSTDIR"
         Goto found_installation
     ${EndIf}
     
     # Fifth, check legacy paths with Company\Product structure
     ${If} ${FileExists} "$PROGRAMFILES64\${INFO_COMPANYNAME}\${INFO_PRODUCTNAME}\${PRODUCT_EXECUTABLE}"
         StrCpy $INSTDIR "$PROGRAMFILES64\${INFO_COMPANYNAME}\${INFO_PRODUCTNAME}"
-        DetailPrint "发现已有安装 (旧版路径): $INSTDIR"
+        DetailPrint "Found existing installation (legacy path): $INSTDIR"
         Goto found_installation
     ${EndIf}
     
     # Sixth, try alternative common paths
     ${If} ${FileExists} "$PROGRAMFILES64\BS2PRO-Controller\${PRODUCT_EXECUTABLE}"
         StrCpy $INSTDIR "$PROGRAMFILES64\BS2PRO-Controller"
-        DetailPrint "发现已有安装: $INSTDIR"
+        DetailPrint "Found existing installation: $INSTDIR"
         Goto found_installation
     ${EndIf}
     
     ${If} ${FileExists} "$PROGRAMFILES32\BS2PRO-Controller\${PRODUCT_EXECUTABLE}"
         StrCpy $INSTDIR "$PROGRAMFILES32\BS2PRO-Controller"
-        DetailPrint "发现已有安装: $INSTDIR"
+        DetailPrint "Found existing installation: $INSTDIR"
         Goto found_installation
     ${EndIf}
     
     # Seventh, check for BS2PRO-Core.exe in common paths
     ${If} ${FileExists} "$PROGRAMFILES64\${INFO_PRODUCTNAME}\BS2PRO-Core.exe"
         StrCpy $INSTDIR "$PROGRAMFILES64\${INFO_PRODUCTNAME}"
-        DetailPrint "发现已有安装 (Core): $INSTDIR"
+        DetailPrint "Found existing installation (Core): $INSTDIR"
         Goto found_installation
     ${EndIf}
     
     ${If} ${FileExists} "$PROGRAMFILES64\BS2PRO-Controller\BS2PRO-Core.exe"
         StrCpy $INSTDIR "$PROGRAMFILES64\BS2PRO-Controller"
-        DetailPrint "发现已有安装 (Core): $INSTDIR"
+        DetailPrint "Found existing installation (Core): $INSTDIR"
         Goto found_installation
     ${EndIf}
     
     # If no existing installation found, use simple product name for directory
     # Use BS2PRO-Controller instead of ${INFO_PRODUCTNAME} to ensure consistency
     StrCpy $INSTDIR "$PROGRAMFILES64\BS2PRO-Controller"
-    DetailPrint "未发现已有安装,使用默认目录: $INSTDIR"
+    DetailPrint "No existing installation found, using default directory: $INSTDIR"
     Goto end_detection
     
     found_installation:
-    DetailPrint "检测到已有安装 - 将执行升级到: $INSTDIR"
+    DetailPrint "Existing installation detected - will upgrade to: $INSTDIR"
     # Now clean up legacy registry keys AFTER we've found the install path
     Call CleanLegacyRegistryKeys
     
@@ -442,7 +442,7 @@ Function WriteCurrentVersionInfo
     WriteRegStr HKLM "${UNINST_KEY}" "InstallLocation" "$INSTDIR"
     WriteRegStr HKLM "${UNINST_KEY}" "DisplayName" "${INFO_PRODUCTNAME}"
     WriteRegStr HKLM "${UNINST_KEY}" "Publisher" "${INFO_COMPANYNAME}"
-    DetailPrint "已写入版本信息: ${INFO_PRODUCTVERSION}"
+    DetailPrint "Version info written: ${INFO_PRODUCTVERSION}"
 FunctionEnd
 
 # Helper function to trim quotes from a string
@@ -468,7 +468,7 @@ FunctionEnd
 
 # Function to stop running instances and services
 Function StopRunningInstances
-    DetailPrint "正在检查运行中的进程..."
+    DetailPrint "Checking for running processes..."
     
     # Try to stop the core service first (it manages the fan control)
     # Use /FI with proper error handling
@@ -477,7 +477,7 @@ Function StopRunningInstances
     Pop $0
     Pop $1
     ${If} $0 == 0
-        DetailPrint "已请求关闭 BS2PRO-Core.exe..."
+        DetailPrint "Requested shutdown of BS2PRO-Core.exe..."
         Sleep 2000
     ${EndIf}
     
@@ -492,7 +492,7 @@ Function StopRunningInstances
     Pop $0
     Pop $1
     ${If} $0 == 0
-        DetailPrint "已请求关闭 SpaceStationService.exe..."
+        DetailPrint "Requested shutdown of SpaceStationService.exe..."
         Sleep 1000
     ${EndIf}
 
@@ -507,7 +507,7 @@ Function StopRunningInstances
     Pop $0
     Pop $1
     ${If} $0 == 0
-        DetailPrint "已请求关闭 ${PRODUCT_EXECUTABLE}..."
+        DetailPrint "Requested shutdown of ${PRODUCT_EXECUTABLE}..."
         Sleep 2000
     ${EndIf}
     
@@ -536,7 +536,7 @@ Function StopRunningInstances
     Call StopBridgeDriver
     
     # Remove scheduled task if exists (ignore errors)
-    DetailPrint "正在清理计划任务..."
+    DetailPrint "Cleaning up scheduled tasks..."
     nsExec::ExecToStack '"$SYSDIR\schtasks.exe" /delete /tn "BS2PRO-Controller" /f'
     Pop $0
     Pop $1
@@ -545,15 +545,15 @@ Function StopRunningInstances
     Pop $1
     
     # Wait a moment for processes to fully terminate
-    DetailPrint "等待进程完全终止..."
+    DetailPrint "Waiting for processes to fully terminate..."
     Sleep 2000
     
-    DetailPrint "进程清理完成"
+    DetailPrint "Process cleanup completed"
 FunctionEnd
 
 # Function to stop and remove TempBridge kernel driver service
 Function StopBridgeDriver
-    DetailPrint "正在停止驱动服务 R0TempBridge..."
+    DetailPrint "Stopping driver service R0TempBridge..."
 
     # Stop running driver service (ignore failures if service does not exist)
     nsExec::ExecToStack '"$SYSDIR\sc.exe" stop "R0TempBridge"'
@@ -612,7 +612,7 @@ FunctionEnd
 
 # Uninstall-side function (NSIS requires un.* functions in uninstall section)
 Function un.StopBridgeDriver
-    DetailPrint "正在停止驱动服务 R0TempBridge..."
+    DetailPrint "Stopping driver service R0TempBridge..."
 
     nsExec::ExecToStack '"$SYSDIR\sc.exe" stop "R0TempBridge"'
     Pop $0
@@ -666,41 +666,41 @@ FunctionEnd
 
 # Function to backup user data before upgrade
 Function BackupUserData
-    DetailPrint "正在备份用户配置..."
+    DetailPrint "Backing up user configuration..."
     
     # Backup configuration files if they exist
     ${If} ${FileExists} "$INSTDIR\config.json"
         CopyFiles "$INSTDIR\config.json" "$TEMP\bs2pro_config_backup.json"
-        DetailPrint "配置文件已备份"
+        DetailPrint "Configuration file backed up"
     ${EndIf}
     
     # Backup other important user files if needed
     ${If} ${FileExists} "$INSTDIR\settings.ini"
         CopyFiles "$INSTDIR\settings.ini" "$TEMP\bs2pro_settings_backup.ini"
-        DetailPrint "设置文件已备份"
+        DetailPrint "Settings file backed up"
     ${EndIf}
 FunctionEnd
 
 # Function to restore user data after upgrade
 Function RestoreUserData
-    DetailPrint "正在恢复用户配置..."
+    DetailPrint "Restoring user configuration..."
     
     # Restore configuration files if backup exists
     ${If} ${FileExists} "$TEMP\bs2pro_config_backup.json"
         CopyFiles "$TEMP\bs2pro_config_backup.json" "$INSTDIR\config.json"
-        DetailPrint "配置文件已恢复"
+        DetailPrint "Configuration file restored"
     ${EndIf}
     
     ${If} ${FileExists} "$TEMP\bs2pro_settings_backup.ini"
         CopyFiles "$TEMP\bs2pro_settings_backup.ini" "$INSTDIR\settings.ini"
         Delete "$TEMP\bs2pro_settings_backup.ini"  # Clean up backup
-        DetailPrint "设置文件已恢复"
+        DetailPrint "Settings file restored"
     ${EndIf}
 FunctionEnd
 
 # Uninstall currently installed PawnIO via bundled installer
 Function UninstallPawnIO
-    DetailPrint "正在卸载已安装的 PawnIO..."
+    DetailPrint "Uninstalling existing PawnIO..."
 
     ${If} ${FileExists} "$TEMP\BS2PRO-PawnIO\PawnIO_setup.exe"
         nsExec::ExecToStack /TIMEOUT=60000 '"$TEMP\BS2PRO-PawnIO\PawnIO_setup.exe" -uninstall -silent'
@@ -708,39 +708,39 @@ Function UninstallPawnIO
         Pop $1
 
         ${If} $0 == "timeout"
-            DetailPrint "PawnIO 静默卸载 60 秒未响应，回退到交互卸载..."
+            DetailPrint "PawnIO silent uninstall timed out after 60 seconds, falling back to interactive uninstall..."
             nsExec::ExecToStack '"$SYSDIR\taskkill.exe" /F /IM "PawnIO_setup.exe" /T'
             Pop $2
             Pop $3
             ExecWait '"$TEMP\BS2PRO-PawnIO\PawnIO_setup.exe" -uninstall' $0
             ${If} $0 != 0
-                DetailPrint "PawnIO 交互卸载返回码: $0"
+                DetailPrint "PawnIO interactive uninstall return code: $0"
             ${EndIf}
         ${ElseIf} $0 == 0
-            DetailPrint "PawnIO 卸载完成（静默）"
+            DetailPrint "PawnIO uninstall completed (silent)"
         ${Else}
-            DetailPrint "PawnIO 静默卸载失败，回退到交互卸载..."
+            DetailPrint "PawnIO silent uninstall failed, falling back to interactive uninstall..."
             ExecWait '"$TEMP\BS2PRO-PawnIO\PawnIO_setup.exe" -uninstall' $0
             ${If} $0 != 0
-                DetailPrint "PawnIO 交互卸载返回码: $0"
+                DetailPrint "PawnIO interactive uninstall return code: $0"
             ${EndIf}
         ${EndIf}
     ${Else}
-        DetailPrint "未找到 PawnIO_setup.exe，跳过卸载程序调用"
+        DetailPrint "PawnIO_setup.exe not found, skipping uninstall call"
     ${EndIf}
 
-    # 卸载后再做一次驱动服务清理，避免升级残留
+    # Clean up driver services after uninstall to avoid upgrade leftovers
     Call StopBridgeDriver
     Sleep 1000
 FunctionEnd
 
-Section "主程序 (必需)" SEC_MAIN
+Section "Main Program (Required)" SEC_MAIN
     SectionIn RO  # Read-only, cannot be deselected
     !insertmacro wails.setShellContext
 
     # Check if this is an upgrade installation
     ${If} ${FileExists} "$INSTDIR\${PRODUCT_EXECUTABLE}"
-        DetailPrint "正在升级: $INSTDIR"
+        DetailPrint "Upgrading: $INSTDIR"
         
         # Backup important files before upgrade
         Call BackupUserData
@@ -749,13 +749,13 @@ Section "主程序 (必需)" SEC_MAIN
         Call StopRunningInstances
         
         # Clean up old files but preserve user data
-        DetailPrint "正在清理旧版本文件..."
+        DetailPrint "Cleaning up old version files..."
         Delete "$INSTDIR\${PRODUCT_EXECUTABLE}"
         Delete "$INSTDIR\BS2PRO-Core.exe"
         RMDir /r "$INSTDIR\bridge"
         Delete "$INSTDIR\logs\*.log"  # Keep log structure but remove old logs
     ${ElseIf} ${FileExists} "$INSTDIR\BS2PRO-Core.exe"
-        DetailPrint "正在升级 (发现Core): $INSTDIR"
+        DetailPrint "Upgrading (found Core): $INSTDIR"
         
         # Backup important files before upgrade
         Call BackupUserData
@@ -764,19 +764,19 @@ Section "主程序 (必需)" SEC_MAIN
         Call StopRunningInstances
         
         # Clean up old files but preserve user data
-        DetailPrint "正在清理旧版本文件..."
+        DetailPrint "Cleaning up old version files..."
         Delete "$INSTDIR\${PRODUCT_EXECUTABLE}"
         Delete "$INSTDIR\BS2PRO-Core.exe"
         RMDir /r "$INSTDIR\bridge"
         Delete "$INSTDIR\logs\*.log"
     ${Else}
-        DetailPrint "全新安装: $INSTDIR"
+        DetailPrint "Fresh installation: $INSTDIR"
         
         # Ensure old instances are completely stopped before installing
         Call StopRunningInstances
         
         # Clean up any leftover files from previous installation
-        DetailPrint "正在清理残留文件..."
+        DetailPrint "Cleaning up leftover files..."
         RMDir /r "$INSTDIR\bridge"
         Delete "$INSTDIR\logs\*.*"
     ${EndIf}
@@ -788,11 +788,11 @@ Section "主程序 (必需)" SEC_MAIN
     !insertmacro wails.files
     
     # Copy core service executable
-    DetailPrint "正在安装核心服务..."
+    DetailPrint "Installing core service..."
     File "..\..\bin\BS2PRO-Core.exe"
     
     # Copy bridge directory and its contents
-    DetailPrint "正在安装桥接组件..."
+    DetailPrint "Installing bridge components..."
     SetOutPath $INSTDIR\bridge
     File /r "..\..\bin\bridge\*.*"
     
@@ -803,7 +803,7 @@ Section "主程序 (必需)" SEC_MAIN
     Call RestoreUserData
 
     # Create shortcuts
-    DetailPrint "正在创建快捷方式..."
+    DetailPrint "Creating shortcuts..."
     CreateShortcut "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
     CreateShortCut "$DESKTOP\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
 
@@ -813,23 +813,23 @@ Section "主程序 (必需)" SEC_MAIN
     !insertmacro wails.writeUninstaller
     Call WriteCurrentVersionInfo
     
-    DetailPrint "安装完成"
+    DetailPrint "Installation completed"
     
     # Show completion message
     ${If} ${FileExists} "$TEMP\bs2pro_config_backup.json"
-        MessageBox MB_OK|MB_ICONINFORMATION "BS2PRO 控制器升级成功！$\n$\n您的设置已保留。$\n$\n注意：完整功能需要管理员权限。"
+        MessageBox MB_OK|MB_ICONINFORMATION "BS2PRO Controller upgraded successfully!$\n$\nYour settings have been preserved.$\n$\nNote: Full functionality requires administrator privileges."
         Delete "$TEMP\bs2pro_config_backup.json"  # Clean up backup
     ${Else}
-        MessageBox MB_OK|MB_ICONINFORMATION "BS2PRO 控制器安装成功！$\n$\n注意：完整功能需要管理员权限。"
+        MessageBox MB_OK|MB_ICONINFORMATION "BS2PRO Controller installed successfully!$\n$\nNote: Full functionality requires administrator privileges."
     ${EndIf}
 SectionEnd
 
 # Auto-start section (selected by default)
-Section "开机自启动" SEC_AUTOSTART
-    DetailPrint "正在配置开机自启动..."
+Section "Auto-start on boot" SEC_AUTOSTART
+    DetailPrint "Configuring auto-start on boot..."
     
     # First, remove any existing auto-start entries to ensure clean state
-    DetailPrint "正在清理现有自启动项..."
+    DetailPrint "Cleaning up existing auto-start entries..."
     nsExec::ExecToStack '"$SYSDIR\schtasks.exe" /delete /tn "BS2PRO-Controller" /f'
     Pop $0
     Pop $1
@@ -842,7 +842,7 @@ Section "开机自启动" SEC_AUTOSTART
     DeleteRegValue HKLM "Software\Microsoft\Windows\CurrentVersion\Run" "BS2PRO-Core"
     
     # Create new scheduled task for auto-start with admin privileges
-    DetailPrint "正在创建自启动计划任务..."
+    DetailPrint "Creating auto-start scheduled task..."
     
     # Use schtasks to create a task that runs at logon with highest privileges
     # The task will start BS2PRO-Core.exe with --autostart flag after 15 seconds delay
@@ -850,19 +850,19 @@ Section "开机自启动" SEC_AUTOSTART
     Pop $0
     Pop $1
     ${If} $0 == 0
-        DetailPrint "开机自启动配置成功（计划任务）"
+        DetailPrint "Auto-start configured successfully (scheduled task)"
     ${Else}
-        DetailPrint "计划任务创建失败，使用注册表方式..."
+        DetailPrint "Scheduled task creation failed, using registry method..."
         # Fallback: use registry auto-start (will trigger UAC on each login)
         WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "BS2PRO-Controller" '"$INSTDIR\BS2PRO-Core.exe" --autostart'
-        DetailPrint "开机自启动配置成功（注册表）"
+        DetailPrint "Auto-start configured successfully (registry)"
     ${EndIf}
 SectionEnd
 
 # Required PawnIO installer section
-Section "安装 PawnIO (必需)" SEC_PAWNIO
+Section "Install PawnIO (Required)" SEC_PAWNIO
     SectionIn RO
-    DetailPrint "正在准备安装 PawnIO..."
+    DetailPrint "Preparing to install PawnIO..."
     Push $6
     Push $7
     Push $8
@@ -871,7 +871,7 @@ Section "安装 PawnIO (必需)" SEC_PAWNIO
     SetOutPath "$TEMP\BS2PRO-PawnIO"
     File /nonfatal "..\..\bin\PawnIO_setup.exe"
     ${IfNot} ${FileExists} "$TEMP\BS2PRO-PawnIO\PawnIO_setup.exe"
-        MessageBox MB_OK|MB_ICONSTOP "未找到 PawnIO_setup.exe（build\\bin）。请先执行 build_bridge.bat 下载后再打包安装器。"
+        MessageBox MB_OK|MB_ICONSTOP "PawnIO_setup.exe not found (build\\bin). Please run build_bridge.bat to download it before building the installer."
         Abort
     ${EndIf}
 
@@ -890,11 +890,11 @@ Section "安装 PawnIO (必需)" SEC_PAWNIO
     StrCpy $9 "1"
 
     ${If} $6 != ""
-        DetailPrint "检测到已安装 PawnIO (版本: $6)，内置版本: ${PAWNIO_BUNDLED_VERSION}"
+        DetailPrint "Detected installed PawnIO (version: $6), bundled version: ${PAWNIO_BUNDLED_VERSION}"
         ${VersionCompare} "$6" "${PAWNIO_BUNDLED_VERSION}" $8
 
         ${If} $8 == 2
-            MessageBox MB_YESNO|MB_ICONQUESTION "检测到 PawnIO 旧版本：$6。$\n安装包内置版本：${PAWNIO_BUNDLED_VERSION}。$\n$\n是否先卸载旧版本再安装新版本？" IDYES pawnio_upgrade IDNO pawnio_skip
+            MessageBox MB_YESNO|MB_ICONQUESTION "Detected older PawnIO version: $6.$\nBundled version: ${PAWNIO_BUNDLED_VERSION}.$\n$\nUninstall the old version and install the new one?" IDYES pawnio_upgrade IDNO pawnio_skip
             pawnio_upgrade:
                 StrCpy $9 "2"
                 Goto pawnio_apply
@@ -902,7 +902,7 @@ Section "安装 PawnIO (必需)" SEC_PAWNIO
                 StrCpy $9 "0"
                 Goto pawnio_apply
         ${Else}
-            MessageBox MB_YESNO|MB_ICONQUESTION "检测到 PawnIO 已安装（版本：$6）。$\n$\n是否执行 PawnIO 修复安装（卸载后重装）？" IDYES pawnio_repair IDNO pawnio_skip2
+            MessageBox MB_YESNO|MB_ICONQUESTION "PawnIO is already installed (version: $6).$\n$\nPerform PawnIO repair installation (uninstall then reinstall)?" IDYES pawnio_repair IDNO pawnio_skip2
             pawnio_repair:
                 StrCpy $9 "2"
                 Goto pawnio_apply
@@ -914,7 +914,7 @@ Section "安装 PawnIO (必需)" SEC_PAWNIO
 
     pawnio_apply:
     ${If} $9 == "0"
-        DetailPrint "用户选择跳过 PawnIO 处理。"
+        DetailPrint "User chose to skip PawnIO processing."
         Goto pawnio_done
     ${EndIf}
 
@@ -923,7 +923,7 @@ Section "安装 PawnIO (必需)" SEC_PAWNIO
     ${EndIf}
 
     # Pre-clean possible stale driver service state (avoids driver install error 1072)
-    DetailPrint "正在清理旧的 PawnIO 驱动服务..."
+    DetailPrint "Cleaning up old PawnIO driver services..."
     nsExec::ExecToStack '"$SYSDIR\sc.exe" stop "PawnIO"'
     Pop $4
     Pop $5
@@ -938,31 +938,31 @@ Section "安装 PawnIO (必需)" SEC_PAWNIO
     Pop $5
     Sleep 1200
 
-    DetailPrint "正在静默安装 PawnIO（最多等待 60 秒）..."
+    DetailPrint "Installing PawnIO silently (up to 60 seconds)..."
     nsExec::ExecToStack /TIMEOUT=60000 '"$TEMP\BS2PRO-PawnIO\PawnIO_setup.exe" -install -silent'
     Pop $0
     Pop $1
     ${If} $0 == "timeout"
-        DetailPrint "PawnIO 静默安装 60 秒未响应，回退到交互安装..."
+        DetailPrint "PawnIO silent install timed out after 60 seconds, falling back to interactive install..."
         nsExec::ExecToStack '"$SYSDIR\taskkill.exe" /F /IM "PawnIO_setup.exe" /T'
         Pop $2
         Pop $3
         ExecWait '"$TEMP\BS2PRO-PawnIO\PawnIO_setup.exe" -install' $0
         ${If} $0 == 0
-            DetailPrint "PawnIO 安装完成（交互）"
+            DetailPrint "PawnIO installation completed (interactive)"
         ${Else}
-            MessageBox MB_OK|MB_ICONSTOP "PawnIO 交互安装失败（返回码: $0）。$\n$\n常见原因：驱动服务被系统标记删除（错误 1072）。$\n请先重启系统后重新运行安装程序。"
+            MessageBox MB_OK|MB_ICONSTOP "PawnIO interactive install failed (return code: $0).$\n$\nCommon cause: driver service marked for deletion by system (error 1072).$\nPlease restart the system and run the installer again."
             Abort
         ${EndIf}
     ${ElseIf} $0 == 0
-        DetailPrint "PawnIO 安装完成（静默）"
+        DetailPrint "PawnIO installation completed (silent)"
     ${Else}
-        DetailPrint "PawnIO 静默安装失败，改为交互安装..."
+        DetailPrint "PawnIO silent install failed, switching to interactive install..."
         ExecWait '"$TEMP\BS2PRO-PawnIO\PawnIO_setup.exe" -install' $0
         ${If} $0 == 0
-            DetailPrint "PawnIO 安装完成（交互）"
+            DetailPrint "PawnIO installation completed (interactive)"
         ${Else}
-            MessageBox MB_OK|MB_ICONSTOP "PawnIO 安装失败（返回码: $0）。$\n$\n常见原因：驱动服务被系统标记删除（错误 1072）。$\n请先重启系统后重新运行安装程序。"
+            MessageBox MB_OK|MB_ICONSTOP "PawnIO installation failed (return code: $0).$\n$\nCommon cause: driver service marked for deletion by system (error 1072).$\nPlease restart the system and run the installer again."
             Abort
         ${EndIf}
     ${EndIf}
@@ -976,19 +976,19 @@ SectionEnd
 
 # Section descriptions
 !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
-    !insertmacro MUI_DESCRIPTION_TEXT ${SEC_MAIN} "BS2PRO 控制器主程序和核心服务文件。"
-    !insertmacro MUI_DESCRIPTION_TEXT ${SEC_AUTOSTART} "系统启动时自动运行 BS2PRO 控制器核心服务。推荐开启。"
-    !insertmacro MUI_DESCRIPTION_TEXT ${SEC_PAWNIO} "安装 PawnIO 驱动，PawnIO将用于获取硬件相关信息。"
+    !insertmacro MUI_DESCRIPTION_TEXT ${SEC_MAIN} "BS2PRO Controller main program and core service files."
+    !insertmacro MUI_DESCRIPTION_TEXT ${SEC_AUTOSTART} "Automatically run BS2PRO Controller core service at system startup. Recommended."
+    !insertmacro MUI_DESCRIPTION_TEXT ${SEC_PAWNIO} "Install PawnIO driver, used for obtaining hardware information."
 !insertmacro MUI_FUNCTION_DESCRIPTION_END
 
 Section "uninstall"
     !insertmacro wails.setShellContext
 
     # Stop running instances before uninstalling
-    DetailPrint "正在停止运行中的进程..."
+    DetailPrint "Stopping running processes..."
     
     # Stop core service first (ignore errors)
-    DetailPrint "正在停止 BS2PRO-Core.exe..."
+    DetailPrint "Stopping BS2PRO-Core.exe..."
     nsExec::ExecToStack '"$SYSDIR\taskkill.exe" /IM "BS2PRO-Core.exe" /T'
     Pop $0
     Pop $1
@@ -998,7 +998,7 @@ Section "uninstall"
     Pop $1
     
     # Stop main application (ignore errors)
-    DetailPrint "正在停止 ${PRODUCT_EXECUTABLE}..."
+    DetailPrint "Stopping ${PRODUCT_EXECUTABLE}..."
     nsExec::ExecToStack '"$SYSDIR\taskkill.exe" /IM "${PRODUCT_EXECUTABLE}" /T'
     Pop $0
     Pop $1
@@ -1019,7 +1019,7 @@ Section "uninstall"
     Pop $1
     
     # Stop bridge processes (ignore errors)
-    DetailPrint "正在停止 TempBridge.exe..."
+    DetailPrint "Stopping TempBridge.exe..."
     nsExec::ExecToStack '"$SYSDIR\taskkill.exe" /IM "TempBridge.exe" /T'
     Pop $0
     Pop $1
@@ -1032,7 +1032,7 @@ Section "uninstall"
     Call un.StopBridgeDriver
     
     # Remove auto-start entries
-    DetailPrint "正在移除自启动项..."
+    DetailPrint "Removing auto-start entries..."
     
     # Remove scheduled task (ignore errors if not exists)
     nsExec::ExecToStack '"$SYSDIR\schtasks.exe" /delete /tn "BS2PRO-Controller" /f'
@@ -1056,29 +1056,29 @@ Section "uninstall"
     Sleep 2000
 
     # Remove application data directories
-    DetailPrint "正在移除应用数据..."
+    DetailPrint "Removing application data..."
     RMDir /r "$AppData\${PRODUCT_EXECUTABLE}" # Remove the WebView2 DataPath
     RMDir /r "$APPDATA\BS2PRO-Controller"
     RMDir /r "$LOCALAPPDATA\BS2PRO-Controller"
     RMDir /r "$TEMP\BS2PRO-Controller"
 
     # Remove installation directory and all contents
-    DetailPrint "正在移除安装文件..."
+    DetailPrint "Removing installation files..."
     
     # Remove bridge directory (contains TempBridge.exe and related files)
-    DetailPrint "正在删除桥接组件..."
+    DetailPrint "Deleting bridge components..."
     RMDir /r "$INSTDIR\bridge"
     
     # Remove logs directory
-    DetailPrint "正在删除日志文件..."
+    DetailPrint "Deleting log files..."
     RMDir /r "$INSTDIR\logs"
     
     # Remove entire installation directory
-    DetailPrint "正在删除安装目录..."
+    DetailPrint "Deleting installation directory..."
     RMDir /r $INSTDIR
 
     # Remove shortcuts
-    DetailPrint "正在移除快捷方式..."
+    DetailPrint "Removing shortcuts..."
     Delete "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk"
     Delete "$DESKTOP\${INFO_PRODUCTNAME}.lnk"
 
@@ -1087,10 +1087,10 @@ Section "uninstall"
 
     !insertmacro wails.deleteUninstaller
     
-    DetailPrint "卸载完成"
+    DetailPrint "Uninstallation completed"
     
     # Optional: Ask user if they want to remove configuration files
-    MessageBox MB_YESNO|MB_ICONQUESTION "是否删除所有配置文件和日志？" IDNO skip_config
+    MessageBox MB_YESNO|MB_ICONQUESTION "Delete all configuration files and logs?" IDNO skip_config
     RMDir /r "$APPDATA\BS2PRO"
     RMDir /r "$LOCALAPPDATA\BS2PRO"
     skip_config:

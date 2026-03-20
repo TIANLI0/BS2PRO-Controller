@@ -1,4 +1,4 @@
-// Package logger 提供基于 zap 的日志记录功能
+// Package logger provides zap-based logging functionality
 package logger
 
 import (
@@ -13,7 +13,7 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-// CustomLogger zap 日志记录器封装
+// CustomLogger zap logger wrapper
 type CustomLogger struct {
 	logger    *zap.Logger
 	sugar     *zap.SugaredLogger
@@ -22,23 +22,23 @@ type CustomLogger struct {
 	atom      zap.AtomicLevel
 }
 
-// NewCustomLogger 创建新的日志记录器
+// NewCustomLogger creates a new logger
 func NewCustomLogger(debugMode bool, installDir string) (*CustomLogger, error) {
 	logDir := filepath.Join(installDir, "logs")
 	if err := os.MkdirAll(logDir, 0755); err != nil {
-		return nil, fmt.Errorf("创建日志目录失败: %v", err)
+		return nil, fmt.Errorf("failed to create log directory: %v", err)
 	}
 
-	// 主日志文件路径
+	// Main log file path
 	logFilePath := filepath.Join(logDir, fmt.Sprintf("app_%s.log", time.Now().Format("2006-01-02")))
 	debugFilePath := filepath.Join(logDir, fmt.Sprintf("debug_%s.log", time.Now().Format("2006-01-02")))
 
-	// 创建日志轮转配置
+	// Create log rotation config
 	appLogRotate := &lumberjack.Logger{
 		Filename:   logFilePath,
 		MaxSize:    10, // MB
 		MaxBackups: 7,
-		MaxAge:     7, // 天
+		MaxAge:     7, // days
 		Compress:   true,
 	}
 
@@ -50,7 +50,7 @@ func NewCustomLogger(debugMode bool, installDir string) (*CustomLogger, error) {
 		Compress:   true,
 	}
 
-	// 编码器配置
+	// Encoder config
 	encoderConfig := zapcore.EncoderConfig{
 		TimeKey:        "time",
 		LevelKey:       "level",
@@ -69,7 +69,7 @@ func NewCustomLogger(debugMode bool, installDir string) (*CustomLogger, error) {
 	consoleEncoderConfig := encoderConfig
 	consoleEncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
 
-	// 设置日志级别
+	// Set log level
 	atom := zap.NewAtomicLevel()
 	if debugMode {
 		atom.SetLevel(zapcore.DebugLevel)
@@ -77,7 +77,7 @@ func NewCustomLogger(debugMode bool, installDir string) (*CustomLogger, error) {
 		atom.SetLevel(zapcore.InfoLevel)
 	}
 
-	// 创建多个核心
+	// Create multiple cores
 	consoleEncoder := zapcore.NewConsoleEncoder(consoleEncoderConfig)
 	fileEncoder := zapcore.NewJSONEncoder(encoderConfig)
 
@@ -95,17 +95,17 @@ func NewCustomLogger(debugMode bool, installDir string) (*CustomLogger, error) {
 		atom,
 	)
 
-	// 控制台输出核心
+	// Console output core
 	consoleCore := zapcore.NewCore(
 		consoleEncoder,
 		zapcore.AddSync(os.Stdout),
 		atom,
 	)
 
-	// 合并核心
+	// Merge cores
 	core := zapcore.NewTee(appCore, debugCore, consoleCore)
 
-	// 创建 logger
+	// Create logger
 	logger := zap.New(core, zap.AddCaller(), zap.AddCallerSkip(1))
 	sugar := logger.Sugar()
 
@@ -118,46 +118,46 @@ func NewCustomLogger(debugMode bool, installDir string) (*CustomLogger, error) {
 	}, nil
 }
 
-// Info 记录信息日志
+// Info logs an info message
 func (l *CustomLogger) Info(format string, v ...any) {
 	l.sugar.Infof(format, v...)
 }
 
-// Error 记录错误日志
+// Error logs an error message
 func (l *CustomLogger) Error(format string, v ...any) {
 	l.sugar.Errorf(format, v...)
 }
 
-// Debug 记录调试日志
+// Debug logs a debug message
 func (l *CustomLogger) Debug(format string, v ...any) {
 	l.sugar.Debugf(format, v...)
 }
 
-// Warn 记录警告日志
+// Warn logs a warning message
 func (l *CustomLogger) Warn(format string, v ...any) {
 	l.sugar.Warnf(format, v...)
 }
 
-// Fatal 记录致命错误日志并退出
+// Fatal logs a fatal error message and exits
 func (l *CustomLogger) Fatal(format string, v ...any) {
 	l.sugar.Fatalf(format, v...)
 }
 
-// Close 关闭日志
+// Close closes the logger
 func (l *CustomLogger) Close() {
 	if l.logger != nil {
 		l.logger.Sync()
 	}
 }
 
-// CleanOldLogs 清理旧日志文件（保留7天）
+// CleanOldLogs cleans up old log files (keeps 7 days)
 func (l *CustomLogger) CleanOldLogs() {
 	files, err := os.ReadDir(l.logDir)
 	if err != nil {
 		return
 	}
 
-	cutoff := time.Now().AddDate(0, 0, -7) // 7天前
+	cutoff := time.Now().AddDate(0, 0, -7) // 7 days ago
 	for _, file := range files {
 		if strings.HasSuffix(file.Name(), ".log") || strings.HasSuffix(file.Name(), ".log.gz") {
 			info, err := file.Info()
@@ -171,7 +171,7 @@ func (l *CustomLogger) CleanOldLogs() {
 	}
 }
 
-// SetDebugMode 设置调试模式
+// SetDebugMode sets the debug mode
 func (l *CustomLogger) SetDebugMode(enabled bool) {
 	l.debugMode = enabled
 	if enabled {
@@ -181,22 +181,22 @@ func (l *CustomLogger) SetDebugMode(enabled bool) {
 	}
 }
 
-// GetLogDir 获取日志目录
+// GetLogDir gets the log directory
 func (l *CustomLogger) GetLogDir() string {
 	return l.logDir
 }
 
-// GetDebugMode 获取调试模式状态
+// GetDebugMode gets the debug mode status
 func (l *CustomLogger) GetDebugMode() bool {
 	return l.debugMode
 }
 
-// GetZapLogger 获取底层 zap logger
+// GetZapLogger gets the underlying zap logger
 func (l *CustomLogger) GetZapLogger() *zap.Logger {
 	return l.logger
 }
 
-// GetSugar 获取 sugar logger
+// GetSugar gets the sugar logger
 func (l *CustomLogger) GetSugar() *zap.SugaredLogger {
 	return l.sugar
 }

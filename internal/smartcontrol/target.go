@@ -5,7 +5,7 @@ import (
 	"github.com/TIANLI0/BS2PRO-Controller/internal/types"
 )
 
-// CalculateTargetRPM 计算智能目标转速
+// CalculateTargetRPM calculates the smart target RPM
 func CalculateTargetRPM(avgTemp, lastAvgTemp int, curve []types.FanCurvePoint, cfg types.SmartControlConfig) int {
 	effectiveCurve := make([]types.FanCurvePoint, len(curve))
 	activeOffsets := selectOffsetsForTrend(avgTemp-lastAvgTemp, cfg)
@@ -100,7 +100,7 @@ func sampleRateBias(tempDelta int, cfg types.SmartControlConfig) int {
 	return rateBiases[rateBucketIndex(tempDelta)]
 }
 
-// ApplyRampLimit 应用升降速限幅
+// ApplyRampLimit applies ramp-up/ramp-down rate limiting
 func ApplyRampLimit(targetRPM, lastRPM, upLimit, downLimit int) int {
 	if targetRPM > lastRPM {
 		return min(lastRPM+upLimit, targetRPM)

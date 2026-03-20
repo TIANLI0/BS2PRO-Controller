@@ -9,7 +9,7 @@ import (
 	"github.com/gen2brain/beeep"
 )
 
-// Manager 使用 beeep 发送系统通知。
+// Manager sends system notifications using beeep.
 type Manager struct {
 	logger   types.Logger
 	iconPath string
@@ -30,14 +30,14 @@ func (m *Manager) Notify(title, message string) {
 		return
 	}
 
-	toastTitle := "功能变动"
+	toastTitle := "Feature Changed"
 	if title != "" {
 		toastTitle = title
 	}
 
 	if err := beeep.Notify(toastTitle, message, m.iconPath); err != nil {
 		if m.logger != nil {
-			m.logger.Debug("系统通知发送失败: %v", err)
+			m.logger.Debug("Failed to send system notification: %v", err)
 		}
 	}
 }
@@ -55,7 +55,7 @@ func ensureNotificationIcon(iconData []byte, logger types.Logger) string {
 	iconDir := filepath.Join(cacheDir, "BS2PRO-Controller")
 	if err := os.MkdirAll(iconDir, 0755); err != nil {
 		if logger != nil {
-			logger.Debug("创建通知图标缓存目录失败: %v", err)
+			logger.Debug("Failed to create notification icon cache directory: %v", err)
 		}
 		return ""
 	}
@@ -63,7 +63,7 @@ func ensureNotificationIcon(iconData []byte, logger types.Logger) string {
 	iconPath := filepath.Join(iconDir, "notify-icon.ico")
 	if err := os.WriteFile(iconPath, iconData, 0644); err != nil {
 		if logger != nil {
-			logger.Debug("写入通知图标缓存失败: %v", err)
+			logger.Debug("Failed to write notification icon cache: %v", err)
 		}
 		return ""
 	}

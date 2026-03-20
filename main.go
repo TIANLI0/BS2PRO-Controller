@@ -31,10 +31,10 @@ func init() {
 
 var wailsContext *context.Context
 
-// onSecondInstanceLaunch 当第二个实例启动时的回调函数
+// onSecondInstanceLaunch callback when a second instance is launched
 func onSecondInstanceLaunch(secondInstanceData options.SecondInstanceData) {
-	println("检测到第二个实例启动，参数:", strings.Join(secondInstanceData.Args, ","))
-	println("工作目录:", secondInstanceData.WorkingDirectory)
+	println("Second instance detected, args:", strings.Join(secondInstanceData.Args, ","))
+	println("Working directory:", secondInstanceData.WorkingDirectory)
 
 	if wailsContext != nil {
 		runtime.WindowUnminimise(*wailsContext)
@@ -49,75 +49,75 @@ func onSecondInstanceLaunch(secondInstanceData options.SecondInstanceData) {
 	}
 }
 
-// ensureCoreServiceRunning 确保核心服务正在运行
+// ensureCoreServiceRunning ensures the core service is running
 func ensureCoreServiceRunning() bool {
-	// 检测是否在 Wails 绑定生成模式下运行
+	// Detect if running in Wails binding generation mode
 	exePath, err := os.Executable()
 	if err == nil {
 		tempDir := os.TempDir()
 		if strings.HasPrefix(exePath, tempDir) {
-			mainLogger.Info("检测到绑定生成模式，跳过核心服务启动")
+			mainLogger.Info("Binding generation mode detected, skipping core service startup")
 			return true
 		}
 	}
 
-	// 检查核心服务是否已经在运行
+	// Check if core service is already running
 	if ipc.CheckCoreServiceRunning() {
-		mainLogger.Info("核心服务已经在运行")
+		mainLogger.Info("Core service is already running")
 		return true
 	}
 
-	mainLogger.Info("核心服务未运行，正在启动...")
+	mainLogger.Info("Core service is not running, starting...")
 
-	// 获取核心服务路径
+	// Get core service path
 	if err != nil {
-		mainLogger.Errorf("获取可执行文件路径失败: %v", err)
+		mainLogger.Errorf("Failed to get executable path: %v", err)
 		return false
 	}
 
 	exeDir := filepath.Dir(exePath)
 	corePath := filepath.Join(exeDir, "BS2PRO-Core.exe")
 
-	// 检查核心服务是否存在
+	// Check if core service executable exists
 	if _, err := os.Stat(corePath); os.IsNotExist(err) {
-		mainLogger.Errorf("核心服务程序不存在: %s", corePath)
+		mainLogger.Errorf("Core service executable not found: %s", corePath)
 		return false
 	}
 
-	// 启动核心服务
+	// Start core service
 	cmd := exec.Command(corePath)
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP | 0x08000000, // CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
 	}
 
 	if err := cmd.Start(); err != nil {
-		mainLogger.Errorf("启动核心服务失败: %v", err)
+		mainLogger.Errorf("Failed to start core service: %v", err)
 		return false
 	}
 
-	mainLogger.Infof("核心服务已启动，PID: %d", cmd.Process.Pid)
+	mainLogger.Infof("Core service started, PID: %d", cmd.Process.Pid)
 
-	// 释放进程句柄
+	// Release process handle
 	if cmd.Process != nil {
 		cmd.Process.Release()
 	}
 
-	// 等待核心服务就绪
+	// Wait for core service to be ready
 	for range 50 {
 		time.Sleep(100 * time.Millisecond)
 		if ipc.CheckCoreServiceRunning() {
-			mainLogger.Info("核心服务已就绪")
+			mainLogger.Info("Core service is ready")
 			return true
 		}
 	}
 
-	mainLogger.Warn("等待核心服务就绪超时")
+	mainLogger.Warn("Timed out waiting for core service to be ready")
 	return false
 }
 
 func main() {
 	if !ensureCoreServiceRunning() {
-		mainLogger.Warn("警告：无法启动核心服务，GUI 将以有限功能模式运行")
+		mainLogger.Warn("Warning: unable to start core service, GUI will run in limited functionality mode")
 	}
 
 	app := NewApp()
@@ -130,7 +130,7 @@ func main() {
 		}
 	}
 
-	// 创建应用
+	// Create application
 	err := wails.Run(&options.App{
 		Title:            "BS2PRO Controller",
 		Width:            1024,

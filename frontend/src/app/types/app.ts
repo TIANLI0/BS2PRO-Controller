@@ -1,9 +1,9 @@
-// 应用类型定义
+// App type definitions
 
-// 风扇曲线点
+// Fan curve point
 export interface FanCurvePoint {
-  temperature: number; // 温度 °C
-  rpm: number;         // 转速 RPM
+  temperature: number; // Temperature °C
+  rpm: number;         // Speed RPM
 }
 
 export interface FanCurveProfile {
@@ -12,7 +12,7 @@ export interface FanCurveProfile {
   curve: FanCurvePoint[];
 }
 
-// 风扇数据结构
+// Fan data structure
 export interface FanData {
   reportId: number;
   magicSync: number;
@@ -28,37 +28,37 @@ export interface FanData {
   workMode: string;
 }
 
-// 温度数据
+// Temperature data
 export interface TemperatureData {
-  cpuTemp: number;     // CPU温度
-  gpuTemp: number;     // GPU温度
-  maxTemp: number;     // 最高温度
-  updateTime: number;  // 更新时间戳
-  bridgeOk?: boolean;  // 桥接程序是否正常
-  bridgeMessage?: string; // 桥接程序提示
+  cpuTemp: number;     // CPU temperature
+  gpuTemp: number;     // GPU temperature
+  maxTemp: number;     // Max temperature
+  updateTime: number;  // Update timestamp
+  bridgeOk?: boolean;  // Bridge program status
+  bridgeMessage?: string; // Bridge program message
 }
 
-// 应用配置
+// App configuration
 export interface AppConfig {
-  autoControl: boolean;         // 智能变频开关
-  curveProfileToggleHotkey?: string; // 切换曲线方案快捷键
-  fanCurve: FanCurvePoint[];   // 风扇曲线
+  autoControl: boolean;         // Smart speed control switch
+  curveProfileToggleHotkey?: string; // Curve profile toggle hotkey
+  fanCurve: FanCurvePoint[];   // Fan curve
   fanCurveProfiles?: FanCurveProfile[];
   activeFanCurveProfileId?: string;
-  gearLight: boolean;          // 挡位灯
-  powerOnStart: boolean;       // 通电自启动
-  windowsAutoStart: boolean;   // Windows开机自启动
-  smartStartStop: string;      // 智能启停
-  brightness: number;          // 亮度
-  tempUpdateRate: number;      // 温度更新频率(秒)
-  configPath: string;          // 配置文件路径
-  manualGear: string;          // 手动挡位设置
-  manualLevel: string;         // 手动挡位级别(低中高)
-  debugMode: boolean;          // 调试模式
-  guiMonitoring: boolean;      // GUI监控开关
-  customSpeedEnabled: boolean; // 自定义转速开关
-  customSpeedRPM: number;      // 自定义转速值(无上下限)
-  smartControl: SmartControlConfig; // 学习型智能控温
+  gearLight: boolean;          // Gear indicator light
+  powerOnStart: boolean;       // Power-on auto start
+  windowsAutoStart: boolean;   // Windows boot auto start
+  smartStartStop: string;      // Smart start/stop
+  brightness: number;          // Brightness
+  tempUpdateRate: number;      // Temperature update rate (seconds)
+  configPath: string;          // Config file path
+  manualGear: string;          // Manual gear setting
+  manualLevel: string;         // Manual gear level (low/mid/high)
+  debugMode: boolean;          // Debug mode
+  guiMonitoring: boolean;      // GUI monitoring switch
+  customSpeedEnabled: boolean; // Custom speed switch
+  customSpeedRPM: number;      // Custom speed value (no limits)
+  smartControl: SmartControlConfig; // Learning smart temperature control
 }
 
 export interface SmartControlConfig {
@@ -85,7 +85,7 @@ export interface SmartControlConfig {
   learnedRateCool: number[];
 }
 
-// 调试信息
+// Debug info
 export interface DebugInfo {
   debugMode: boolean;
   trayReady: boolean;
@@ -96,24 +96,24 @@ export interface DebugInfo {
   autoStartLaunch: boolean;
 }
 
-// 自启动方式
+// Auto-start method
 export type AutoStartMethod = 'none' | 'task_scheduler' | 'registry';
 
-// 自启动信息
+// Auto-start info
 export interface AutoStartInfo {
   enabled: boolean;
   method: AutoStartMethod;
   isAdmin: boolean;
 }
 
-// 挡位命令
+// Gear command
 export interface GearCommand {
-  name: string;    // 挡位名称
-  command: number[]; // 命令字节
-  rpm: number;     // 对应转速
+  name: string;    // Gear name
+  command: number[]; // Command bytes
+  rpm: number;     // Corresponding speed
 }
 
-// 设备状态
+// Device status
 export interface DeviceStatus {
   connected: boolean;
   monitoring: boolean;
@@ -123,7 +123,7 @@ export interface DeviceStatus {
   model?: string;
 }
 
-// 设备信息
+// Device info
 export interface DeviceInfo {
   manufacturer: string;
   product: string;

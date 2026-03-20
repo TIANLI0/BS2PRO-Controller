@@ -1,4 +1,4 @@
-// Package smartcontrol 提供学习型智能控温算法
+// Package smartcontrol provides a learning-based smart temperature control algorithm
 package smartcontrol
 
 const (

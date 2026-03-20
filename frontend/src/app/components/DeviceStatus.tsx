@@ -36,10 +36,10 @@ interface DeviceStatusProps {
 }
 
 const getTempStatus = (temp: number) => {
-  if (temp > 85) return { color: 'text-red-500', bg: 'bg-red-500', label: '过热' };
-  if (temp > 75) return { color: 'text-orange-500', bg: 'bg-orange-500', label: '偏高' };
-  if (temp > 60) return { color: 'text-yellow-500', bg: 'bg-yellow-500', label: '正常' };
-  return { color: 'text-green-500', bg: 'bg-green-500', label: '良好' };
+  if (temp > 85) return { color: 'text-red-500', bg: 'bg-red-500', label: 'Overheat' };
+  if (temp > 75) return { color: 'text-orange-500', bg: 'bg-orange-500', label: 'High' };
+  if (temp > 60) return { color: 'text-yellow-500', bg: 'bg-yellow-500', label: 'Normal' };
+  return { color: 'text-green-500', bg: 'bg-green-500', label: 'Good' };
 };
 
 const getFanSpinDuration = (rpm?: number) => {
@@ -112,7 +112,7 @@ const FanRpmDisplay = memo(function FanRpmDisplay({
         <span className="text-xs text-muted-foreground">RPM</span>
       </div>
       <span className="mt-1 text-[11px] text-muted-foreground">
-        目标 {targetRpm ?? '--'} · {setGear || '--'}
+        Target {targetRpm ?? '--'} · {setGear || '--'}
       </span>
       <div className="mt-2.5 h-1 w-full overflow-hidden rounded-full bg-muted">
         <div className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${pct}%` }} />
@@ -176,35 +176,35 @@ export default function DeviceStatus({
       await apiService.setAutoControl(enabled);
       onConfigChange(types.AppConfig.createFrom({ ...config, autoControl: enabled }));
     } catch (err) {
-      console.error('设置智能变频失败:', err);
+      console.error('Failed to set smart speed control:', err);
     }
   };
 
   const normalizedProductId = deviceProductId?.trim().toUpperCase() ?? '';
   const isProModel = normalizedProductId === '0X1002';
   const isBs2Model = normalizedProductId === '0X1001';
-  const deviceModel = isProModel ? 'BS2 PRO' : isBs2Model ? 'BS2' : '未知设备';
+  const deviceModel = isProModel ? 'BS2 PRO' : isBs2Model ? 'BS2' : 'Unknown Device';
   const deviceImageSrc = isBs2Model ? '/bs2.png' : '/bs2pro.png';
-  const modeTitle = config.autoControl ? '智能控制' : config.customSpeedEnabled ? '固定转速' : '手动策略';
+  const modeTitle = config.autoControl ? 'Smart Control' : config.customSpeedEnabled ? 'Fixed Speed' : 'Manual Strategy';
   const modeDesc = config.autoControl
-    ? '根据实时温度自动调节转速'
+    ? 'Auto-adjusts fan speed based on real-time temperature'
     : config.customSpeedEnabled
-      ? `当前固定为 ${config.customSpeedRPM || fanData?.currentRpm || '--'} RPM`
-      : '可在设置页调整模式与参数';
+      ? `Currently fixed at ${config.customSpeedRPM || fanData?.currentRpm || '--'} RPM`
+      : 'Adjust mode and parameters in Settings';
   const modeDisplayTitle = activeCurveProfileName ? `${modeTitle}（${activeCurveProfileName}）` : modeTitle;
   const fanSpinDuration = getFanSpinDuration(fanData?.currentRpm);
   const maxRpmInfo = getReportedMaxRpm(fanData?.gearSettings, fanData?.maxGear);
   const maxGearHighLevelRpm = maxRpmInfo.rpm;
   const maxRpmHint =
     maxGearHighLevelRpm === 4000
-      ? '当前已解锁超频上限，最高可达 4000 RPM。'
+      ? 'Overclock limit unlocked, max speed up to 4000 RPM.'
       : maxGearHighLevelRpm === 3300
-        ? '当前最高为强劲档，最高可达 3300 RPM，使用PD 27W充电头以解锁上限。'
+        ? 'Currently at Power gear, max 3300 RPM. Use a PD 27W charger to unlock the limit.'
         : maxGearHighLevelRpm === 2760
-          ? '当前最高为标准档，最高可达 2760 RPM，使用PD 27W充电头以解锁上限。'
+          ? 'Currently at Standard gear, max 2760 RPM. Use a PD 27W charger to unlock the limit.'
           : maxRpmInfo.codeHex
-            ? `设备上报了未映射的最高挡位编码：${maxRpmInfo.codeHex}`
-            : '等待设备上报最高转速能力。';
+            ? `Device reported an unmapped max gear code: ${maxRpmInfo.codeHex}`
+            : 'Waiting for device to report max speed capability.';
 
   return (
     <div className="space-y-4">
@@ -233,7 +233,7 @@ export default function DeviceStatus({
                       : 'bg-red-500/10 text-red-500',
                   )}
                 >
-                  {isConnected ? '已连接' : '离线'}
+                  {isConnected ? 'Connected' : 'Offline'}
                 </span>
               </div>
               {isConnected && (
@@ -246,7 +246,7 @@ export default function DeviceStatus({
                   <span>{modeTitle} · {modeDesc}</span>
                 </div>
               )}
-              {!isConnected && <p className="mt-0.5 text-sm text-muted-foreground">等待蓝牙连接…</p>}
+              {!isConnected && <p className="mt-0.5 text-sm text-muted-foreground">Waiting for Bluetooth connection...</p>}
             </div>
           </div>
 
@@ -255,7 +255,7 @@ export default function DeviceStatus({
               <ToggleSwitch
                 enabled={config.autoControl}
                 onChange={handleAutoControlChange}
-                label="智能变频"
+                label="Smart Speed"
                 size="md"
                 color="blue"
               />
@@ -265,7 +265,7 @@ export default function DeviceStatus({
               size="md"
               onClick={isConnected ? onDisconnect : onConnect}
             >
-              {isConnected ? '断开' : '连接'}
+              {isConnected ? 'Disconnect' : 'Connect'}
             </Button>
           </div>
         </div>
@@ -306,7 +306,7 @@ export default function DeviceStatus({
               >
                 <Fan className="h-4 w-4" />
               </motion.div>
-              风扇
+              Fan
             </div>
             <FanRpmDisplay
               currentRpm={fanData?.currentRpm}
@@ -325,10 +325,10 @@ export default function DeviceStatus({
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted">
             <Wifi className="h-7 w-7 text-muted-foreground" />
           </div>
-          <h3 className="mb-1.5 text-lg font-semibold">设备未连接</h3>
-          <p className="mb-5 text-base text-muted-foreground">请将散热器通过蓝牙连接到电脑</p>
+          <h3 className="mb-1.5 text-lg font-semibold">Device Not Connected</h3>
+          <p className="mb-5 text-base text-muted-foreground">Please connect the cooler to your computer via Bluetooth</p>
           <Button onClick={onConnect} size="md" icon={<RotateCw className="h-4 w-4" />}>
-            连接设备
+            Connect Device
           </Button>
         </motion.div>
       )}
@@ -343,7 +343,7 @@ export default function DeviceStatus({
           <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-sm dark:border-amber-800/60 dark:bg-amber-900/20">
             <div className="flex items-start gap-2 text-amber-800 dark:text-amber-200">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              <p>{temperature?.bridgeMessage || '温度桥接程序读取失败，请检查 PawnIO 驱动后重试。'}</p>
+              <p>{temperature?.bridgeMessage || 'Temperature bridge program failed to read. Please check the PawnIO driver and try again.'}</p>
             </div>
           </div>
         </motion.div>
@@ -360,7 +360,7 @@ export default function DeviceStatus({
           <div className="mb-4 flex items-center gap-2">
             <Gauge className="h-4 w-4 text-muted-foreground" />
             <h3 className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
-              控制与保护
+              Control & Protection
             </h3>
           </div>
 
@@ -368,7 +368,7 @@ export default function DeviceStatus({
             <div className="rounded-xl border border-border/70 bg-background/50 p-3.5 backdrop-blur-lg">
               <div className="mb-1 flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Sparkles className="h-3.5 w-3.5" />
-                控制模式
+                Control Mode
               </div>
               <div className={clsx('text-base font-semibold', config.autoControl ? 'text-primary' : 'text-amber-600 dark:text-amber-400')}>
                 {modeDisplayTitle}
@@ -379,7 +379,7 @@ export default function DeviceStatus({
               <div className="mb-1 flex items-center justify-between gap-2 text-xs text-muted-foreground">
                 <div className="flex items-center gap-1.5">
                   <Power className="h-3.5 w-3.5" />
-                  最高转速
+                  Max Speed
                 </div>
                 <TooltipProvider>
                   <Tooltip>
@@ -387,7 +387,7 @@ export default function DeviceStatus({
                       <button
                         type="button"
                         className="inline-flex h-4 w-4 items-center justify-center rounded text-muted-foreground/80 opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
-                        aria-label="最高转速提示"
+                        aria-label="Max speed hint"
                       >
                         <CircleHelp className="h-3.5 w-3.5" />
                       </button>
@@ -406,7 +406,7 @@ export default function DeviceStatus({
             <div className="rounded-xl border border-border/70 bg-background/50 p-3.5 backdrop-blur-lg">
               <div className="mb-1 flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Fan className="h-3.5 w-3.5" />
-                工作模式
+                Work Mode
               </div>
               <div className="text-base font-semibold">{fanData?.workMode || '--'}</div>
             </div>
@@ -414,7 +414,7 @@ export default function DeviceStatus({
             <div className="rounded-xl border border-border/70 bg-background/50 p-3.5 backdrop-blur-lg">
               <div className="mb-1 flex items-center gap-1.5 text-xs text-muted-foreground">
                 <ShieldCheck className="h-3.5 w-3.5" />
-                温度状态
+                Temp Status
               </div>
               <div className={clsx('text-base font-semibold tabular-nums', getTempStatus(temperature?.maxTemp || 0).color)}>
                 {getTempStatus(temperature?.maxTemp || 0).label}

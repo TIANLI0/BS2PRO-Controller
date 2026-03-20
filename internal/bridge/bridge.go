@@ -1,4 +1,4 @@
-// Package bridge 提供温度桥接程序管理功能
+// Package bridge provides temperature bridge program management functionality
 package bridge
 
 import (
@@ -18,7 +18,7 @@ import (
 	"github.com/TIANLI0/BS2PRO-Controller/internal/types"
 )
 
-// Manager 桥接程序管理器
+// Manager bridge program manager
 type Manager struct {
 	cmd      *exec.Cmd
 	conn     net.Conn
@@ -33,56 +33,56 @@ const (
 	bridgePipeName       = "BS2PRO_TempBridge"
 )
 
-// NewManager 创建新的桥接程序管理器
+// NewManager creates a new bridge program manager
 func NewManager(logger types.Logger) *Manager {
 	return &Manager{
 		logger: logger,
 	}
 }
 
-// EnsureRunning 确保桥接程序正在运行
+// EnsureRunning ensures the bridge program is running
 func (m *Manager) EnsureRunning() error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	// 已有连接时优先探活；共享桥接场景下 m.cmd 可以为空。
+	// Probe existing connection first; m.cmd can be nil in shared bridge scenarios.
 	if m.conn != nil {
 		_, err := m.sendCommandUnsafe("Ping", "")
 		if err == nil {
-			return nil // 连接正常
+			return nil // Connection is healthy
 		}
-		m.logger.Warn("桥接程序连接异常，重新启动: %v", err)
+		m.logger.Warn("Bridge program connection error, restarting: %v", err)
 		m.stopUnsafe()
 	}
 
-	// 状态不一致（仅有进程）时进行自愈清理，避免后续阻塞
+	// Self-healing cleanup when state is inconsistent (process only), to avoid blocking
 	if m.cmd != nil {
-		m.logger.Warn("检测到桥接程序状态不一致，执行清理后重启")
+		m.logger.Warn("Inconsistent bridge program state detected, cleaning up and restarting")
 		m.stopUnsafe()
 	}
 
 	return m.start()
 }
 
-// start 启动桥接程序
+// start starts the bridge program
 func (m *Manager) start() error {
 	if conn, err := m.connectToPipe(bridgePipeName, 500*time.Millisecond); err == nil {
 		m.conn = conn
 		m.pipeName = bridgePipeName
 		m.ownsCmd = false
-		m.logger.Info("复用已存在的桥接程序，管道名称: %s", bridgePipeName)
+		m.logger.Info("Reusing existing bridge program, pipe name: %s", bridgePipeName)
 		return nil
 	}
 
 	exeDir, err := filepath.Abs(filepath.Dir(os.Args[0]))
 	if err != nil {
-		return fmt.Errorf("获取程序目录失败: %v", err)
+		return fmt.Errorf("failed to get program directory: %v", err)
 	}
 
 	possiblePaths := []string{
-		filepath.Join(exeDir, "bridge", "TempBridge.exe"),       // 标准位置: exe同级的bridge目录
-		filepath.Join(exeDir, "..", "bridge", "TempBridge.exe"), // 上级目录的bridge目录
-		filepath.Join(exeDir, "TempBridge.exe"),                 // exe同级目录
+		filepath.Join(exeDir, "bridge", "TempBridge.exe"),       // Standard location: bridge directory alongside exe
+		filepath.Join(exeDir, "..", "bridge", "TempBridge.exe"), // Bridge directory in parent directory
+		filepath.Join(exeDir, "TempBridge.exe"),                 // Same directory as exe
 	}
 
 	var bridgePath string
@@ -93,30 +93,30 @@ func (m *Manager) start() error {
 		}
 	}
 
-	// 检查桥接程序是否存在
+	// Check if bridge program exists
 	if bridgePath == "" {
-		return fmt.Errorf("TempBridge.exe 不存在，已尝试以下路径: %v", possiblePaths)
+		return fmt.Errorf("TempBridge.exe not found, tried the following paths: %v", possiblePaths)
 	}
 
-	m.logger.Info("找到桥接程序: %s", bridgePath)
+	m.logger.Info("Found bridge program: %s", bridgePath)
 
-	// 启动桥接程序
+	// Start bridge program
 	cmd := exec.Command(bridgePath, "--pipe")
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 
-	// 获取输出管道来读取管道名称
+	// Get output pipe to read pipe name
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return fmt.Errorf("创建stdout管道失败: %v", err)
+		return fmt.Errorf("failed to create stdout pipe: %v", err)
 	}
 
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
-		return fmt.Errorf("创建stderr管道失败: %v", err)
+		return fmt.Errorf("failed to create stderr pipe: %v", err)
 	}
 
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("启动桥接程序失败: %v", err)
+		return fmt.Errorf("failed to start bridge program: %v", err)
 	}
 
 	go func() {
@@ -124,17 +124,17 @@ func (m *Manager) start() error {
 		for scannerErr.Scan() {
 			line := strings.TrimSpace(scannerErr.Text())
 			if line != "" {
-				m.logger.Error("桥接程序stderr: %s", line)
+				m.logger.Error("Bridge program stderr: %s", line)
 			}
 		}
 		if err := scannerErr.Err(); err != nil {
-			m.logger.Debug("读取桥接程序stderr失败: %v", err)
+			m.logger.Debug("Failed to read bridge program stderr: %v", err)
 		}
 	}()
 
-	// 读取管道名称
+	// Read pipe name
 	scanner := bufio.NewScanner(stdout)
-	fmt.Printf("等待桥接程序输出管道名称...\n")
+	fmt.Printf("Waiting for bridge program to output pipe name...\n")
 	var pipeName string
 	var attachMode bool
 	timeout := time.NewTimer(5 * time.Second)
@@ -144,7 +144,7 @@ func (m *Manager) start() error {
 	go func() {
 		if scanner.Scan() {
 			line := scanner.Text()
-			fmt.Printf("桥接程序输出: %s\n", line)
+			fmt.Printf("Bridge program output: %s\n", line)
 			if after, ok := strings.CutPrefix(line, "PIPE:"); ok {
 				parts := strings.SplitN(after, "|", 2)
 				pipeName = strings.TrimSpace(parts[0])
@@ -152,7 +152,7 @@ func (m *Manager) start() error {
 					attachMode = true
 				}
 			} else if after0, ok0 := strings.CutPrefix(line, "ERROR:"); ok0 {
-				m.logger.Error("桥接程序启动错误: %s", after0)
+				m.logger.Error("Bridge program startup error: %s", after0)
 			}
 		}
 		close(done)
@@ -160,12 +160,12 @@ func (m *Manager) start() error {
 		for scanner.Scan() {
 			line := strings.TrimSpace(scanner.Text())
 			if line != "" {
-				m.logger.Debug("桥接程序stdout: %s", line)
+				m.logger.Debug("Bridge program stdout: %s", line)
 			}
 		}
 
 		if err := scanner.Err(); err != nil {
-			m.logger.Debug("读取桥接程序stdout失败: %v", err)
+			m.logger.Debug("Failed to read bridge program stdout: %v", err)
 		}
 	}()
 
@@ -173,18 +173,18 @@ func (m *Manager) start() error {
 	case <-done:
 		if pipeName == "" {
 			cmd.Process.Kill()
-			return fmt.Errorf("未能获取管道名称")
+			return fmt.Errorf("failed to get pipe name")
 		}
 	case <-timeout.C:
 		cmd.Process.Kill()
-		return fmt.Errorf("等待桥接程序启动超时")
+		return fmt.Errorf("timed out waiting for bridge program to start")
 	}
 
-	// 连接到命名管道
+	// Connect to named pipe
 	conn, err := m.connectToPipe(pipeName, 5*time.Second)
 	if err != nil {
 		cmd.Process.Kill()
-		return fmt.Errorf("连接管道失败: %v", err)
+		return fmt.Errorf("failed to connect to pipe: %v", err)
 	}
 
 	m.conn = conn
@@ -194,60 +194,60 @@ func (m *Manager) start() error {
 		go func() {
 			_ = cmd.Wait()
 		}()
-		m.logger.Info("桥接程序已存在，附着到共享实例，管道名称: %s", pipeName)
+		m.logger.Info("Bridge program already exists, attaching to shared instance, pipe name: %s", pipeName)
 		return nil
 	}
 
 	m.cmd = cmd
 
-	m.logger.Info("桥接程序启动成功，管道名称: %s", pipeName)
+	m.logger.Info("Bridge program started successfully, pipe name: %s", pipeName)
 	return nil
 }
 
-// connectToPipe 连接到命名管道 (使用go-winio实现)
+// connectToPipe connects to a named pipe (using go-winio)
 func (m *Manager) connectToPipe(pipeName string, timeout time.Duration) (net.Conn, error) {
 	pipePath := `\\.\pipe\` + pipeName
 	deadline := time.Now().Add(timeout)
 	retryCount := 0
 
-	m.logger.Debug("尝试连接到管道: %s", pipePath)
+	m.logger.Debug("Attempting to connect to pipe: %s", pipePath)
 
 	for time.Now().Before(deadline) {
-		// 使用go-winio连接命名管道
+		// Connect to named pipe using go-winio
 		conn, err := winio.DialPipe(pipePath, &timeout)
 		if err == nil {
-			m.logger.Info("成功连接到管道，重试次数: %d", retryCount)
+			m.logger.Info("Successfully connected to pipe, retry count: %d", retryCount)
 			return conn, nil
 		}
 
 		retryCount++
-		if retryCount%50 == 0 { // 每5秒输出一次日志
-			m.logger.Debug("连接管道重试中... 第%d次尝试，错误: %v", retryCount, err)
+		if retryCount%50 == 0 { // Log every 5 seconds
+			m.logger.Debug("Retrying pipe connection... attempt %d, error: %v", retryCount, err)
 		}
 
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	return nil, fmt.Errorf("连接管道超时，总计重试%d次，最后错误可能是权限或管道未就绪", retryCount)
+	return nil, fmt.Errorf("pipe connection timed out, total retries: %d, last error may be permissions or pipe not ready", retryCount)
 }
 
-// SendCommand 发送命令到桥接程序
+// SendCommand sends a command to the bridge program
 func (m *Manager) SendCommand(cmdType, data string) (*types.BridgeResponse, error) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	return m.sendCommandUnsafe(cmdType, data)
 }
 
-// sendCommandUnsafe 发送命令到桥接程序（不加锁版本）
+// sendCommandUnsafe sends a command to the bridge program (lock-free version)
 func (m *Manager) sendCommandUnsafe(cmdType, data string) (*types.BridgeResponse, error) {
 	if m.conn == nil {
-		return nil, fmt.Errorf("桥接程序未连接")
+		return nil, fmt.Errorf("bridge program not connected")
 	}
 
 	conn := m.conn
 
 	if err := conn.SetDeadline(time.Now().Add(bridgeCommandTimeout)); err != nil {
-		m.logger.Debug("设置桥接命令超时失败: %v", err)
+		m.logger.Debug("Failed to set bridge command timeout: %v", err)
 	}
 	defer func() {
 		_ = conn.SetDeadline(time.Time{})
@@ -258,36 +258,36 @@ func (m *Manager) sendCommandUnsafe(cmdType, data string) (*types.BridgeResponse
 		Data: data,
 	}
 
-	// 序列化命令
+	// Serialize command
 	cmdBytes, err := json.Marshal(cmd)
 	if err != nil {
-		return nil, fmt.Errorf("序列化命令失败: %v", err)
+		return nil, fmt.Errorf("failed to serialize command: %v", err)
 	}
 
-	// 发送命令
+	// Send command
 	_, err = conn.Write(append(cmdBytes, '\n'))
 	if err != nil {
 		m.closeConnUnsafe()
-		return nil, fmt.Errorf("发送命令失败: %v", err)
+		return nil, fmt.Errorf("failed to send command: %v", err)
 	}
 
 	reader := bufio.NewReader(conn)
 	responseBytes, err := reader.ReadBytes('\n')
 	if err != nil {
 		m.closeConnUnsafe()
-		return nil, fmt.Errorf("读取响应失败: %v", err)
+		return nil, fmt.Errorf("failed to read response: %v", err)
 	}
 
 	var response types.BridgeResponse
 	err = json.Unmarshal(responseBytes, &response)
 	if err != nil {
-		return nil, fmt.Errorf("解析响应失败: %v", err)
+		return nil, fmt.Errorf("failed to parse response: %v", err)
 	}
 
 	return &response, nil
 }
 
-// closeConnUnsafe 关闭并清理当前连接（不加锁）
+// closeConnUnsafe closes and cleans up the current connection (lock-free)
 func (m *Manager) closeConnUnsafe() {
 	if m.conn != nil {
 		_ = m.conn.Close()
@@ -295,14 +295,14 @@ func (m *Manager) closeConnUnsafe() {
 	}
 }
 
-// Stop 停止桥接程序
+// Stop stops the bridge program
 func (m *Manager) Stop() {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	m.stopUnsafe()
 }
 
-// stopUnsafe 停止桥接程序（不加锁）
+// stopUnsafe stops the bridge program (lock-free)
 func (m *Manager) stopUnsafe() {
 	ownedCmd := m.cmd
 	ownsCmd := m.ownsCmd
@@ -312,14 +312,14 @@ func (m *Manager) stopUnsafe() {
 
 	if m.conn != nil {
 		if ownsCmd {
-			// 仅关闭当前实例自己启动的桥接进程，避免误杀共享桥接
+			// Only close bridge processes started by the current instance, to avoid killing shared bridges
 			m.sendCommandUnsafe("Exit", "")
 		}
 		m.closeConnUnsafe()
 	}
 
 	if ownsCmd && ownedCmd != nil && ownedCmd.Process != nil {
-		// 给程序一些时间来正常退出
+		// Give the program some time to exit gracefully
 		done := make(chan error, 1)
 		go func() {
 			done <- ownedCmd.Wait()
@@ -327,31 +327,31 @@ func (m *Manager) stopUnsafe() {
 
 		select {
 		case <-done:
-			// 程序正常退出
+			// Program exited normally
 		case <-time.After(3 * time.Second):
-			// 强制杀死进程
+			// Force kill process
 			ownedCmd.Process.Kill()
 		}
 	}
 }
 
-// GetTemperature 从桥接程序读取温度
+// GetTemperature reads temperature from the bridge program
 func (m *Manager) GetTemperature() types.BridgeTemperatureData {
 	if err := m.EnsureRunning(); err != nil {
 		return types.BridgeTemperatureData{
 			Success: false,
-			Error:   fmt.Sprintf("启动桥接程序失败: %v", err),
+			Error:   fmt.Sprintf("failed to start bridge program: %v", err),
 		}
 	}
 
-	// 通过管道发送温度请求
+	// Send temperature request via pipe
 	response, err := m.SendCommand("GetTemperature", "")
 	if err != nil {
-		// 尝试重启桥接程序
+		// Try to restart bridge program
 		m.Stop()
 		return types.BridgeTemperatureData{
 			Success: false,
-			Error:   fmt.Sprintf("桥接程序通信失败: %v", err),
+			Error:   fmt.Sprintf("bridge program communication failed: %v", err),
 		}
 	}
 
@@ -365,20 +365,20 @@ func (m *Manager) GetTemperature() types.BridgeTemperatureData {
 	if response.Data == nil {
 		return types.BridgeTemperatureData{
 			Success: false,
-			Error:   "桥接程序返回空数据",
+			Error:   "bridge program returned empty data",
 		}
 	}
 
 	return *response.Data
 }
 
-// GetStatus 获取桥接程序状态
+// GetStatus gets the bridge program status
 func (m *Manager) GetStatus() map[string]any {
 	exeDir, err := filepath.Abs(filepath.Dir(os.Args[0]))
 	if err != nil {
 		return map[string]any{
 			"exists": false,
-			"error":  fmt.Sprintf("获取程序目录失败: %v", err),
+			"error":  fmt.Sprintf("failed to get program directory: %v", err),
 		}
 	}
 
@@ -400,7 +400,7 @@ func (m *Manager) GetStatus() map[string]any {
 		return map[string]any{
 			"exists":     false,
 			"triedPaths": possiblePaths,
-			"error":      "TempBridge.exe 不存在",
+			"error":      "TempBridge.exe not found",
 		}
 	}
 

@@ -1,0 +1,90 @@
+name: Build BS2PRO-Controller
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Install go-winres
+        run: go install github.com/tc-hib/go-winres@latest
+
+      - name: Install NSIS
+        run: |
+          choco install nsis -y
+          echo "C:\Program Files (x86)\NSIS" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: bun install
+
+      - name: Extract version
+        id: version
+        shell: pwsh
+        run: |
+          $json = Get-Content wails.json | ConvertFrom-Json
+          $ver = $json.info.productVersion
+          echo "VERSION=$ver" >> $env:GITHUB_OUTPUT
+
+      - name: Set LDFLAGS
+        shell: pwsh
+        run: |
+          echo "LDFLAGS=-X github.com/TIANLI0/BS2PRO-Controller/internal/version.BuildVersion=${{ steps.version.outputs.VERSION }} -H=windowsgui" >> $env:GITHUB_ENV
+
+      - name: Build core service
+        run: |
+          go-winres make --in cmd/core/winres/winres.json --out cmd/core/rsrc
+          go build -ldflags "${{ env.LDFLAGS }}" -o build/bin/BS2PRO-Core.exe ./cmd/core/
+
+      - name: Build TempBridge
+        run: |
+          dotnet restore bridge/TempBridge/TempBridge.csproj
+          dotnet publish bridge/TempBridge/TempBridge.csproj -c Release --self-contained false -o build/bin/bridge
+
+      - name: Build main application (Wails + NSIS installer)
+        run: wails build -nsis -ldflags "${{ env.LDFLAGS }}"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: BS2PRO-Controller-${{ steps.version.outputs.VERSION }}
+          path: |
+            build/bin/*.exe
+            build/bin/bridge/
+          retention-days: 30
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: BS2PRO-Controller-Installer-${{ steps.version.outputs.VERSION }}
+          path: build/bin/*installer*.exe
+          retention-days: 30

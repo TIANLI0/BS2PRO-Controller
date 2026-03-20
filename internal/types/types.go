@@ -1,26 +1,26 @@
-// Package types 定义了 BS2PRO 控制器应用中使用的所有共享类型
+// Package types defines all shared types used in the BS2PRO controller application
 package types
 
-// FanCurvePoint 风扇曲线点
+// FanCurvePoint represents a point on the fan curve
 type FanCurvePoint struct {
-	Temperature int `json:"temperature"` // 温度 °C
-	RPM         int `json:"rpm"`         // 转速 RPM
+	Temperature int `json:"temperature"` // Temperature in °C
+	RPM         int `json:"rpm"`         // Speed in RPM
 }
 
-// FanCurveProfile 温控曲线方案
+// FanCurveProfile represents a fan curve profile
 type FanCurveProfile struct {
 	ID    string          `json:"id"`
 	Name  string          `json:"name"`
 	Curve []FanCurvePoint `json:"curve"`
 }
 
-// FanCurveProfilesPayload 风扇曲线方案返回载荷
+// FanCurveProfilesPayload is the payload returned for fan curve profiles
 type FanCurveProfilesPayload struct {
 	Profiles []FanCurveProfile `json:"profiles"`
 	ActiveID string            `json:"activeId"`
 }
 
-// FanData 风扇数据结构
+// FanData represents the fan data structure
 type FanData struct {
 	ReportID     uint8  `json:"reportId"`
 	MagicSync    uint16 `json:"magicSync"`
@@ -36,24 +36,24 @@ type FanData struct {
 	WorkMode     string `json:"workMode"`
 }
 
-// GearCommand 挡位命令结构
+// GearCommand represents a gear command structure
 type GearCommand struct {
-	Name    string `json:"name"`    // 挡位名称
-	Command []byte `json:"command"` // 命令字节
-	RPM     int    `json:"rpm"`     // 对应转速
+	Name    string `json:"name"`    // Gear name
+	Command []byte `json:"command"` // Command bytes
+	RPM     int    `json:"rpm"`     // Corresponding RPM
 }
 
-// TemperatureData 温度数据
+// TemperatureData holds temperature data
 type TemperatureData struct {
-	CPUTemp    int    `json:"cpuTemp"`       // CPU温度
-	GPUTemp    int    `json:"gpuTemp"`       // GPU温度
-	MaxTemp    int    `json:"maxTemp"`       // 最高温度
-	UpdateTime int64  `json:"updateTime"`    // 更新时间戳
-	BridgeOk   bool   `json:"bridgeOk"`      // 桥接程序是否正常
-	BridgeMsg  string `json:"bridgeMessage"` // 桥接故障提示
+	CPUTemp    int    `json:"cpuTemp"`       // CPU temperature
+	GPUTemp    int    `json:"gpuTemp"`       // GPU temperature
+	MaxTemp    int    `json:"maxTemp"`       // Maximum temperature
+	UpdateTime int64  `json:"updateTime"`    // Update timestamp
+	BridgeOk   bool   `json:"bridgeOk"`      // Whether the bridge is working normally
+	BridgeMsg  string `json:"bridgeMessage"` // Bridge fault message
 }
 
-// BridgeTemperatureData 桥接程序返回的温度数据
+// BridgeTemperatureData represents temperature data returned by the bridge program
 type BridgeTemperatureData struct {
 	CpuTemp    int    `json:"cpuTemp"`
 	GpuTemp    int    `json:"gpuTemp"`
@@ -63,89 +63,89 @@ type BridgeTemperatureData struct {
 	Error      string `json:"error"`
 }
 
-// BridgeCommand 桥接程序命令
+// BridgeCommand represents a bridge program command
 type BridgeCommand struct {
 	Type string `json:"type"`
 	Data string `json:"data"`
 }
 
-// BridgeResponse 桥接程序响应
+// BridgeResponse represents a bridge program response
 type BridgeResponse struct {
 	Success bool                   `json:"success"`
 	Error   string                 `json:"error"`
 	Data    *BridgeTemperatureData `json:"data"`
 }
 
-// RGBColor RGB 颜色
+// RGBColor represents an RGB color
 type RGBColor struct {
 	R byte `json:"r"`
 	G byte `json:"g"`
 	B byte `json:"b"`
 }
 
-// LightStripConfig 灯带配置
+// LightStripConfig represents light strip configuration
 type LightStripConfig struct {
 	Mode       string     `json:"mode"`       // off/smart_temp/static_single/static_multi/rotation/flowing/breathing
 	Speed      string     `json:"speed"`      // fast/medium/slow
 	Brightness int        `json:"brightness"` // 0-100
-	Colors     []RGBColor `json:"colors"`     // 颜色列表
+	Colors     []RGBColor `json:"colors"`     // Color list
 }
 
-// SmartControlConfig 智能控温配置
+// SmartControlConfig represents smart temperature control configuration
 type SmartControlConfig struct {
-	Enabled            bool  `json:"enabled"`            // 智能耦合控制开关
-	Learning           bool  `json:"learning"`           // 学习开关
-	TargetTemp         int   `json:"targetTemp"`         // 目标温度(°C)
-	Aggressiveness     int   `json:"aggressiveness"`     // 响应激进度(1-10)
-	Hysteresis         int   `json:"hysteresis"`         // 滞回温差(°C)
-	MinRPMChange       int   `json:"minRpmChange"`       // 最小生效转速变化(RPM)
-	RampUpLimit        int   `json:"rampUpLimit"`        // 每次更新最大升速(RPM)
-	RampDownLimit      int   `json:"rampDownLimit"`      // 每次更新最大降速(RPM)
-	LearnRate          int   `json:"learnRate"`          // 学习速度(1-10)
-	LearnWindow        int   `json:"learnWindow"`        // 稳态学习窗口(采样点)
-	LearnDelay         int   `json:"learnDelay"`         // 学习延迟步数(处理热惯性)
-	OverheatWeight     int   `json:"overheatWeight"`     // 过热惩罚权重
-	RPMDeltaWeight     int   `json:"rpmDeltaWeight"`     // 转速变化惩罚权重
-	NoiseWeight        int   `json:"noiseWeight"`        // 高转速噪音惩罚权重
-	TrendGain          int   `json:"trendGain"`          // 温升趋势前馈增益
-	MaxLearnOffset     int   `json:"maxLearnOffset"`     // 学习偏移上限(RPM)
-	LearnedOffsets     []int `json:"learnedOffsets"`     // 每个曲线点的学习偏移(RPM)
-	LearnedOffsetsHeat []int `json:"learnedOffsetsHeat"` // 升温工况学习偏移(RPM)
-	LearnedOffsetsCool []int `json:"learnedOffsetsCool"` // 降温工况学习偏移(RPM)
-	LearnedRateHeat    []int `json:"learnedRateHeat"`    // 升温变化率学习偏置(分桶RPM)
-	LearnedRateCool    []int `json:"learnedRateCool"`    // 降温变化率学习偏置(分桶RPM)
+	Enabled            bool  `json:"enabled"`            // Smart coupled control switch
+	Learning           bool  `json:"learning"`           // Learning switch
+	TargetTemp         int   `json:"targetTemp"`         // Target temperature (°C)
+	Aggressiveness     int   `json:"aggressiveness"`     // Response aggressiveness (1-10)
+	Hysteresis         int   `json:"hysteresis"`         // Hysteresis temperature difference (°C)
+	MinRPMChange       int   `json:"minRpmChange"`       // Minimum effective RPM change (RPM)
+	RampUpLimit        int   `json:"rampUpLimit"`        // Maximum ramp-up per update (RPM)
+	RampDownLimit      int   `json:"rampDownLimit"`      // Maximum ramp-down per update (RPM)
+	LearnRate          int   `json:"learnRate"`          // Learning rate (1-10)
+	LearnWindow        int   `json:"learnWindow"`        // Steady-state learning window (sample points)
+	LearnDelay         int   `json:"learnDelay"`         // Learning delay steps (for thermal inertia)
+	OverheatWeight     int   `json:"overheatWeight"`     // Overheat penalty weight
+	RPMDeltaWeight     int   `json:"rpmDeltaWeight"`     // RPM change penalty weight
+	NoiseWeight        int   `json:"noiseWeight"`        // High-RPM noise penalty weight
+	TrendGain          int   `json:"trendGain"`          // Temperature rise trend feedforward gain
+	MaxLearnOffset     int   `json:"maxLearnOffset"`     // Maximum learning offset (RPM)
+	LearnedOffsets     []int `json:"learnedOffsets"`     // Learning offset for each curve point (RPM)
+	LearnedOffsetsHeat []int `json:"learnedOffsetsHeat"` // Heating condition learning offsets (RPM)
+	LearnedOffsetsCool []int `json:"learnedOffsetsCool"` // Cooling condition learning offsets (RPM)
+	LearnedRateHeat    []int `json:"learnedRateHeat"`    // Heating rate learning biases (bucketed RPM)
+	LearnedRateCool    []int `json:"learnedRateCool"`    // Cooling rate learning biases (bucketed RPM)
 }
 
-// AppConfig 应用配置
+// AppConfig represents the application configuration
 type AppConfig struct {
-	AutoControl              bool               `json:"autoControl"`              // 智能变频开关
-	ManualGearToggleHotkey   string             `json:"manualGearToggleHotkey"`   // 切换手动挡位快捷键
-	AutoControlToggleHotkey  string             `json:"autoControlToggleHotkey"`  // 开关智能变频快捷键
-	CurveProfileToggleHotkey string             `json:"curveProfileToggleHotkey"` // 切换温控曲线方案快捷键
-	ManualGearLevels         map[string]string  `json:"manualGearLevels"`         // 每个大挡位记忆的小挡位(低中高)
-	FanCurve                 []FanCurvePoint    `json:"fanCurve"`                 // 风扇曲线
-	FanCurveProfiles         []FanCurveProfile  `json:"fanCurveProfiles"`         // 风扇曲线方案列表
-	ActiveFanCurveProfileID  string             `json:"activeFanCurveProfileId"`  // 当前激活曲线方案ID
-	GearLight                bool               `json:"gearLight"`                // 挡位灯
-	PowerOnStart             bool               `json:"powerOnStart"`             // 通电自启动
-	WindowsAutoStart         bool               `json:"windowsAutoStart"`         // Windows开机自启动
-	SmartStartStop           string             `json:"smartStartStop"`           // 智能启停
-	Brightness               int                `json:"brightness"`               // 亮度
-	TempUpdateRate           int                `json:"tempUpdateRate"`           // 温度更新频率(秒)
-	TempSampleCount          int                `json:"tempSampleCount"`          // 温度采样次数(用于平均)
-	ConfigPath               string             `json:"configPath"`               // 配置文件路径
-	ManualGear               string             `json:"manualGear"`               // 手动挡位设置
-	ManualLevel              string             `json:"manualLevel"`              // 手动挡位级别(低中高)
-	DebugMode                bool               `json:"debugMode"`                // 调试模式
-	GuiMonitoring            bool               `json:"guiMonitoring"`            // GUI监控开关
-	CustomSpeedEnabled       bool               `json:"customSpeedEnabled"`       // 自定义转速开关
-	CustomSpeedRPM           int                `json:"customSpeedRPM"`           // 自定义转速值(无上下限)
-	IgnoreDeviceOnReconnect  bool               `json:"ignoreDeviceOnReconnect"`  // 断连后忽略设备状态(保持APP配置)
-	SmartControl             SmartControlConfig `json:"smartControl"`             // 学习型智能控温配置
-	LightStrip               LightStripConfig   `json:"lightStrip"`               // 灯带配置
+	AutoControl              bool               `json:"autoControl"`              // Smart control switch
+	ManualGearToggleHotkey   string             `json:"manualGearToggleHotkey"`   // Hotkey to toggle manual gear
+	AutoControlToggleHotkey  string             `json:"autoControlToggleHotkey"`  // Hotkey to toggle smart control
+	CurveProfileToggleHotkey string             `json:"curveProfileToggleHotkey"` // Hotkey to toggle fan curve profile
+	ManualGearLevels         map[string]string  `json:"manualGearLevels"`         // Remembered sub-level for each main gear (low/mid/high)
+	FanCurve                 []FanCurvePoint    `json:"fanCurve"`                 // Fan curve
+	FanCurveProfiles         []FanCurveProfile  `json:"fanCurveProfiles"`         // Fan curve profile list
+	ActiveFanCurveProfileID  string             `json:"activeFanCurveProfileId"`  // Currently active curve profile ID
+	GearLight                bool               `json:"gearLight"`                // Gear indicator light
+	PowerOnStart             bool               `json:"powerOnStart"`             // Start on power on
+	WindowsAutoStart         bool               `json:"windowsAutoStart"`         // Windows auto-start on boot
+	SmartStartStop           string             `json:"smartStartStop"`           // Smart start/stop
+	Brightness               int                `json:"brightness"`               // Brightness
+	TempUpdateRate           int                `json:"tempUpdateRate"`           // Temperature update rate (seconds)
+	TempSampleCount          int                `json:"tempSampleCount"`          // Temperature sample count (for averaging)
+	ConfigPath               string             `json:"configPath"`               // Configuration file path
+	ManualGear               string             `json:"manualGear"`               // Manual gear setting
+	ManualLevel              string             `json:"manualLevel"`              // Manual gear level (low/mid/high)
+	DebugMode                bool               `json:"debugMode"`                // Debug mode
+	GuiMonitoring            bool               `json:"guiMonitoring"`            // GUI monitoring switch
+	CustomSpeedEnabled       bool               `json:"customSpeedEnabled"`       // Custom speed switch
+	CustomSpeedRPM           int                `json:"customSpeedRPM"`           // Custom speed value (no upper/lower limit)
+	IgnoreDeviceOnReconnect  bool               `json:"ignoreDeviceOnReconnect"`  // Ignore device state after disconnect (keep app config)
+	SmartControl             SmartControlConfig `json:"smartControl"`             // Learning-based smart temperature control config
+	LightStrip               LightStripConfig   `json:"lightStrip"`               // Light strip configuration
 }
 
-// GetDefaultLightStripConfig 获取默认灯带配置
+// GetDefaultLightStripConfig returns the default light strip configuration
 func GetDefaultLightStripConfig() LightStripConfig {
 	return LightStripConfig{
 		Mode:       "smart_temp",
@@ -159,7 +159,7 @@ func GetDefaultLightStripConfig() LightStripConfig {
 	}
 }
 
-// GetDefaultSmartControlConfig 获取默认智能控温配置
+// GetDefaultSmartControlConfig returns the default smart temperature control configuration
 func GetDefaultSmartControlConfig(curve []FanCurvePoint) SmartControlConfig {
 	offsets := make([]int, len(curve))
 	heatOffsets := make([]int, len(curve))
@@ -192,7 +192,7 @@ func GetDefaultSmartControlConfig(curve []FanCurvePoint) SmartControlConfig {
 	}
 }
 
-// Logger 日志记录器接口
+// Logger is the logger interface
 type Logger interface {
 	Info(format string, v ...any)
 	Error(format string, v ...any)
@@ -204,31 +204,31 @@ type Logger interface {
 	GetLogDir() string
 }
 
-// GearCommands 预设挡位命令
+// GearCommands contains preset gear commands
 var GearCommands = map[string][]GearCommand{
-	"静音": {
-		{"1挡低", []byte{0x5a, 0xa5, 0x26, 0x05, 0x00, 0x14, 0x05, 0x44, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 1300},
-		{"1挡中", []byte{0x5a, 0xa5, 0x26, 0x05, 0x00, 0xa4, 0x06, 0xd5, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 1700},
-		{"1挡高", []byte{0x5a, 0xa5, 0x26, 0x05, 0x00, 0x6c, 0x07, 0x9e, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 1900},
+	"Silent": {
+		{"Gear1-Low", []byte{0x5a, 0xa5, 0x26, 0x05, 0x00, 0x14, 0x05, 0x44, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 1300},
+		{"Gear1-Mid", []byte{0x5a, 0xa5, 0x26, 0x05, 0x00, 0xa4, 0x06, 0xd5, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 1700},
+		{"Gear1-High", []byte{0x5a, 0xa5, 0x26, 0x05, 0x00, 0x6c, 0x07, 0x9e, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 1900},
 	},
-	"标准": {
-		{"2挡低", []byte{0x5a, 0xa5, 0x26, 0x05, 0x01, 0x34, 0x08, 0x68, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 2100},
-		{"2挡中", []byte{0x5a, 0xa5, 0x26, 0x05, 0x01, 0x60, 0x09, 0x95, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 2310},
-		{"2挡高", []byte{0x5a, 0xa5, 0x26, 0x05, 0x01, 0x8c, 0x0a, 0xc2, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 2760},
+	"Standard": {
+		{"Gear2-Low", []byte{0x5a, 0xa5, 0x26, 0x05, 0x01, 0x34, 0x08, 0x68, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 2100},
+		{"Gear2-Mid", []byte{0x5a, 0xa5, 0x26, 0x05, 0x01, 0x60, 0x09, 0x95, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 2310},
+		{"Gear2-High", []byte{0x5a, 0xa5, 0x26, 0x05, 0x01, 0x8c, 0x0a, 0xc2, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 2760},
 	},
-	"强劲": {
-		{"3挡低", []byte{0x5a, 0xa5, 0x26, 0x05, 0x02, 0xf0, 0x0a, 0x27, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 2800},
-		{"3挡中", []byte{0x5a, 0xa5, 0x26, 0x05, 0x02, 0xb8, 0x0b, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 3000},
-		{"3挡高", []byte{0x5a, 0xa5, 0x26, 0x05, 0x02, 0xe4, 0x0c, 0x1d, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 3300},
+	"Power": {
+		{"Gear3-Low", []byte{0x5a, 0xa5, 0x26, 0x05, 0x02, 0xf0, 0x0a, 0x27, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 2800},
+		{"Gear3-Mid", []byte{0x5a, 0xa5, 0x26, 0x05, 0x02, 0xb8, 0x0b, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 3000},
+		{"Gear3-High", []byte{0x5a, 0xa5, 0x26, 0x05, 0x02, 0xe4, 0x0c, 0x1d, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 3300},
 	},
-	"超频": {
-		{"4挡低", []byte{0x5a, 0xa5, 0x26, 0x05, 0x03, 0xac, 0x0d, 0xe7, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 3500},
-		{"4挡中", []byte{0x5a, 0xa5, 0x26, 0x05, 0x03, 0x74, 0x0e, 0xb0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 3700},
-		{"4挡高", []byte{0x5a, 0xa5, 0x26, 0x05, 0x03, 0xa0, 0x0f, 0xdd, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 4000},
+	"Overclock": {
+		{"Gear4-Low", []byte{0x5a, 0xa5, 0x26, 0x05, 0x03, 0xac, 0x0d, 0xe7, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 3500},
+		{"Gear4-Mid", []byte{0x5a, 0xa5, 0x26, 0x05, 0x03, 0x74, 0x0e, 0xb0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 3700},
+		{"Gear4-High", []byte{0x5a, 0xa5, 0x26, 0x05, 0x03, 0xa0, 0x0f, 0xdd, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 4000},
 	},
 }
 
-// GetDefaultFanCurve 获取默认风扇曲线
+// GetDefaultFanCurve returns the default fan curve
 func GetDefaultFanCurve() []FanCurvePoint {
 	return []FanCurvePoint{
 		{Temperature: 30, RPM: 1000},
@@ -248,7 +248,7 @@ func GetDefaultFanCurve() []FanCurvePoint {
 	}
 }
 
-// GetDefaultConfig 获取默认配置
+// GetDefaultConfig returns the default configuration
 func GetDefaultConfig(isAutoStart bool) AppConfig {
 	defaultCurve := GetDefaultFanCurve()
 
@@ -258,14 +258,14 @@ func GetDefaultConfig(isAutoStart bool) AppConfig {
 		AutoControlToggleHotkey:  "Ctrl+Alt+Shift+A",
 		CurveProfileToggleHotkey: "Ctrl+Alt+Shift+C",
 		ManualGearLevels: map[string]string{
-			"静音": "中",
-			"标准": "中",
-			"强劲": "中",
-			"超频": "中",
+			"Silent":    "Mid",
+			"Standard":  "Mid",
+			"Power":     "Mid",
+			"Overclock": "Mid",
 		},
 		FanCurve: defaultCurve,
 		FanCurveProfiles: []FanCurveProfile{
-			{ID: "default", Name: "默认", Curve: defaultCurve},
+			{ID: "default", Name: "Default", Curve: defaultCurve},
 		},
 		ActiveFanCurveProfileID: "default",
 		GearLight:               true,
@@ -276,13 +276,13 @@ func GetDefaultConfig(isAutoStart bool) AppConfig {
 		TempUpdateRate:          2,
 		TempSampleCount:         1,
 		ConfigPath:              "",
-		ManualGear:              "标准",
-		ManualLevel:             "中",
+		ManualGear:              "Standard",
+		ManualLevel:             "Mid",
 		DebugMode:               false,
 		GuiMonitoring:           true,
 		CustomSpeedEnabled:      false,
 		CustomSpeedRPM:          2000,
-		IgnoreDeviceOnReconnect: true, // 默认开启，防止断连后误判用户手动切换
+		IgnoreDeviceOnReconnect: true, // Enabled by default to prevent misjudging user manual switching after disconnect
 		SmartControl:            GetDefaultSmartControlConfig(defaultCurve),
 		LightStrip:              GetDefaultLightStripConfig(),
 	}

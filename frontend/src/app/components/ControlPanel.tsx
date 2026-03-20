@@ -252,7 +252,7 @@ function HotkeyField({
           {value && (
             <button
               type="button"
-              aria-label="清除快捷键"
+              aria-label="Clear shortcut"
               onMouseDown={(e) => e.preventDefault()}
               onClick={onClear}
               className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-muted-foreground transition hover:bg-muted hover:text-foreground"
@@ -332,7 +332,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
       setLatestReleaseUrl(data?.html_url || 'https://github.com/TIANLI0/BS2PRO-Controller/releases/latest');
       setLatestReleaseBody(typeof data?.body === 'string' ? data.body.trim() : '');
     } catch {
-      setReleaseError('检查更新失败，请稍后重试');
+      setReleaseError('Failed to check for updates, please try again later');
       setLatestReleaseTag('');
       setLatestReleaseUrl('https://github.com/TIANLI0/BS2PRO-Controller/releases/latest');
       setLatestReleaseBody('');
@@ -396,7 +396,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
       if (enabled) await apiService.setAutoStartWithMethod(true, isAdmin ? 'task_scheduler' : 'registry');
       else await apiService.setAutoStartWithMethod(false, '');
       onConfigChange(types.AppConfig.createFrom({ ...config, windowsAutoStart: enabled }));
-    } catch (e) { alert(`设置自启动失败: ${e}`); } finally { setLoading('windowsAutoStart', false); }
+    } catch (e) { alert(`Failed to set auto-start: ${e}`); } finally { setLoading('windowsAutoStart', false); }
   }, [config, onConfigChange]);
 
   const handleIgnoreDeviceOnReconnectChange = useCallback(async (enabled: boolean) => {
@@ -461,9 +461,9 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
       const latest = await apiService.getConfig();
       onConfigChange(types.AppConfig.createFrom(latest));
       await loadCurveProfiles();
-      toast.success('温控曲线已切换');
+      toast.success('Fan curve profile switched');
     } catch (e) {
-      toast.error(`切换曲线失败: ${e}`);
+      toast.error(`Failed to switch curve: ${e}`);
     } finally {
       setCurveProfileLoading(false);
     }
@@ -483,39 +483,39 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
   /* ── Options data ── */
 
   const smartStartStopOptions = [
-    { value: 'off', label: '关闭', description: '禁用智能启停功能' },
-    { value: 'immediate', label: '即时', description: '立即响应系统负载变化' },
-    { value: 'delayed', label: '延时', description: '延时响应，避免频繁启停' },
+    { value: 'off', label: 'Off', description: 'Disable smart start/stop' },
+    { value: 'immediate', label: 'Immediate', description: 'Respond to system load changes immediately' },
+    { value: 'delayed', label: 'Delayed', description: 'Delayed response to avoid frequent start/stop' },
   ];
 
   const sampleCountOptions = [
-    { value: 1, label: '1次 (即时)' },
-    { value: 2, label: '2次 (2s)' },
-    { value: 3, label: '3次 (3s)' },
-    { value: 5, label: '5次 (5s)' },
-    { value: 10, label: '10次 (10s)' },
+    { value: 1, label: '1x (Instant)' },
+    { value: 2, label: '2x (2s)' },
+    { value: 3, label: '3x (3s)' },
+    { value: 5, label: '5x (5s)' },
+    { value: 10, label: '10x (10s)' },
   ];
 
   const lightModeOptions = [
-    { value: 'off', label: '关闭灯光', description: '关闭所有RGB灯光' },
-    { value: 'smart_temp', label: '智能温控', description: '根据温度自动切换灯效' },
-    { value: 'static_single', label: '单色常亮', description: '固定单色显示' },
-    { value: 'static_multi', label: '多色常亮', description: '三色静态分区' },
-    { value: 'rotation', label: '多色旋转', description: '颜色循环旋转' },
-    { value: 'flowing', label: '流光', description: '预设流光效果' },
-    { value: 'breathing', label: '呼吸', description: '多色呼吸变化' },
+    { value: 'off', label: 'Lights Off', description: 'Turn off all RGB lights' },
+    { value: 'smart_temp', label: 'Smart Temp', description: 'Auto-switch light effects based on temperature' },
+    { value: 'static_single', label: 'Single Color', description: 'Fixed single color display' },
+    { value: 'static_multi', label: 'Multi Color', description: 'Three-color static zones' },
+    { value: 'rotation', label: 'Color Rotation', description: 'Cycling color rotation' },
+    { value: 'flowing', label: 'Flowing', description: 'Preset flowing effect' },
+    { value: 'breathing', label: 'Breathing', description: 'Multi-color breathing effect' },
   ];
 
   const lightSpeedOptions = [
-    { value: 'fast', label: '快速' },
-    { value: 'medium', label: '中速' },
-    { value: 'slow', label: '慢速' },
+    { value: 'fast', label: 'Fast' },
+    { value: 'medium', label: 'Medium' },
+    { value: 'slow', label: 'Slow' },
   ];
 
   const lightColorPresets = [
-    { name: '霓虹', colors: [{ r: 255, g: 0, b: 128 }, { r: 0, g: 255, b: 255 }, { r: 128, g: 0, b: 255 }] },
-    { name: '森林', colors: [{ r: 86, g: 169, b: 84 }, { r: 161, g: 210, b: 106 }, { r: 44, g: 120, b: 115 }] },
-    { name: '冰川', colors: [{ r: 80, g: 170, b: 255 }, { r: 116, g: 214, b: 255 }, { r: 200, g: 240, b: 255 }] },
+    { name: 'Neon', colors: [{ r: 255, g: 0, b: 128 }, { r: 0, g: 255, b: 255 }, { r: 128, g: 0, b: 255 }] },
+    { name: 'Forest', colors: [{ r: 86, g: 169, b: 84 }, { r: 161, g: 210, b: 106 }, { r: 44, g: 120, b: 115 }] },
+    { name: 'Glacier', colors: [{ r: 80, g: 170, b: 255 }, { r: 116, g: 214, b: 255 }, { r: 200, g: 240, b: 255 }] },
   ];
 
   const requiredColorCount = getRequiredColorCount(lightStripConfig.mode);
@@ -540,7 +540,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
       });
       await apiService.setLightStrip(submitConfig);
       onConfigChange(types.AppConfig.createFrom({ ...config, lightStrip: submitConfig }));
-    } catch (e) { alert(`设置灯带失败: ${e}`); } finally { setLoading('lightStrip', false); }
+    } catch (e) { alert(`Failed to set light strip: ${e}`); } finally { setLoading('lightStrip', false); }
   }, [lightStripConfig, config, onConfigChange, requiredColorCount]);
 
   const saveHotkeys = useCallback(async (silent = false) => {
@@ -552,7 +552,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
 
       const uniq = new Set([manualValue, autoValue, curveValue]);
       if (uniq.size !== 3) {
-        if (!silent) toast.error('三个快捷键不能设置为同一个组合');
+        if (!silent) toast.error('The three hotkeys cannot be set to the same combination');
         return false;
       }
 
@@ -564,10 +564,10 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
       });
       await apiService.updateConfig(newCfg);
       onConfigChange(newCfg);
-      if (!silent) toast.success('快捷键保存成功');
+      if (!silent) toast.success('Hotkeys saved successfully');
       return true;
     } catch (e) {
-      if (!silent) toast.error(`保存快捷键失败: ${e}`);
+      if (!silent) toast.error(`Failed to save hotkeys: ${e}`);
       return false;
     } finally {
       setLoading('hotkeys', false);
@@ -617,11 +617,11 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
         <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
           <div className="mb-4 flex items-center gap-2">
             <Settings className="h-4 w-4 text-muted-foreground" />
-            <h3 className="text-base font-semibold text-foreground">实时概览</h3>
+            <h3 className="text-base font-semibold text-foreground">Real-time Overview</h3>
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <div className="rounded-xl border border-border/70 bg-muted/30 p-4 text-center">
-              <div className="text-sm text-muted-foreground">当前温度</div>
+              <div className="text-sm text-muted-foreground">Current Temp</div>
               <div className={clsx(
                 'mt-1 text-2xl font-semibold tabular-nums',
                 (temperature?.maxTemp ?? 0) > 80 ? 'text-red-500' : (temperature?.maxTemp ?? 0) > 70 ? 'text-amber-500' : 'text-primary'
@@ -631,20 +631,20 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
               <div className="mt-1 text-xs text-muted-foreground">CPU {temperature?.cpuTemp ?? '--'}°C · GPU {temperature?.gpuTemp ?? '--'}°C</div>
             </div>
             <div className="rounded-xl border border-border/70 bg-muted/30 p-4 text-center">
-              <div className="text-sm text-muted-foreground">实时转速</div>
+              <div className="text-sm text-muted-foreground">Current Speed</div>
               <div className="mt-1 text-2xl font-semibold tabular-nums text-primary">{fanData?.currentRpm ?? '--'} RPM</div>
               <div className="mt-1 text-xs text-muted-foreground">{fanData?.workMode ?? '--'}</div>
             </div>
             <div className="rounded-xl border border-border/70 bg-muted/30 p-4 text-center">
-              <div className="text-sm text-muted-foreground">目标转速</div>
+              <div className="text-sm text-muted-foreground">Target Speed</div>
               <div className="mt-1 text-2xl font-semibold tabular-nums text-primary">{fanData?.targetRpm ?? '--'} RPM</div>
-              <div className="mt-1 text-xs text-muted-foreground">挡位 {fanData?.setGear ?? '--'}</div>
+              <div className="mt-1 text-xs text-muted-foreground">Gear {fanData?.setGear ?? '--'}</div>
             </div>
           </div>
         </section>
 
-        {/* ═══════════ 1. 灯光效果 ═══════════ */}
-        <Section title="灯光效果" icon={Sparkles}>
+        {/* ═══════════ 1. Light Effects ═══════════ */}
+        <Section title="Light Effects" icon={Sparkles}>
           <div className="space-y-4 p-5">
             <div className="grid grid-cols-2 gap-3">
               <Select
@@ -652,14 +652,14 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
                 onChange={(v: string | number) => setLightStripConfig(types.LightStripConfig.createFrom({ ...lightStripConfig, mode: v as string }))}
                 options={lightModeOptions}
                 size="sm"
-                label="效果模式"
+                label="Effect Mode"
               />
               <Select
                 value={lightStripConfig.speed}
                 onChange={(v: string | number) => setLightStripConfig(types.LightStripConfig.createFrom({ ...lightStripConfig, speed: v as string }))}
                 options={lightSpeedOptions}
                 size="sm"
-                label="动画速度"
+                label="Animation Speed"
                 disabled={['off', 'smart_temp', 'static_single', 'static_multi'].includes(lightStripConfig.mode)}
               />
             </div>
@@ -668,14 +668,14 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
               min={0} max={100} step={1}
               value={lightStripConfig.brightness}
               onChange={(v) => setLightStripConfig(types.LightStripConfig.createFrom({ ...lightStripConfig, brightness: v }))}
-              label="亮度"
+              label="Brightness"
               valueFormatter={(v) => `${v}%`}
               disabled={lightStripConfig.mode === 'off' || lightStripConfig.mode === 'smart_temp'}
             />
 
             {lightStripConfig.mode === 'smart_temp' && (
               <div className="rounded-lg border border-amber-300/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
-                智能温控模式由设备自动控制灯效，不支持手动调节颜色与亮度。
+                Smart temp mode automatically controls light effects on the device. Manual color and brightness adjustment is not supported.
               </div>
             )}
 
@@ -703,7 +703,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
                   <div className={clsx('grid gap-3', requiredColorCount === 1 ? 'grid-cols-1' : 'grid-cols-3')}>
                     {Array.from({ length: requiredColorCount }).map((_, i) => (
                       <div key={i}>
-                        <label className="mb-1 block text-xs text-muted-foreground">颜色 {i + 1}</label>
+                        <label className="mb-1 block text-xs text-muted-foreground">Color {i + 1}</label>
                         <input
                           type="color"
                           value={rgbToHex((lightStripConfig.colors || [])[i] || types.RGBColor.createFrom({ r: 255, g: 255, b: 255 }))}
@@ -719,22 +719,22 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
 
             <div className="flex items-center justify-between pt-1">
               <span className="text-xs text-muted-foreground">
-                {isConnected ? '应用后立即生效' : '下次连接时自动生效'}
+                {isConnected ? 'Takes effect immediately after applying' : 'Will take effect on next connection'}
               </span>
               <Button variant="primary" size="sm" onClick={handleApplyLightStrip} loading={loadingStates.lightStrip}>
-                应用
+                Apply
               </Button>
             </div>
           </div>
         </Section>
 
-        {/* ═══════════ 2. 风扇控制 ═══════════ */}
-        <Section title="风扇控制" icon={Settings}>
+        {/* ═══════════ 2. Fan Control ═══════════ */}
+        <Section title="Fan Control" icon={Settings}>
           {/* Auto control */}
           <SettingRow
             icon={config.autoControl ? <Play className="h-4 w-4 text-emerald-500" /> : <Pause className="h-4 w-4" />}
-            title="自动温度控制"
-            description="根据温度曲线自动调节风扇转速"
+            title="Auto Temperature Control"
+            description="Automatically adjust fan speed based on temperature curve"
             disabled={(config as any).customSpeedEnabled}
           >
             <ToggleSwitch
@@ -758,8 +758,8 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
               >
                 <SettingRow
                   icon={<BarChart3 className="h-4 w-4" />}
-                  title="采样时间"
-                  description="降低频繁调整带来的轴噪，不知道默认即可"
+                  title="Sample Time"
+                  description="Reduce bearing noise from frequent adjustments. Leave default if unsure."
                 >
                   <div className="w-32">
                     <Select
@@ -776,8 +776,8 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
 
           <SettingRow
             icon={<Spline className="h-4 w-4" />}
-            title="曲线方案"
-            description="在设置页直接切换风扇温控曲线，避免来回切页。"
+            title="Curve Profile"
+            description="Switch fan temperature curve directly from settings without switching tabs."
           >
             <FanCurveProfileSelect
               profiles={curveProfiles}
@@ -798,8 +798,8 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
                   <Flame className="h-4 w-4" />
                 </div>
                 <div>
-                  <div className="text-base font-medium text-foreground">自定义转速</div>
-                  <div className="text-sm text-muted-foreground">固定转速，适合特殊场景</div>
+                  <div className="text-base font-medium text-foreground">Custom Speed</div>
+                  <div className="text-sm text-muted-foreground">Fixed speed, suitable for special scenarios</div>
                 </div>
               </div>
               <ToggleSwitch
@@ -829,11 +829,11 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
                       min={1000} max={4000} step={50}
                     />
                     <Button variant="primary" size="sm" onClick={() => handleCustomSpeedApply(true, customSpeedInput)} className="bg-amber-600 hover:bg-amber-700 text-white">
-                      应用
+                      Apply
                     </Button>
                   </div>
                   <p className="mt-2 text-[11px] text-amber-700 dark:text-amber-300">
-                    ⚠ 自定义转速会禁用智能温控
+                    ⚠ Custom speed will disable smart temperature control
                   </p>
                 </motion.div>
               )}
@@ -841,12 +841,12 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
           </div>
         </Section>
 
-        {/* ═══════════ 3. 设备设置 ═══════════ */}
-        <Section title="设备设置" icon={Zap}>
+        {/* ═══════════ 3. Device Settings ═══════════ */}
+        <Section title="Device Settings" icon={Zap}>
           <SettingRow
             icon={<Lightbulb className={clsx('h-4 w-4', config.gearLight ? 'text-yellow-500' : '')} />}
-            title="挡位灯"
-            description="控制设备上的挡位指示灯"
+            title="Gear Light"
+            description="Control the gear indicator light on the device"
             disabled={!isConnected}
           >
             <ToggleSwitch
@@ -860,8 +860,8 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
 
           <SettingRow
             icon={<Power className={clsx('h-4 w-4', config.powerOnStart ? 'text-primary' : '')} />}
-            title="通电自启动"
-            description="设备通电后自动运行"
+            title="Power-on Auto Start"
+            description="Automatically run when device is powered on"
             disabled={!isConnected}
           >
             <ToggleSwitch
@@ -875,8 +875,8 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
 
           <SettingRow
             icon={<Zap className="h-4 w-4" />}
-            title="智能启停"
-            description="系统关闭后何时停止散热"
+            title="Smart Start/Stop"
+            description="When to stop cooling after system shutdown"
             disabled={!isConnected}
           >
             <div className="w-40">
@@ -891,24 +891,24 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
           </SettingRow>
         </Section>
 
-        {/* ═══════════ 4. 系统设置 ═══════════ */}
-        <Section title="系统设置" icon={Monitor}>
+        {/* ═══════════ 4. System Settings ═══════════ */}
+        <Section title="System Settings" icon={Monitor}>
           <div className="px-5 py-4">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
-                <div className="text-base font-medium text-foreground">全局快捷键</div>
+                <div className="text-base font-medium text-foreground">Global Hotkeys</div>
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                  点击右侧输入框后直接按组合键，失焦自动保存，按 Backspace/Delete 或清除按钮恢复默认值。
+                  Click the input field and press a key combination. Auto-saves on blur. Press Backspace/Delete or the clear button to reset to default.
                 </p>
               </div>
             </div>
 
             <div className="rounded-xl border border-border/70 bg-background/45 px-4 py-2">
               <HotkeyField
-                title="切换手动挡位"
-                description="在静音、标准、强劲、超频之间轮换，并保留各自的小挡位记忆。"
+                title="Toggle Manual Gear"
+                description="Cycle through Quiet, Standard, Power, and Overclock gears, retaining sub-gear memory."
                 value={manualHotkeyInput}
-                placeholder="点击后按下组合键"
+                placeholder="Click and press key combination"
                 recording={recordingTarget === 'manual'}
                 onFocus={() => setRecordingTarget('manual')}
                 onBlur={handleHotkeyInputBlur}
@@ -919,10 +919,10 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
               <div className="border-t border-border/60" />
 
               <HotkeyField
-                title="开关智能变频"
-                description="快速切换智能控温状态，适合游戏或安静场景之间来回切换。"
+                title="Toggle Smart Speed"
+                description="Quickly switch smart temperature control on/off, ideal for switching between gaming and quiet scenarios."
                 value={autoHotkeyInput}
-                placeholder="点击后按下组合键"
+                placeholder="Click and press key combination"
                 recording={recordingTarget === 'auto'}
                 onFocus={() => setRecordingTarget('auto')}
                 onBlur={handleHotkeyInputBlur}
@@ -933,10 +933,10 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
               <div className="border-t border-border/60" />
 
               <HotkeyField
-                title="切换温控曲线"
-                description="快速轮换曲线方案，适合办公/游戏/夜间场景一键切换。"
+                title="Toggle Temp Curve"
+                description="Quickly cycle through curve profiles, ideal for one-key switching between work/gaming/night scenarios."
                 value={curveProfileHotkeyInput}
-                placeholder="点击后按下组合键"
+                placeholder="Click and press key combination"
                 recording={recordingTarget === 'curve'}
                 onFocus={() => setRecordingTarget('curve')}
                 onBlur={handleHotkeyInputBlur}
@@ -948,9 +948,9 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
 
           <SettingRow
             icon={<Monitor className={clsx('h-4 w-4', config.windowsAutoStart ? 'text-emerald-500' : '')} />}
-            title="开机自启动"
-            description="Windows 启动时自动运行"
-            tip="以管理员身份运行可避免每次 UAC 授权"
+            title="Start on Boot"
+            description="Automatically run when Windows starts"
+            tip="Running as administrator avoids UAC prompts each time"
           >
             <ToggleSwitch
               enabled={config.windowsAutoStart}
@@ -963,9 +963,9 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
 
           <SettingRow
             icon={<Clock3 className={clsx('h-4 w-4', (config as any).ignoreDeviceOnReconnect ? 'text-emerald-500' : '')} />}
-            title="断连保持配置"
-            description="重连后继续使用 APP 配置"
-            tip="推荐开启，防止断连后进入设备默认模式"
+            title="Keep Config on Disconnect"
+            description="Continue using app config after reconnection"
+            tip="Recommended to enable, prevents device from reverting to default mode after disconnect"
           >
             <ToggleSwitch
               enabled={(config as any).ignoreDeviceOnReconnect ?? true}
@@ -980,15 +980,15 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
         {!isConnected && (
           <div className="flex items-center gap-2 rounded-xl border border-border bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
             <TriangleAlert className="h-4 w-4 shrink-0" />
-            设备未连接，部分功能不可用
+            Device not connected, some features are unavailable
           </div>
         )}
 
-        {/* ═══════════ 5. 关于与更新 ═══════════ */}
+        {/* ═══════════ 5. About & Updates ═══════════ */}
         <section className="rounded-2xl border border-border bg-card">
           <div className="flex items-center gap-2 border-b border-border/60 px-4 py-3">
             <Rocket className="h-4 w-4 text-muted-foreground" />
-            <h3 className="text-sm font-semibold text-foreground">关于与更新</h3>
+            <h3 className="text-sm font-semibold text-foreground">About & Updates</h3>
             <span className="ml-auto text-[11px] text-muted-foreground">BS2PRO Controller</span>
           </div>
 
@@ -998,7 +998,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
                 BS2PRO Controller
               </span>
               <span className="inline-flex items-center rounded-full border border-border/70 bg-background/70 px-2.5 py-1 text-xs text-muted-foreground">
-                当前 {appVersion ? `v${appVersion}` : '--'}
+                Current {appVersion ? `v${appVersion}` : '--'}
               </span>
               <a
                 href="https://github.com/TIANLI0/BS2PRO-Controller/releases/latest"
@@ -1008,7 +1008,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
                 }}
                 className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/15"
               >
-                最新 {releaseLoading ? '检查中…' : latestReleaseTag || '--'}
+                Latest {releaseLoading ? 'Checking...' : latestReleaseTag || '--'}
                 {hasNewVersion && !releaseLoading && <span className="h-2 w-2 rounded-full bg-destructive" />}
               </a>
             </div>
@@ -1017,13 +1017,13 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
 
             {hasNewVersion && (
               <div className="rounded-xl border border-border/70 bg-background/50 p-3">
-                <div className="mb-2 text-xs font-medium text-muted-foreground">Release 日志</div>
+                <div className="mb-2 text-xs font-medium text-muted-foreground">Release Notes</div>
                 {latestReleaseBody ? (
                   <ScrollArea className="max-h-40">
                     <p className="whitespace-pre-wrap text-xs leading-relaxed text-foreground/90">{latestReleaseBody}</p>
                   </ScrollArea>
                 ) : (
-                  <p className="text-xs text-muted-foreground">暂无日志内容，或本次获取失败。</p>
+                  <p className="text-xs text-muted-foreground">No release notes available, or failed to fetch.</p>
                 )}
               </div>
             )}
@@ -1031,23 +1031,23 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
 
           <div className="px-4 py-3">
             <div className="rounded-xl border border-border/70 bg-muted/35 p-3">
-              <div className="mb-2 text-xs text-muted-foreground">开发者</div>
+              <div className="mb-2 text-xs text-muted-foreground">Developer</div>
               <div className="flex items-center gap-3">
                 <img
                   src="http://q1.qlogo.cn/g?b=qq&nk=507249007&s=640"
-                  alt="Tianli 头像"
+                  alt="Tianli avatar"
                   className="h-12 w-12 rounded-full border border-border object-cover"
                   referrerPolicy="no-referrer"
                 />
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium text-foreground">Tianli</div>
-                  <div className="mt-0.5 text-xs text-muted-foreground">一个不知名开发者</div>
+                  <div className="mt-0.5 text-xs text-muted-foreground">An indie developer</div>
                 </div>
               </div>
 
               <div className="mt-3 space-y-1.5 border-t border-border/60 pt-2.5 text-xs">
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-muted-foreground">邮箱</span>
+                  <span className="text-muted-foreground">Email</span>
                   <a
                     href="mailto:wutianli@tianli0.top"
                     onClick={(e) => {
@@ -1060,7 +1060,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
                   </a>
                 </div>
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-muted-foreground">反馈群</span>
+                  <span className="text-muted-foreground">Feedback Group</span>
                   <a
                     href="https://qm.qq.com/q/2lEOycrLjq"
                     onClick={(e) => {
@@ -1069,7 +1069,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
                     }}
                     className="inline-flex items-center rounded-full border border-primary/40 bg-primary/10 px-2.5 py-1 font-medium text-primary transition-colors hover:bg-primary/15"
                   >
-                    QQ 群入口
+                    QQ Group
                   </a>
                 </div>
               </div>
@@ -1077,14 +1077,14 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
           </div>
         </section>
 
-        {/* ═══════════ 6. 调试面板 ═══════════ */}
+        {/* ═══════════ 6. Debug Panel ═══════════ */}
         <Collapsible open={debugPanelOpen} onOpenChange={setDebugPanelOpen}>
           <div className="rounded-2xl border border-border bg-card overflow-hidden">
             <CollapsibleTrigger asChild>
               <button type="button" className="flex w-full cursor-pointer items-center justify-between px-4 py-3 transition-colors hover:bg-muted/40">
                 <div className="flex items-center gap-2">
                   <Bug className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-semibold text-foreground">调试面板</span>
+                  <span className="text-sm font-semibold text-foreground">Debug Panel</span>
                 </div>
                 <ChevronDown className={clsx('h-4 w-4 text-muted-foreground transition-transform duration-200', debugPanelOpen && 'rotate-180')} />
               </button>
@@ -1096,8 +1096,8 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
                   <div className="flex items-center gap-2">
                     <Bug className="h-4 w-4 text-muted-foreground" />
                     <div>
-                      <div className="text-sm font-medium">调试模式</div>
-                      <div className="text-[11px] text-muted-foreground">启用详细日志</div>
+                      <div className="text-sm font-medium">Debug Mode</div>
+                      <div className="text-[11px] text-muted-foreground">Enable detailed logging</div>
                     </div>
                   </div>
                   <ToggleSwitch enabled={config.debugMode} onChange={toggleDebugMode} size="sm" color="purple" />
@@ -1107,15 +1107,15 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
                   <div className="flex items-center gap-2">
                     {config.guiMonitoring ? <Eye className="h-4 w-4 text-muted-foreground" /> : <EyeOff className="h-4 w-4 text-muted-foreground" />}
                     <div>
-                      <div className="text-sm font-medium">GUI 监控</div>
-                      <div className="text-[11px] text-muted-foreground">监控 GUI 响应</div>
+                      <div className="text-sm font-medium">GUI Monitoring</div>
+                      <div className="text-[11px] text-muted-foreground">Monitor GUI response</div>
                     </div>
                   </div>
                   <ToggleSwitch enabled={config.guiMonitoring} onChange={toggleGuiMonitoring} size="sm" color="purple" />
                 </div>
 
                 <Button variant="secondary" size="sm" onClick={fetchDebugInfo} loading={debugInfoLoading} className="w-full">
-                  刷新调试信息
+                  Refresh Debug Info
                 </Button>
 
                 {debugInfo && (
@@ -1151,25 +1151,25 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
                 </div>
               </div>
 
-              <h3 className="mb-3 text-center text-lg font-bold text-foreground">风险提示</h3>
+              <h3 className="mb-3 text-center text-lg font-bold text-foreground">Risk Warning</h3>
 
               <div className="mb-4 rounded-xl border border-amber-300/40 bg-amber-500/10 p-3 text-sm">
-                <p className="mb-2 font-medium text-foreground">启用后：</p>
+                <p className="mb-2 font-medium text-foreground">After enabling:</p>
                 <ul className="space-y-1 text-xs text-muted-foreground">
-                  <li>• 智能温控将被禁用</li>
-                  <li>• 风扇以固定转速运行</li>
-                  <li>• 可能导致散热不足</li>
+                  <li>• Smart temperature control will be disabled</li>
+                  <li>• Fan will run at a fixed speed</li>
+                  <li>• May result in insufficient cooling</li>
                 </ul>
               </div>
 
               <div className="mb-5 rounded-xl bg-muted/60 p-3 text-center">
-                <span className="text-xs text-muted-foreground">设置转速</span>
+                <span className="text-xs text-muted-foreground">Set Speed</span>
                 <div className="text-xl font-bold text-amber-600">{customSpeedInput} RPM</div>
               </div>
 
               <div className="flex gap-3">
                 <Button variant="secondary" onClick={() => setShowCustomSpeedWarning(false)} className="flex-1">
-                  取消
+                  Cancel
                 </Button>
                 <Button
                   variant="primary"
@@ -1177,7 +1177,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
                   className="flex-1 bg-amber-600 text-white hover:bg-amber-700"
                   icon={<CheckCircle2 className="h-4 w-4" />}
                 >
-                  确认
+                  Confirm
                 </Button>
               </div>
             </motion.div>

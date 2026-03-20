@@ -96,7 +96,7 @@ func normalizeCurveProfilesConfig(cfg *types.AppConfig) bool {
 	if len(cfg.FanCurveProfiles) == 0 {
 		cfg.FanCurveProfiles = []types.FanCurveProfile{{
 			ID:    "default",
-			Name:  "默认",
+			Name:  "Default",
 			Curve: cloneFanCurve(baseCurve),
 		}}
 		changed = true
@@ -112,7 +112,7 @@ func normalizeCurveProfilesConfig(cfg *types.AppConfig) bool {
 		}
 		seenIDs[profile.ID] = true
 
-		fallbackName := fmt.Sprintf("方案%d", i+1)
+		fallbackName := fmt.Sprintf("Profile%d", i+1)
 		name := normalizeCurveProfileName(profile.Name, fallbackName)
 		if name != profile.Name {
 			profile.Name = name
@@ -134,7 +134,7 @@ func normalizeCurveProfilesConfig(cfg *types.AppConfig) bool {
 	if len(cfg.FanCurveProfiles) == 0 {
 		cfg.FanCurveProfiles = []types.FanCurveProfile{{
 			ID:    "default",
-			Name:  "默认",
+			Name:  "Default",
 			Curve: cloneFanCurve(baseCurve),
 		}}
 		changed = true
@@ -200,7 +200,7 @@ func (a *CoreApp) GetFanCurveProfiles() types.FanCurveProfilesPayload {
 	if normalizeCurveProfilesConfig(&cfg) {
 		a.configManager.Set(cfg)
 		if err := a.configManager.Save(); err != nil {
-			a.logError("保存温控曲线方案默认配置失败: %v", err)
+			a.logError("Failed to save default fan curve profile config: %v", err)
 		}
 	}
 	return a.fanCurveProfilesPayloadFromConfig(cfg)
@@ -215,7 +215,7 @@ func (a *CoreApp) SetActiveFanCurveProfile(profileID string) (types.FanCurveProf
 
 	idx := findCurveProfileIndex(cfg.FanCurveProfiles, profileID)
 	if idx < 0 {
-		return types.FanCurveProfile{}, fmt.Errorf("未找到温控曲线方案")
+		return types.FanCurveProfile{}, fmt.Errorf("fan curve profile not found")
 	}
 
 	cfg.ActiveFanCurveProfileID = cfg.FanCurveProfiles[idx].ID
@@ -238,7 +238,7 @@ func (a *CoreApp) CycleFanCurveProfile() (types.FanCurveProfile, error) {
 	normalizeCurveProfilesConfig(&cfg)
 
 	if len(cfg.FanCurveProfiles) == 0 {
-		return types.FanCurveProfile{}, fmt.Errorf("暂无可用温控曲线方案")
+		return types.FanCurveProfile{}, fmt.Errorf("no fan curve profiles available")
 	}
 
 	idx := max(findCurveProfileIndex(cfg.FanCurveProfiles, cfg.ActiveFanCurveProfileID), 0)
@@ -269,7 +269,7 @@ func (a *CoreApp) SaveFanCurveProfile(params ipc.SaveFanCurveProfileParams) (typ
 		return types.FanCurveProfile{}, err
 	}
 
-	profileName := normalizeCurveProfileName(params.Name, "新曲线")
+	profileName := normalizeCurveProfileName(params.Name, "New")
 	profileID := strings.TrimSpace(params.ID)
 	idx := findCurveProfileIndex(cfg.FanCurveProfiles, profileID)
 	if idx < 0 {
@@ -306,17 +306,17 @@ func (a *CoreApp) DeleteFanCurveProfile(profileID string) error {
 	normalizeCurveProfilesConfig(&cfg)
 
 	if len(cfg.FanCurveProfiles) <= 1 {
-		return fmt.Errorf("至少保留一个温控曲线方案")
+		return fmt.Errorf("at least one fan curve profile must be kept")
 	}
 
 	idx := findCurveProfileIndex(cfg.FanCurveProfiles, profileID)
 	if idx < 0 {
-		return fmt.Errorf("未找到温控曲线方案")
+		return fmt.Errorf("fan curve profile not found")
 	}
 
 	cfg.FanCurveProfiles = append(cfg.FanCurveProfiles[:idx], cfg.FanCurveProfiles[idx+1:]...)
 	if len(cfg.FanCurveProfiles) == 0 {
-		return fmt.Errorf("至少保留一个温控曲线方案")
+		return fmt.Errorf("at least one fan curve profile must be kept")
 	}
 
 	if cfg.ActiveFanCurveProfileID == profileID {
@@ -366,35 +366,35 @@ func (a *CoreApp) ExportFanCurveProfiles() (string, error) {
 func (a *CoreApp) ImportFanCurveProfiles(code string) error {
 	trimmed := strings.TrimSpace(code)
 	if trimmed == "" {
-		return fmt.Errorf("导入字符串不能为空")
+		return fmt.Errorf("import string cannot be empty")
 	}
 	if !strings.HasPrefix(trimmed, curveExportPrefix) {
-		return fmt.Errorf("导入字符串格式错误")
+		return fmt.Errorf("invalid import string format")
 	}
 
 	raw := strings.TrimPrefix(trimmed, curveExportPrefix)
 	compressed, err := base64.RawURLEncoding.DecodeString(raw)
 	if err != nil {
-		return fmt.Errorf("导入字符串解码失败")
+		return fmt.Errorf("failed to decode import string")
 	}
 
 	zr, err := zlib.NewReader(bytes.NewReader(compressed))
 	if err != nil {
-		return fmt.Errorf("导入字符串解压失败")
+		return fmt.Errorf("failed to decompress import string")
 	}
 	defer zr.Close()
 
 	plain, err := io.ReadAll(zr)
 	if err != nil {
-		return fmt.Errorf("导入数据读取失败")
+		return fmt.Errorf("failed to read import data")
 	}
 
 	var payload fanCurveExportPayload
 	if err := json.Unmarshal(plain, &payload); err != nil {
-		return fmt.Errorf("导入数据格式错误")
+		return fmt.Errorf("invalid import data format")
 	}
 	if payload.V != 1 {
-		return fmt.Errorf("不支持的导入版本")
+		return fmt.Errorf("unsupported import version")
 	}
 
 	a.mutex.Lock()

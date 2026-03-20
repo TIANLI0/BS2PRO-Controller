@@ -95,7 +95,7 @@ export function Select<T extends string | number>({
   onChange,
   options,
   disabled = false,
-  placeholder = '请选择',
+  placeholder = 'Select',
   label,
   size = 'md',
   className,

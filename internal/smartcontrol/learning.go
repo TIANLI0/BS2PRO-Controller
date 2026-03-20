@@ -2,7 +2,7 @@ package smartcontrol
 
 import "github.com/TIANLI0/BS2PRO-Controller/internal/types"
 
-// LearnCurveOffsets 学习并更新曲线偏移
+// LearnCurveOffsets learns and updates curve offsets
 func LearnCurveOffsets(avgTemp, lastAvgTemp, targetRPM, lastTargetRPM int, recentAvgTemps []int, curve []types.FanCurvePoint, cfg types.SmartControlConfig) ([]int, []int, []int, []int, bool) {
 	if len(curve) == 0 {
 		rateHeat, _ := normalizeRateBiases(cfg.LearnedRateHeat, cfg.MaxLearnOffset)
@@ -92,7 +92,7 @@ func LearnCurveOffsets(avgTemp, lastAvgTemp, targetRPM, lastTargetRPM int, recen
 		return heatOffsets, coolOffsets, rateHeat, rateCool, false
 	}
 
-	// 将评分压缩为小步进，避免学习曲线过于陡峭。
+	// Compress the score into small steps to avoid an overly steep learning curve.
 	denominator := max(10, 24-cfg.LearnRate*2)
 	delta := raw / denominator
 	if delta == 0 {

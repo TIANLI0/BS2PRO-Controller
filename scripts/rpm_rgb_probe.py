@@ -136,7 +136,7 @@ def write_outputs(rows: List[Dict[str, object]], output_prefix: Path) -> None:
         writer.writeheader()
         writer.writerows(rows)
 
-    # 做一个“变化字节”总结，便于对照颜色/区间
+    # Create a "changed bytes" summary for comparing color/range
     valid_hex = [bytes.fromhex(r["raw_hex"]) for r in rows if r["raw_hex"]]  # type: ignore
     changed_indices: List[int] = []
     if valid_hex:
@@ -147,35 +147,35 @@ def write_outputs(rows: List[Dict[str, object]], output_prefix: Path) -> None:
                 changed_indices.append(idx)
 
     lines = [
-        "# RPM -> 状态回包探针结果",
+        "# RPM -> Status Response Probe Results",
         "",
-        "## 结论摘要",
-        f"- 样本点数: {len(rows)}",
-        f"- 有效 0xEF 报文点数: {sum(1 for r in rows if (r['samples'] or 0) > 0)}",  # type: ignore
-        f"- 回包变化字节索引: {', '.join(str(i) for i in changed_indices) if changed_indices else '无'}",
+        "## Summary",
+        f"- Sample points: {len(rows)}",
+        f"- Valid 0xEF report points: {sum(1 for r in rows if (r['samples'] or 0) > 0)}",  # type: ignore
+        f"- Changed byte indices in response: {', '.join(str(i) for i in changed_indices) if changed_indices else 'None'}",
         "",
-        "## 逐点结果",
+        "## Per-point Results",
     ]
 
     for r in rows:
         lines.append(
-            f"- 设定 {r['set_rpm']} RPM -> 实际中位 {r['realtime_rpm_median']} / 目标中位 {r['target_rpm_median']} / 样本 {r['samples']}"
+            f"- Set {r['set_rpm']} RPM -> Actual median {r['realtime_rpm_median']} / Target median {r['target_rpm_median']} / Samples {r['samples']}"
         )
 
     lines.extend(
         [
             "",
-            "## 字段提示",
-            "- `gear_mode` 为回包偏移 5（高/低半字节混合字段）",
-            "- `work_mode` 为回包偏移 6（常见 0x04/0x05）",
-            "- `raw_hex` 保留整包，便于后续对照颜色状态位",
+            "## Field Notes",
+            "- `gear_mode` is response offset 5 (high/low nibble mixed field)",
+            "- `work_mode` is response offset 6 (common values: 0x04/0x05)",
+            "- `raw_hex` preserves the full packet for later comparison with color status bits",
         ]
     )
 
     md_path.write_text("\n".join(lines), encoding="utf-8")
 
-    print(f"已写入: {csv_path}")
-    print(f"已写入: {md_path}")
+    print(f"Written: {csv_path}")
+    print(f"Written: {md_path}")
 
 
 def parse_rpm_points(text: str) -> List[int]:
@@ -190,63 +190,63 @@ def parse_rpm_points(text: str) -> List[int]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="探测 smart_temp 模式下 RPM 与回包状态变化关系"
+        description="Probe the relationship between RPM and response status changes in smart_temp mode"
     )
     parser.add_argument(
         "--rpm-points",
         default="1000,1400,1700,2000,2300,2600,2900,3200,3500,3800,4000",
-        help="逗号分隔 RPM 点",
+        help="Comma-separated RPM points",
     )
     parser.add_argument(
         "--settle-sec",
         type=float,
         default=2.5,
-        help="每个 RPM 点设置后等待稳定时间（秒）",
+        help="Settling time after setting each RPM point (seconds)",
     )
     parser.add_argument(
         "--sample-sec",
         type=float,
         default=3.0,
-        help="每个 RPM 点抓包时长（秒）",
+        help="Packet capture duration per RPM point (seconds)",
     )
     parser.add_argument(
         "--vid",
         type=lambda x: int(x, 0),
         default=0x137D7,
-        help="设备 VID（支持 0x 前缀）",
+        help="Device VID (supports 0x prefix)",
     )
     parser.add_argument(
         "--pid",
         type=lambda x: int(x, 0),
         default=0x1002,
-        help="设备 PID（支持 0x 前缀）",
+        help="Device PID (supports 0x prefix)",
     )
 
     args = parser.parse_args()
 
     rpm_points = parse_rpm_points(args.rpm_points)
     if not rpm_points:
-        print("RPM 点为空")
+        print("RPM points are empty")
         return 1
 
     controller = BS2PROHIDController()
     if not controller.connect(args.vid, args.pid):
-        print("连接设备失败")
+        print("Failed to connect to device")
         return 1
 
     try:
         if not enter_smart_temp_mode(controller):
-            print("进入 smart_temp 模式失败")
+            print("Failed to enter smart_temp mode")
             return 1
 
         rows: List[Dict[str, object]] = []
 
         for rpm in rpm_points:
-            print(f"\n=== 探测 RPM: {rpm} ===")
+            print(f"\n=== Probing RPM: {rpm} ===")
             controller.enter_realtime_speed_mode()
             time.sleep(0.1)
             if not controller.set_fan_speed(rpm):
-                print(f"设置 RPM {rpm} 失败，跳过")
+                print(f"Failed to set RPM {rpm}, skipping")
                 rows.append(
                     {
                         "set_rpm": rpm,
@@ -267,14 +267,14 @@ def main() -> int:
             row = summarize_probe_result(rpm, reports)
             rows.append(row)
             print(
-                f"样本={row['samples']} 实际中位={row['realtime_rpm_median']} 目标中位={row['target_rpm_median']}"
+                f"samples={row['samples']} actual_median={row['realtime_rpm_median']} target_median={row['target_rpm_median']}"
             )
 
         timestamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
         out_prefix = Path("ota") / f"rpm_rgb_probe_{timestamp}"
         write_outputs(rows, out_prefix)
 
-        print("\n完成。请把生成的 CSV/MD 发我，我帮你反推出 RPM->颜色区间表。")
+        print("\nDone. Please send me the generated CSV/MD so I can help you reverse-engineer the RPM->color range table.")
         return 0
     finally:
         controller.disconnect()

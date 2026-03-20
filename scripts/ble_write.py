@@ -6,7 +6,7 @@ from winrt.windows.devices.bluetooth.genericattributeprofile import (
 from winrt.windows.storage.streams import DataWriter, Buffer
 from winrt.windows.devices.enumeration import DeviceInformation
 
-# 添加 HID 支持
+# Add HID support
 try:
     import hid
 
@@ -14,43 +14,43 @@ try:
     from hid_controller import BS2PROHIDController
 except ImportError:
     HID_AVAILABLE = False
-    print("⚠️ hidapi 未安装，HID 模式不可用。运行 'pip install hidapi' 安装。")
+    print("Warning: hidapi not installed, HID mode unavailable. Run 'pip install hidapi' to install.")
 
 
 async def find_paired_ble_devices():
-    """查找所有已配对的 BLE 设备"""
+    """Find all paired BLE devices"""
     try:
-        # 使用设备枚举器查找所有 BLE 设备
+        # Use device enumerator to find all BLE devices
         device_selector = BluetoothLEDevice.get_device_selector()
         devices = await DeviceInformation.find_all_async()
 
-        print(f"找到 {len(devices)} 个 BLE 设备:")
+        print(f"Found {len(devices)} BLE devices:")
 
         for device in devices:
-            if device.name:  # 只显示有名称的设备
-                print(f"设备名称: {device.name}")
-                print(f"设备ID: {device.id}")
-                print(f"是否已启用: {device.is_enabled}")
-                print(f"是否已配对: {device.pairing.is_paired}")
+            if device.name:  # Only show devices with names
+                print(f"Device Name: {device.name}")
+                print(f"Device ID: {device.id}")
+                print(f"Enabled: {device.is_enabled}")
+                print(f"Paired: {device.pairing.is_paired}")
                 print("---")
 
-                # 如果找到 BS2PRO 设备
+                # If BS2PRO device is found
                 if "BS2PRO" in device.name.upper():
-                    print(f"✓ 找到目标设备: {device.name}")
+                    print(f"Found target device: {device.name}")
                     return device.id
 
         return None
 
     except Exception as e:
-        print(f"枚举设备错误: {e}")
+        print(f"Device enumeration error: {e}")
         return None
 
 
 def analyze_characteristic_properties(properties):
-    """分析特征值属性"""
+    """Analyze characteristic properties"""
     prop_list = []
 
-    # 使用 GattCharacteristicProperties 枚举值
+    # Use GattCharacteristicProperties enum values
     if properties & GattCharacteristicProperties.READ:
         prop_list.append("READ")
     if properties & GattCharacteristicProperties.WRITE:
@@ -72,13 +72,13 @@ def analyze_characteristic_properties(properties):
 
 
 def get_service_description(uuid_str):
-    """获取标准服务描述"""
+    """Get standard service description"""
     standard_services = {}
     return standard_services.get(uuid_str.lower(), "Unknown Service")
 
 
 def format_gatt_status(code: int) -> str:
-    """格式化 GATT 状态码"""
+    """Format GATT status code"""
     mapping = {
         0: "Success",
         1: "Unreachable",
@@ -89,30 +89,30 @@ def format_gatt_status(code: int) -> str:
 
 
 async def discover_services_and_characteristics(device):
-    """发现设备的所有服务和特征值"""
+    """Discover all services and characteristics of the device"""
     try:
-        print(f"\n🔍 正在分析设备: {device.name}")
-        print(f"设备地址: {hex(device.bluetooth_address)}")
+        print(f"\nAnalyzing device: {device.name}")
+        print(f"Device address: {hex(device.bluetooth_address)}")
         print("=" * 60)
 
-        # 获取GATT服务
+        # Get GATT services
         gatt_result = await device.get_gatt_services_async()
 
         if gatt_result.status != 0:
-            print(f"获取服务失败，状态码: {gatt_result.status}")
+            print(f"Failed to get services, status code: {gatt_result.status}")
             return
 
         services = gatt_result.services
-        print(f"📋 找到 {len(services)} 个服务:\n")
+        print(f"Found {len(services)} services:\n")
 
         for i, service in enumerate(services, 1):
             service_uuid = str(service.uuid)
             service_desc = get_service_description(service_uuid)
 
-            print(f"🔧 服务 {i}: {service_desc}")
+            print(f"Service {i}: {service_desc}")
             print(f"   UUID: {service_uuid}")
 
-            # 获取特征值（尝试使用未缓存模式）
+            # Get characteristics (try uncached mode)
             try:
                 char_result = await service.get_characteristics_async(
                     BluetoothCacheMode.UNCACHED
@@ -122,7 +122,7 @@ async def discover_services_and_characteristics(device):
 
             if char_result.status == 0:
                 characteristics = char_result.characteristics
-                print(f"   📊 特征值数量: {len(characteristics)}")
+                print(f"   Characteristic count: {len(characteristics)}")
 
                 for j, char in enumerate(characteristics, 1):
                     char_uuid = str(char.uuid)
@@ -130,25 +130,25 @@ async def discover_services_and_characteristics(device):
                         char.characteristic_properties
                     )
 
-                    print(f"      📌 特征值 {j}:")
+                    print(f"      Characteristic {j}:")
                     print(f"         UUID: {char_uuid}")
-                    print(f"         属性: {', '.join(properties)}")
+                    print(f"         Properties: {', '.join(properties)}")
 
-                    # 标明读写能力
+                    # Indicate read/write capabilities
                     capabilities = []
                     if "READ" in properties:
-                        capabilities.append("✅ 可读")
+                        capabilities.append("Readable")
                     if "WRITE" in properties or "WRITE_NO_RESPONSE" in properties:
-                        capabilities.append("✏️ 可写")
+                        capabilities.append("Writable")
                     if "NOTIFY" in properties:
-                        capabilities.append("🔔 可通知")
+                        capabilities.append("Notifiable")
                     if "INDICATE" in properties:
-                        capabilities.append("📢 可指示")
+                        capabilities.append("Indicatable")
 
                     if capabilities:
-                        print(f"         功能: {' | '.join(capabilities)}")
+                        print(f"         Capabilities: {' | '.join(capabilities)}")
 
-                    # 如果支持读取，尝试读取描述符
+                    # If readable, try to read descriptors
                     try:
                         descriptors_result = await char.get_descriptors_async()
                         if (
@@ -156,7 +156,7 @@ async def discover_services_and_characteristics(device):
                             and len(descriptors_result.descriptors) > 0
                         ):
                             print(
-                                f"         描述符: {len(descriptors_result.descriptors)} 个"
+                                f"         Descriptors: {len(descriptors_result.descriptors)}"
                             )
                     except:  # noqa: E722
                         pass
@@ -164,107 +164,107 @@ async def discover_services_and_characteristics(device):
                     print()
             else:
                 status_desc = format_gatt_status(char_result.status)
-                print(f"   ❌ 无法获取特征值，状态: {status_desc}")
+                print(f"   Unable to get characteristics, status: {status_desc}")
 
-                # 如果是 HID 服务且访问被拒绝，提示使用 HID 模式
+                # If this is an HID service and access is denied, suggest using HID mode
                 if (
                     service_uuid == "00001812-0000-1000-8000-00805f9b34fb"
                     and char_result.status == 3
                     and HID_AVAILABLE
                 ):
-                    print(f"   💡 这是 HID 服务，建议使用 HID 模式访问")
+                    print(f"   This is an HID service, it is recommended to use HID mode for access")
 
             print("-" * 50)
 
     except Exception as e:
-        print(f"发现服务错误: {e}")
+        print(f"Service discovery error: {e}")
 
 
 async def connect_to_paired_device():
-    """连接到已配对的 BS2PRO 设备"""
+    """Connect to a paired BS2PRO device"""
     try:
-        # 方法1: 通过 MAC 地址连接 (修正MAC地址)
-        mac_address = 0xE566E510CE04  # 移除末尾的5
+        # Method 1: Connect via MAC address (corrected MAC address)
+        mac_address = 0xE566E510CE04  # Removed trailing 5
 
         try:
-            print("🔗 尝试通过MAC地址连接...")
+            print("Attempting to connect via MAC address...")
             ble_device = await BluetoothLEDevice.from_bluetooth_address_async(
                 mac_address
             )
 
             if ble_device is not None:
-                print(f"✅ 通过MAC地址连接成功: {ble_device.name}")
+                print(f"Connected via MAC address successfully: {ble_device.name}")
                 await discover_services_and_characteristics(ble_device)
                 return ble_device
 
         except Exception as mac_error:
-            print(f"❌ MAC地址连接失败: {mac_error}")
+            print(f"MAC address connection failed: {mac_error}")
 
-        # 方法2: 通过设备枚举查找
-        print("🔍 尝试通过设备枚举查找...")
+        # Method 2: Find via device enumeration
+        print("Attempting to find via device enumeration...")
         device_id = await find_paired_ble_devices()
 
         if device_id:
             ble_device = await BluetoothLEDevice.from_id_async(device_id)
 
             if ble_device is None:
-                print("❌ 无法创建设备对象")
+                print("Unable to create device object")
                 return None
 
-            print(f"✅ 连接到设备: {ble_device.name}")
+            print(f"Connected to device: {ble_device.name}")
             await discover_services_and_characteristics(ble_device)
             return ble_device
         else:
-            print("❌ 未找到 BS2PRO 设备")
+            print("BS2PRO device not found")
             return None
 
     except Exception as e:
-        print(f"❌ 连接错误: {e}")
+        print(f"Connection error: {e}")
         return None
 
 
-# 使用示例
+# Usage example
 async def main():
-    """主函数"""
-    print("🚀 开始搜索并分析 BS2PRO 设备...")
-    print("\n选择连接模式:")
-    print("1. BLE GATT 模式 (默认)")
+    """Main function"""
+    print("Starting search and analysis of BS2PRO device...")
+    print("\nSelect connection mode:")
+    print("1. BLE GATT Mode (default)")
     if HID_AVAILABLE:
-        print("2. HID 模式")
+        print("2. HID Mode")
 
-    choice = input("\n请选择模式 (1/2): ").strip()
+    choice = input("\nPlease select mode (1/2): ").strip()
 
     if choice == "2" and HID_AVAILABLE:
-        # 使用 HID 模式
-        print("\n🔧 使用 HID 模式连接...")
+        # Use HID mode
+        print("\nConnecting using HID mode...")
         controller = BS2PROHIDController()
 
         if controller.connect():
-            print("\n🧪 执行 HID 通信测试...")
-            # 这里可以添加具体的 HID 命令测试
+            print("\nRunning HID communication test...")
+            # Specific HID command tests can be added here
             controller.disconnect()
         return
 
-    # 默认使用 BLE GATT 模式
-    print("\n🔧 使用 BLE GATT 模式连接...")
+    # Default to BLE GATT mode
+    print("\nConnecting using BLE GATT mode...")
     device = await connect_to_paired_device()
 
     if device:
-        print("\n✅ 设备分析完成!")
-        print(f"设备名称: {device.name}")
-        print(f"设备地址: {hex(device.bluetooth_address)}")
-        print("\n💡 提示: 查看上方输出找到可写的特征值UUID用于发送数据")
+        print("\nDevice analysis complete!")
+        print(f"Device Name: {device.name}")
+        print(f"Device Address: {hex(device.bluetooth_address)}")
+        print("\nTip: Check the output above to find writable characteristic UUIDs for sending data")
 
         if HID_AVAILABLE:
-            print("💡 如需访问 HID 服务，请重新运行并选择 HID 模式")
+            print("Tip: To access HID services, re-run and select HID mode")
     else:
-        print("\n❌ 未能连接到设备")
-        print("\n🔧 故障排除建议:")
-        print("1. 确保设备已在Windows设置中配对")
-        print("2. 确保设备处于开启状态")
-        print("3. 尝试在蓝牙设置中断开并重新连接设备")
+        print("\nFailed to connect to device")
+        print("\nTroubleshooting suggestions:")
+        print("1. Make sure the device is paired in Windows settings")
+        print("2. Make sure the device is powered on")
+        print("3. Try disconnecting and reconnecting the device in Bluetooth settings")
         if HID_AVAILABLE:
-            print("4. 尝试使用 HID 模式连接")
+            print("4. Try connecting using HID mode")
 
 
 if __name__ == "__main__":

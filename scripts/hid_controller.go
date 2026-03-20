@@ -8,79 +8,79 @@ import (
 	"github.com/sstallion/go-hid"
 )
 
-// 风扇数据结构
+// Fan data structure
 type FanData struct {
-	ReportID     uint8  // 报告ID
-	MagicSync    uint16 // 同步头 0x5AA5
-	Command      uint8  // 命令码
-	Status       uint8  // 状态字节
-	GearSettings uint8  // 最高挡位和设置挡位
-	CurrentMode  uint8  // 当前模式
-	Reserved1    uint8  // 预留字节
-	CurrentRPM   uint16 // 风扇实时转速
-	TargetRPM    uint16 // 风扇目标转速
-	MaxGear      uint8  // 最高挡位 (从GearSettings解析)
-	SetGear      uint8  // 设置挡位 (从GearSettings解析)
+	ReportID     uint8  // Report ID
+	MagicSync    uint16 // Sync header 0x5AA5
+	Command      uint8  // Command code
+	Status       uint8  // Status byte
+	GearSettings uint8  // Max gear and set gear
+	CurrentMode  uint8  // Current mode
+	Reserved1    uint8  // Reserved byte
+	CurrentRPM   uint16 // Fan real-time RPM
+	TargetRPM    uint16 // Fan target RPM
+	MaxGear      uint8  // Max gear (parsed from GearSettings)
+	SetGear      uint8  // Set gear (parsed from GearSettings)
 }
 
-// 解析挡位设置
+// Parse gear settings
 func parseGearSettings(gearByte uint8) (maxGear, setGear string) {
 	maxGearCode := (gearByte >> 4) & 0x0F
 	setGearCode := gearByte & 0x0F
 
-	// 模式映射: 2=标准, 4=强劲, 6=超频
+	// Mode mapping: 2=Standard, 4=Turbo, 6=Overclock
 	maxGearMap := map[uint8]string{
-		0x2: "标准",
-		0x4: "强劲",
-		0x6: "超频",
+		0x2: "Standard",
+		0x4: "Turbo",
+		0x6: "Overclock",
 	}
 
-	// 挡位映射: 8=静音, A=标准, C=强劲, E=超频
+	// Gear mapping: 8=Silent, A=Standard, C=Turbo, E=Overclock
 	setGearMap := map[uint8]string{
-		0x8: "静音",
-		0xA: "标准",
-		0xC: "强劲",
-		0xE: "超频",
+		0x8: "Silent",
+		0xA: "Standard",
+		0xC: "Turbo",
+		0xE: "Overclock",
 	}
 
 	if val, ok := maxGearMap[maxGearCode]; ok {
 		maxGear = val
 	} else {
-		maxGear = fmt.Sprintf("未知(0x%X)", maxGearCode)
+		maxGear = fmt.Sprintf("Unknown(0x%X)", maxGearCode)
 	}
 
 	if val, ok := setGearMap[setGearCode]; ok {
 		setGear = val
 	} else {
-		setGear = fmt.Sprintf("未知(0x%X)", setGearCode)
+		setGear = fmt.Sprintf("Unknown(0x%X)", setGearCode)
 	}
 
 	return
 }
 
-// 解析工作模式
+// Parse work mode
 func parseWorkMode(mode uint8) string {
 	switch mode {
 	case 0x04:
-		return "挡位工作模式"
+		return "Gear Operating Mode"
 	case 0x05:
-		return "自动模式(实时转速)"
+		return "Auto Mode (Real-time Speed)"
 	default:
-		return fmt.Sprintf("未知模式(0x%02X)", mode)
+		return fmt.Sprintf("Unknown Mode(0x%02X)", mode)
 	}
 }
 
-// 解析HID数据包
+// Parse HID data packet
 func parseFanData(data []byte, length int) *FanData {
 	if length < 11 {
-		fmt.Printf("数据包长度不足，需要至少11字节，实际: %d\n", length)
+		fmt.Printf("Packet length insufficient, need at least 11 bytes, actual: %d\n", length)
 		return nil
 	}
 
-	// 检查同步头
+	// Check sync header
 	magic := binary.BigEndian.Uint16(data[1:3])
 	if magic != 0x5AA5 {
-		fmt.Printf("同步头不匹配，期望: 0x5AA5, 实际: 0x%04X\n", magic)
+		fmt.Printf("Sync header mismatch, expected: 0x5AA5, actual: 0x%04X\n", magic)
 		return nil
 	}
 
@@ -94,7 +94,7 @@ func parseFanData(data []byte, length int) *FanData {
 		Reserved1:    data[7],
 	}
 
-	// 解析转速 (小端序)
+	// Parse RPM (little-endian)
 	if length >= 10 {
 		fanData.CurrentRPM = binary.LittleEndian.Uint16(data[8:10])
 	}
@@ -105,112 +105,112 @@ func parseFanData(data []byte, length int) *FanData {
 	return fanData
 }
 
-// 显示风扇数据
+// Display fan data
 func displayFanData(fanData *FanData) {
-	fmt.Println("\n=== 风扇数据解析 ===")
-	fmt.Printf("报告ID: 0x%02X\n", fanData.ReportID)
-	fmt.Printf("同步头: 0x%04X\n", fanData.MagicSync)
-	fmt.Printf("命令码: 0x%02X\n", fanData.Command)
-	fmt.Printf("状态字节: 0x%02X\n", fanData.Status)
+	fmt.Println("\n=== Fan Data Parsed ===")
+	fmt.Printf("Report ID: 0x%02X\n", fanData.ReportID)
+	fmt.Printf("Sync Header: 0x%04X\n", fanData.MagicSync)
+	fmt.Printf("Command Code: 0x%02X\n", fanData.Command)
+	fmt.Printf("Status Byte: 0x%02X\n", fanData.Status)
 
 	maxGear, setGear := parseGearSettings(fanData.GearSettings)
-	fmt.Printf("挡位设置: 0x%02X (最高挡位: %s, 设置挡位: %s)\n",
+	fmt.Printf("Gear Settings: 0x%02X (Max Gear: %s, Set Gear: %s)\n",
 		fanData.GearSettings, maxGear, setGear)
 
-	fmt.Printf("当前模式: %s (0x%02X)\n", parseWorkMode(fanData.CurrentMode), fanData.CurrentMode)
-	fmt.Printf("预留字节: 0x%02X\n", fanData.Reserved1)
-	fmt.Printf("风扇实时转速: %d RPM\n", fanData.CurrentRPM)
-	fmt.Printf("风扇目标转速: %d RPM\n", fanData.TargetRPM)
+	fmt.Printf("Current Mode: %s (0x%02X)\n", parseWorkMode(fanData.CurrentMode), fanData.CurrentMode)
+	fmt.Printf("Reserved Byte: 0x%02X\n", fanData.Reserved1)
+	fmt.Printf("Fan Real-time RPM: %d RPM\n", fanData.CurrentRPM)
+	fmt.Printf("Fan Target RPM: %d RPM\n", fanData.TargetRPM)
 	fmt.Println("==================")
 }
 
 func main() {
-	fmt.Println("HID连接测试")
+	fmt.Println("HID Connection Test")
 
-	// 初始化HID库
+	// Initialize HID library
 	err := hid.Init()
 	if err != nil {
-		fmt.Printf("初始化HID库失败: %v\n", err)
+		fmt.Printf("Failed to initialize HID library: %v\n", err)
 		return
 	}
 	defer func() {
-		// 清理HID库资源
+		// Clean up HID library resources
 		if err := hid.Exit(); err != nil {
-			fmt.Printf("清理HID库失败: %v\n", err)
+			fmt.Printf("Failed to clean up HID library: %v\n", err)
 		}
 	}()
 
-	// 目标设备的厂商ID和产品ID
-	vendorID := uint16(0x37D7)  // 厂商ID: 0x37D7 (corrected from 0x137D7)
-	productID := uint16(0x1002) // 产品ID: 0x1002
+	// Target device vendor ID and product ID
+	vendorID := uint16(0x37D7)  // Vendor ID: 0x37D7 (corrected from 0x137D7)
+	productID := uint16(0x1002) // Product ID: 0x1002
 
-	fmt.Printf("正在连接设备 - 厂商ID: 0x%04X, 产品ID: 0x%04X\n", vendorID, productID)
+	fmt.Printf("Connecting to device - Vendor ID: 0x%04X, Product ID: 0x%04X\n", vendorID, productID)
 
-	// 直接打开第一个匹配的设备，无需枚举
+	// Open the first matching device directly, no enumeration needed
 	device, err := hid.OpenFirst(vendorID, productID)
 	if err != nil {
-		fmt.Printf("打开设备失败: %v\n", err)
+		fmt.Printf("Failed to open device: %v\n", err)
 		return
 	}
 	defer func() {
 		if err := device.Close(); err != nil {
-			fmt.Printf("关闭设备失败: %v\n", err)
+			fmt.Printf("Failed to close device: %v\n", err)
 		}
 	}()
 
-	fmt.Println("设备连接成功！")
+	fmt.Println("Device connected successfully!")
 
-	// 获取设备信息
+	// Get device information
 	deviceInfo, err := device.GetDeviceInfo()
 	if err != nil {
-		fmt.Printf("获取设备信息失败: %v\n", err)
+		fmt.Printf("Failed to get device info: %v\n", err)
 	} else {
-		fmt.Printf("设备详细信息:\n")
-		fmt.Printf("  制造商字符串: %s\n", deviceInfo.MfrStr)
-		fmt.Printf("  产品字符串: %s\n", deviceInfo.ProductStr)
-		fmt.Printf("  序列号: %s\n", deviceInfo.SerialNbr)
-		fmt.Printf("  版本号: 0x%04X\n", deviceInfo.ReleaseNbr)
+		fmt.Printf("Device Details:\n")
+		fmt.Printf("  Manufacturer: %s\n", deviceInfo.MfrStr)
+		fmt.Printf("  Product: %s\n", deviceInfo.ProductStr)
+		fmt.Printf("  Serial Number: %s\n", deviceInfo.SerialNbr)
+		fmt.Printf("  Release Number: 0x%04X\n", deviceInfo.ReleaseNbr)
 	}
 
-	// 尝试读取数据（非阻塞模式）
+	// Try to read data (non-blocking mode)
 	err = device.SetNonblock(true)
 	if err != nil {
-		fmt.Printf("设置非阻塞模式失败: %v\n", err)
+		fmt.Printf("Failed to set non-blocking mode: %v\n", err)
 	}
 
-	// 读取示例
+	// Read example
 	buffer := make([]byte, 64)
-	fmt.Println("尝试读取数据（超时5秒）...")
+	fmt.Println("Attempting to read data (5 second timeout)...")
 
 	n, err := device.ReadWithTimeout(buffer, 5*time.Second)
 	if err != nil {
 		if err == hid.ErrTimeout {
-			fmt.Println("读取超时，设备可能没有发送数据")
+			fmt.Println("Read timed out, device may not be sending data")
 		} else {
-			fmt.Printf("读取数据失败: %v\n", err)
+			fmt.Printf("Failed to read data: %v\n", err)
 		}
 	} else {
-		fmt.Printf("读取到 %d 字节数据: ", n)
+		fmt.Printf("Read %d bytes of data: ", n)
 		for i := range n {
 			fmt.Printf("%02X ", buffer[i])
 		}
 		fmt.Println()
 
-		// 解析风扇数据
+		// Parse fan data
 		if fanData := parseFanData(buffer, n); fanData != nil {
 			displayFanData(fanData)
 		}
 	}
 
-	// 发送数据示例（如果需要）
-	// 第一个字节通常是报告ID，对于只支持单一报告的设备应为0
-	// outputData := []byte{0x00, 0x01, 0x02, 0x03} // 示例数据
+	// Send data example (if needed)
+	// The first byte is usually the report ID; for devices supporting only a single report, it should be 0
+	// outputData := []byte{0x00, 0x01, 0x02, 0x03} // Example data
 	// n, err = device.Write(outputData)
 	// if err != nil {
-	//     fmt.Printf("发送数据失败: %v\n", err)
+	//     fmt.Printf("Failed to send data: %v\n", err)
 	// } else {
-	//     fmt.Printf("成功发送 %d 字节数据\n", n)
+	//     fmt.Printf("Successfully sent %d bytes of data\n", n)
 	// }
 
-	fmt.Println("HID设备操作完成")
+	fmt.Println("HID device operation completed")
 }

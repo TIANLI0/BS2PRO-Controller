@@ -1,4 +1,4 @@
-// Package autostart 提供 Windows 自启动管理功能
+// Package autostart provides Windows auto-start management functionality
 package autostart
 
 import (
@@ -14,23 +14,23 @@ import (
 	"golang.org/x/sys/windows/registry"
 )
 
-// Manager 自启动管理器
+// Manager auto-start manager
 type Manager struct {
 	logger types.Logger
 }
 
-// NewManager 创建新的自启动管理器
+// NewManager creates a new auto-start manager
 func NewManager(logger types.Logger) *Manager {
 	return &Manager{
 		logger: logger,
 	}
 }
 
-// IsRunningAsAdmin 检查是否以管理员权限运行
+// IsRunningAsAdmin checks if running with administrator privileges
 func (m *Manager) IsRunningAsAdmin() bool {
 	var sid *windows.SID
 
-	// 创建管理员组的SID
+	// Create administrator group SID
 	err := windows.AllocateAndInitializeSid(
 		&windows.SECURITY_NT_AUTHORITY,
 		2,
@@ -39,47 +39,47 @@ func (m *Manager) IsRunningAsAdmin() bool {
 		0, 0, 0, 0, 0, 0,
 		&sid)
 	if err != nil {
-		m.logger.Error("创建管理员SID失败: %v", err)
+		m.logger.Error("Failed to create administrator SID: %v", err)
 		return false
 	}
 	defer windows.FreeSid(sid)
 
-	// 检查当前进程令牌
+	// Check current process token
 	token := windows.Token(0)
 	member, err := token.IsMember(sid)
 	if err != nil {
-		m.logger.Error("检查管理员权限失败: %v", err)
+		m.logger.Error("Failed to check administrator privileges: %v", err)
 		return false
 	}
 
 	return member
 }
 
-// SetWindowsAutoStart 设置Windows开机自启动
+// SetWindowsAutoStart sets Windows startup auto-launch
 func (m *Manager) SetWindowsAutoStart(enable bool) error {
-	// 检查是否以管理员权限运行
+	// Check if running with administrator privileges
 	if !m.IsRunningAsAdmin() {
-		return fmt.Errorf("设置自启动需要管理员权限")
+		return fmt.Errorf("administrator privileges required to set auto-start")
 	}
 
 	if enable {
-		// 使用任务计划程序设置自启动
+		// Use Task Scheduler to set auto-start
 		return m.createScheduledTask()
 	} else {
-		// 删除任务计划程序和注册表项
+		// Delete Task Scheduler task and registry entry
 		m.deleteScheduledTask()
 		return m.removeRegistryAutoStart()
 	}
 }
 
-// createScheduledTask 创建任务计划程序
+// createScheduledTask creates a scheduled task
 func (m *Manager) createScheduledTask() error {
 	exePath, err := os.Executable()
 	if err != nil {
-		return fmt.Errorf("获取程序路径失败: %v", err)
+		return fmt.Errorf("failed to get executable path: %v", err)
 	}
 
-	// 获取核心服务路径
+	// Get core service path
 	exeDir := filepath.Dir(exePath)
 	corePath := filepath.Join(exeDir, "BS2PRO-Core.exe")
 	if _, err := os.Stat(corePath); os.IsNotExist(err) {
@@ -98,49 +98,49 @@ func (m *Manager) createScheduledTask() error {
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("创建任务计划失败: %v, 输出: %s", err, string(output))
+		return fmt.Errorf("failed to create scheduled task: %v, output: %s", err, string(output))
 	}
 
-	m.logger.Info("已通过任务计划程序设置开机自启动")
+	m.logger.Info("Auto-start set via Task Scheduler")
 	return nil
 }
 
-// deleteScheduledTask 删除任务计划程序
+// deleteScheduledTask deletes the scheduled task
 func (m *Manager) deleteScheduledTask() error {
 	cmd := exec.Command("schtasks", "/delete", "/tn", "BS2PRO-Controller", "/f")
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		if strings.Contains(string(output), "不存在") || strings.Contains(string(output), "cannot be found") {
+		if strings.Contains(string(output), "does not exist") || strings.Contains(string(output), "cannot be found") || strings.Contains(string(output), "不存在") {
 			return nil
 		}
-		return fmt.Errorf("删除任务计划失败: %v, 输出: %s", err, string(output))
+		return fmt.Errorf("failed to delete scheduled task: %v, output: %s", err, string(output))
 	}
 
-	m.logger.Info("已删除任务计划程序的自启动任务")
+	m.logger.Info("Deleted auto-start scheduled task")
 	return nil
 }
 
-// removeRegistryAutoStart 删除注册表自启动项
+// removeRegistryAutoStart removes the registry auto-start entry
 func (m *Manager) removeRegistryAutoStart() error {
 	key, err := registry.OpenKey(registry.CURRENT_USER, `SOFTWARE\Microsoft\Windows\CurrentVersion\Run`, registry.SET_VALUE)
 	if err != nil {
-		return fmt.Errorf("打开注册表失败: %v", err)
+		return fmt.Errorf("failed to open registry: %v", err)
 	}
 	defer key.Close()
 
-	// 删除注册表项
+	// Delete registry entry
 	err = key.DeleteValue("BS2PRO-Controller")
 	if err != nil && err != registry.ErrNotExist {
-		return fmt.Errorf("删除注册表项失败: %v", err)
+		return fmt.Errorf("failed to delete registry entry: %v", err)
 	}
 
-	m.logger.Info("已删除注册表自启动项")
+	m.logger.Info("Deleted registry auto-start entry")
 	return nil
 }
 
-// GetAutoStartMethod 获取当前的自启动方式
+// GetAutoStartMethod gets the current auto-start method
 func (m *Manager) GetAutoStartMethod() string {
 	if m.checkScheduledTask() {
 		return "task_scheduler"
@@ -151,7 +151,7 @@ func (m *Manager) GetAutoStartMethod() string {
 	return "none"
 }
 
-// SetAutoStartWithMethod 使用指定方式设置自启动
+// SetAutoStartWithMethod sets auto-start using the specified method
 func (m *Manager) SetAutoStartWithMethod(enable bool, method string) error {
 	if !enable {
 		m.deleteScheduledTask()
@@ -162,7 +162,7 @@ func (m *Manager) SetAutoStartWithMethod(enable bool, method string) error {
 	switch method {
 	case "task_scheduler":
 		if !m.IsRunningAsAdmin() {
-			return fmt.Errorf("使用任务计划程序需要管理员权限，请以管理员身份运行程序进行设置")
+			return fmt.Errorf("Task Scheduler requires administrator privileges, please run the program as administrator to configure")
 		}
 		return m.createScheduledTask()
 
@@ -170,26 +170,26 @@ func (m *Manager) SetAutoStartWithMethod(enable bool, method string) error {
 		return m.setRegistryAutoStart()
 
 	default:
-		return fmt.Errorf("不支持的自启动方式: %s", method)
+		return fmt.Errorf("unsupported auto-start method: %s", method)
 	}
 }
 
-// setRegistryAutoStart 设置注册表自启动
+// setRegistryAutoStart sets registry auto-start
 func (m *Manager) setRegistryAutoStart() error {
 	key, err := registry.OpenKey(registry.CURRENT_USER, `SOFTWARE\Microsoft\Windows\CurrentVersion\Run`, registry.SET_VALUE)
 	if err != nil {
-		return fmt.Errorf("打开注册表失败: %v", err)
+		return fmt.Errorf("failed to open registry: %v", err)
 	}
 	defer key.Close()
 
 	exePath, err := os.Executable()
 	if err != nil {
-		return fmt.Errorf("获取程序路径失败: %v", err)
+		return fmt.Errorf("failed to get executable path: %v", err)
 	}
 	exeDir := filepath.Dir(exePath)
 	corePath := filepath.Join(exeDir, "BS2PRO-Core.exe")
 
-	// 如果核心服务不存在，使用当前程序路径
+	// If core service does not exist, use the current executable path
 	if _, err := os.Stat(corePath); os.IsNotExist(err) {
 		corePath = exePath
 	}
@@ -197,14 +197,14 @@ func (m *Manager) setRegistryAutoStart() error {
 
 	err = key.SetStringValue("BS2PRO-Controller", exePathWithArgs)
 	if err != nil {
-		return fmt.Errorf("设置注册表失败: %v", err)
+		return fmt.Errorf("failed to set registry value: %v", err)
 	}
 
-	m.logger.Info("已通过注册表设置开机自启动")
+	m.logger.Info("Auto-start set via registry")
 	return nil
 }
 
-// CheckWindowsAutoStart 检查Windows开机自启动状态
+// CheckWindowsAutoStart checks Windows startup auto-launch status
 func (m *Manager) CheckWindowsAutoStart() bool {
 	if m.checkScheduledTask() {
 		return true
@@ -213,7 +213,7 @@ func (m *Manager) CheckWindowsAutoStart() bool {
 	return m.checkRegistryAutoStart()
 }
 
-// checkScheduledTask 检查任务计划程序中的自启动任务
+// checkScheduledTask checks if the auto-start task exists in Task Scheduler
 func (m *Manager) checkScheduledTask() bool {
 	cmd := exec.Command("schtasks", "/query", "/tn", "BS2PRO-Controller")
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
@@ -222,11 +222,11 @@ func (m *Manager) checkScheduledTask() bool {
 	return err == nil
 }
 
-// checkRegistryAutoStart 检查注册表中的自启动项
+// checkRegistryAutoStart checks the auto-start entry in the registry
 func (m *Manager) checkRegistryAutoStart() bool {
 	key, err := registry.OpenKey(registry.CURRENT_USER, `SOFTWARE\Microsoft\Windows\CurrentVersion\Run`, registry.QUERY_VALUE)
 	if err != nil {
-		m.logger.Debug("打开注册表失败: %v", err)
+		m.logger.Debug("Failed to open registry: %v", err)
 		return false
 	}
 	defer key.Close()
@@ -235,7 +235,7 @@ func (m *Manager) checkRegistryAutoStart() bool {
 	return err == nil
 }
 
-// DetectAutoStartLaunch 检测是否为自启动启动
+// DetectAutoStartLaunch detects whether the current launch is an auto-start launch
 func DetectAutoStartLaunch(args []string) bool {
 	for _, arg := range args {
 		if arg == "--autostart" || arg == "/autostart" || arg == "-autostart" {
@@ -247,7 +247,7 @@ func DetectAutoStartLaunch(args []string) bool {
 		return true
 	}
 
-	// 检查当前工作目录是否为系统目录
+	// Check if the current working directory is a system directory
 	wd, err := os.Getwd()
 	if err == nil {
 		systemDirs := []string{
@@ -266,9 +266,9 @@ func DetectAutoStartLaunch(args []string) bool {
 	return false
 }
 
-// isLaunchedByTaskScheduler 检查是否由任务计划程序启动
+// isLaunchedByTaskScheduler checks if launched by Task Scheduler
 func isLaunchedByTaskScheduler() bool {
-	// 在Windows上检查父进程
+	// Check parent process on Windows
 	cmd := exec.Command("wmic", "process", "where", fmt.Sprintf("ProcessId=%d", os.Getpid()), "get", "ParentProcessId", "/value")
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 
@@ -294,7 +294,7 @@ func isLaunchedByTaskScheduler() bool {
 	return false
 }
 
-// checkParentProcessName 检查父进程名称
+// checkParentProcessName checks the parent process name
 func checkParentProcessName(ppid int) bool {
 	cmd := exec.Command("wmic", "process", "where", fmt.Sprintf("ProcessId=%d", ppid), "get", "Name", "/value")
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
@@ -309,7 +309,7 @@ func checkParentProcessName(ppid int) bool {
 		line = strings.TrimSpace(line)
 		if after, ok := strings.CutPrefix(line, "Name="); ok {
 			processName := strings.ToLower(strings.TrimSpace(after))
-			// 检查是否为任务计划程序相关进程
+			// Check if it is a Task Scheduler related process
 			if processName == "taskeng.exe" || processName == "svchost.exe" || processName == "taskhostw.exe" {
 				return true
 			}
@@ -319,7 +319,7 @@ func checkParentProcessName(ppid int) bool {
 	return false
 }
 
-// parseIntSafe 安全解析整数
+// parseIntSafe safely parses an integer
 func parseIntSafe(s string) (int, error) {
 	var result int
 	_, err := fmt.Sscanf(s, "%d", &result)

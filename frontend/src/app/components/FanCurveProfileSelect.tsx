@@ -26,7 +26,7 @@ export default function FanCurveProfileSelect({
   onChange,
   loading = false,
   className,
-  placeholder = '选择曲线方案',
+  placeholder = 'Select curve profile',
 }: FanCurveProfileSelectProps) {
   const options = useMemo(
     () => profiles.map((profile) => ({ value: profile.id, label: profile.name })),
@@ -47,7 +47,7 @@ export default function FanCurveProfileSelect({
         options={
           options.length > 0
             ? options
-            : [{ value: EMPTY_PROFILE_SENTINEL, label: '暂无曲线方案', disabled: true }]
+            : [{ value: EMPTY_PROFILE_SENTINEL, label: 'No curve profiles', disabled: true }]
         }
         size="sm"
         placeholder={placeholder}

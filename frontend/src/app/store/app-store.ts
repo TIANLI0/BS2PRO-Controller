@@ -4,7 +4,7 @@ import { configService } from '../services/config-service';
 import { deviceService, type DeviceStatusPayload } from '../services/device-service';
 import { toast } from 'sonner';
 
-const BRIDGE_WARNING_MESSAGE = 'CPU/GPU 温度读取失败，请检查Pawnio是否安装成功，或升级最新版。';
+const BRIDGE_WARNING_MESSAGE = 'CPU/GPU temperature reading failed. Please check if PawnIO is installed correctly, or upgrade to the latest version.';
 
 type ActiveTab = 'status' | 'curve' | 'control';
 
@@ -71,8 +71,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
       get().handleTemperaturePayload(deviceStatus.temperature || null);
     } catch (error) {
-      console.error('初始化失败:', error);
-      set({ error: '应用初始化失败' });
+      console.error('Initialization failed:', error);
+      set({ error: 'App initialization failed' });
     } finally {
       set({ isLoading: false });
     }
@@ -85,8 +85,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
         set({ isConnected: true, error: null });
       }
     } catch (error) {
-      console.error('连接失败:', error);
-      set({ error: '设备连接失败' });
+      console.error('Connection failed:', error);
+      set({ error: 'Device connection failed' });
     }
   },
 
@@ -95,7 +95,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       await deviceService.disconnect();
       set({ isConnected: false, deviceProductId: null, fanData: null });
     } catch (error) {
-      console.error('断开连接失败:', error);
+      console.error('Disconnect failed:', error);
     }
   },
 
@@ -104,8 +104,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
       await configService.updateConfig(config);
       set({ config, error: null });
     } catch (error) {
-      console.error('配置更新失败:', error);
-      set({ error: '配置保存失败' });
+      console.error('Config update failed:', error);
+      set({ error: 'Config save failed' });
     }
   },
 
@@ -114,7 +114,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
     unsubscribers.push(
       deviceService.onDeviceConnected((deviceInfo) => {
-        console.log('设备已连接:', deviceInfo);
+        console.log('Device connected:', deviceInfo);
         const info = deviceInfo as { productId?: string };
         set({
           isConnected: true,
@@ -126,14 +126,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
     unsubscribers.push(
       deviceService.onDeviceDisconnected(() => {
-        console.log('设备已断开');
+        console.log('Device disconnected');
         set({ isConnected: false, deviceProductId: null, fanData: null });
       })
     );
 
     unsubscribers.push(
       deviceService.onDeviceError((errorMsg) => {
-        console.error('设备错误:', errorMsg);
+        console.error('Device error:', errorMsg);
         set({ error: errorMsg });
       })
     );
@@ -162,9 +162,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
         if (!message) return;
         const ok = payload?.success !== false;
         if (ok) {
-          toast.success('功能变动', { description: message, duration: 2600 });
+          toast.success('Feature Changed', { description: message, duration: 2600 });
         } else {
-          toast.error('操作失败', { description: message, duration: 3200 });
+          toast.error('Operation Failed', { description: message, duration: 3200 });
         }
       })
     );

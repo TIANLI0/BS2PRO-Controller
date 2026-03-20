@@ -1,4 +1,4 @@
-// Wails API 服务封装
+// Wails API Service Wrapper
 import { EventsOn, EventsOff } from '../../../wailsjs/runtime/runtime';
 import { 
   ConnectDevice, 
@@ -35,7 +35,7 @@ import type {
 } from '../types/app';
 
 class ApiService {
-  // 设备连接
+  // Device connection
   async connectDevice(): Promise<boolean> {
     return await ConnectDevice();
   }
@@ -48,7 +48,7 @@ class ApiService {
     return await GetDeviceStatus();
   }
 
-  // 配置管理
+  // Configuration management
   async getConfig(): Promise<types.AppConfig> {
     return await GetConfig();
   }
@@ -61,7 +61,7 @@ class ApiService {
     return await UpdateConfig(config);
   }
 
-  // 风扇曲线
+  // Fan curve
   async setFanCurve(curve: types.FanCurvePoint[]): Promise<void> {
     return await SetFanCurve(curve);
   }
@@ -94,27 +94,27 @@ class ApiService {
     return await (window as any).go?.main?.App?.ImportFanCurveProfiles(code);
   }
 
-  // 智能变频
+  // Smart speed control
   async setAutoControl(enabled: boolean): Promise<void> {
     return await SetAutoControl(enabled);
   }
 
-  // 自定义转速
+  // Custom speed
   async setCustomSpeed(enabled: boolean, rpm: number): Promise<void> {
     return await SetCustomSpeed(enabled, rpm);
   }
 
-  // 手动挡位控制
+  // Manual gear control
   async setManualGear(gear: string, level: string): Promise<boolean> {
     return await SetManualGear(gear, level);
   }
 
-  // 获取可用挡位
+  // Get available gears
   async getAvailableGears(): Promise<any> {
     return await GetAvailableGears();
   }
 
-  // 设备设置
+  // Device settings
   async setGearLight(enabled: boolean): Promise<boolean> {
     return await SetGearLight(enabled);
   }
@@ -135,33 +135,33 @@ class ApiService {
     return await SetLightStrip(config);
   }
 
-  // Windows自启动相关
+  // Windows auto-start related
   async checkWindowsAutoStart(): Promise<boolean> {
-    // 临时使用window对象调用，等Wails生成绑定后更新
+    // Temporarily using window object call, will update after Wails generates bindings
     return await (window as any).go?.main?.App?.CheckWindowsAutoStart();
   }
 
   async setWindowsAutoStart(enabled: boolean): Promise<void> {
-    // 临时使用window对象调用，等Wails生成绑定后更新
+    // Temporarily using window object call, will update after Wails generates bindings
     return await (window as any).go?.main?.App?.SetWindowsAutoStart(enabled);
   }
 
   async getAutoStartMethod(): Promise<string> {
-    // 获取当前自启动方式
+    // Get current auto-start method
     return await (window as any).go?.main?.App?.GetAutoStartMethod();
   }
 
   async setAutoStartWithMethod(enabled: boolean, method: string): Promise<void> {
-    // 使用指定方式设置自启动
+    // Set auto-start with specified method
     return await (window as any).go?.main?.App?.SetAutoStartWithMethod(enabled, method);
   }
 
   async isRunningAsAdmin(): Promise<boolean> {
-    // 检查是否以管理员权限运行
+    // Check if running as administrator
     return await (window as any).go?.main?.App?.IsRunningAsAdmin();
   }
 
-  // 数据获取
+  // Data retrieval
   async getTemperature(): Promise<types.TemperatureData> {
     return await GetTemperature();
   }
@@ -174,7 +174,7 @@ class ApiService {
     return await TestTemperatureReading();
   }
 
-  // 桥接程序相关
+  // Bridge program related
   async getBridgeProgramStatus(): Promise<any> {
     return await (window as any).go?.main?.App?.GetBridgeProgramStatus();
   }
@@ -183,7 +183,7 @@ class ApiService {
     return await (window as any).go?.main?.App?.TestBridgeProgram();
   }
 
-  // 事件监听
+  // Event listeners
   onDeviceConnected(callback: (data: DeviceInfo) => void): () => void {
     EventsOn('device-connected', callback);
     return () => EventsOff('device-connected');
@@ -219,7 +219,7 @@ class ApiService {
     return () => EventsOff('hotkey-triggered');
   }
 
-  // 调试相关方法
+  // Debug related methods
   async getDebugInfo(): Promise<any> {
     return await GetDebugInfo();
   }
@@ -232,7 +232,7 @@ class ApiService {
     return await UpdateGuiResponseTime();
   }
 
-  // 调试事件监听
+  // Debug event listeners
   onHealthPing(callback: (timestamp: number) => void): () => void {
     EventsOn('health-ping', callback);
     return () => EventsOff('health-ping');

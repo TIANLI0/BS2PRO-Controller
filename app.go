@@ -13,18 +13,18 @@ import (
 	"go.uber.org/zap"
 )
 
-// App struct - GUI 应用程序结构
+// App struct - GUI application structure
 type App struct {
 	ctx       context.Context
 	ipcClient *ipc.Client
 	mutex     sync.RWMutex
 
-	// 缓存的状态
+	// Cached state
 	isConnected bool
 	currentTemp types.TemperatureData
 }
 
-// 为了与前端 API 兼容，重新导出类型
+// Re-export types for frontend API compatibility
 type (
 	FanCurvePoint           = types.FanCurvePoint
 	FanCurveProfile         = types.FanCurveProfile
@@ -43,7 +43,7 @@ func init() {
 	guiLogger = logger.Sugar()
 }
 
-// NewApp 创建 GUI 应用实例
+// NewApp creates a GUI application instance
 func NewApp() *App {
 	return &App{
 		ipcClient:   ipc.NewClient(nil),
@@ -51,32 +51,32 @@ func NewApp() *App {
 	}
 }
 
-// startup 应用启动时调用
+// startup called when the application starts
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 
-	guiLogger.Info("=== BS2PRO GUI 启动 ===")
+	guiLogger.Info("=== BS2PRO GUI starting ===")
 
-	// 连接到核心服务
+	// Connect to core service
 	if err := a.ipcClient.Connect(); err != nil {
-		guiLogger.Errorf("连接核心服务失败: %v", err)
-		runtime.EventsEmit(ctx, "core-service-error", "无法连接到核心服务")
+		guiLogger.Errorf("Failed to connect to core service: %v", err)
+		runtime.EventsEmit(ctx, "core-service-error", "Unable to connect to core service")
 	} else {
-		guiLogger.Info("已连接到核心服务")
+		guiLogger.Info("Connected to core service")
 
-		// 设置事件处理器
+		// Set event handler
 		a.ipcClient.SetEventHandler(a.handleCoreEvent)
 	}
 
-	guiLogger.Info("=== BS2PRO GUI 启动完成 ===")
+	guiLogger.Info("=== BS2PRO GUI startup complete ===")
 }
 
-// GetAppVersion 返回应用版本号（来自版本模块）
+// GetAppVersion returns the application version (from version module)
 func (a *App) GetAppVersion() string {
 	return version.Get()
 }
 
-// handleCoreEvent 处理核心服务推送的事件
+// handleCoreEvent handles events pushed by the core service
 func (a *App) handleCoreEvent(event ipc.Event) {
 	if a.ctx == nil {
 		return
@@ -147,29 +147,29 @@ func (a *App) handleCoreEvent(event ipc.Event) {
 	}
 }
 
-// sendRequest 发送请求到核心服务
+// sendRequest sends a request to the core service
 func (a *App) sendRequest(reqType ipc.RequestType, data any) (*ipc.Response, error) {
 	if !a.ipcClient.IsConnected() {
-		// 尝试重新连接
+		// Try to reconnect
 		if err := a.ipcClient.Connect(); err != nil {
-			return nil, fmt.Errorf("未连接到核心服务: %v", err)
+			return nil, fmt.Errorf("not connected to core service: %v", err)
 		}
 	}
 	return a.ipcClient.SendRequest(reqType, data)
 }
 
-// === 前端 API 方法 ===
-// 以下所有公开方法保持与原始 app.go 完全兼容
+// === Frontend API Methods ===
+// All public methods below maintain full compatibility with the original app.go
 
-// ConnectDevice 连接HID设备
+// ConnectDevice connects to the HID device
 func (a *App) ConnectDevice() bool {
 	resp, err := a.sendRequest(ipc.ReqConnect, nil)
 	if err != nil {
-		guiLogger.Errorf("连接设备请求失败: %v", err)
+		guiLogger.Errorf("Connect device request failed: %v", err)
 		return false
 	}
 	if !resp.Success {
-		guiLogger.Errorf("连接设备失败: %s", resp.Error)
+		guiLogger.Errorf("Failed to connect device: %s", resp.Error)
 		return false
 	}
 	var success bool
@@ -177,12 +177,12 @@ func (a *App) ConnectDevice() bool {
 	return success
 }
 
-// DisconnectDevice 断开设备连接
+// DisconnectDevice disconnects the device
 func (a *App) DisconnectDevice() {
 	a.sendRequest(ipc.ReqDisconnect, nil)
 }
 
-// GetDeviceStatus 获取设备连接状态
+// GetDeviceStatus gets the device connection status
 func (a *App) GetDeviceStatus() map[string]any {
 	resp, err := a.sendRequest(ipc.ReqGetDeviceStatus, nil)
 	if err != nil {
@@ -196,15 +196,15 @@ func (a *App) GetDeviceStatus() map[string]any {
 	return status
 }
 
-// GetConfig 获取当前配置
+// GetConfig gets the current configuration
 func (a *App) GetConfig() AppConfig {
 	resp, err := a.sendRequest(ipc.ReqGetConfig, nil)
 	if err != nil {
-		guiLogger.Errorf("获取配置失败: %v", err)
+		guiLogger.Errorf("Failed to get config: %v", err)
 		return types.GetDefaultConfig(false)
 	}
 	if !resp.Success {
-		guiLogger.Errorf("获取配置失败: %s", resp.Error)
+		guiLogger.Errorf("Failed to get config: %s", resp.Error)
 		return types.GetDefaultConfig(false)
 	}
 	var cfg AppConfig
@@ -212,7 +212,7 @@ func (a *App) GetConfig() AppConfig {
 	return cfg
 }
 
-// UpdateConfig 更新配置
+// UpdateConfig updates the configuration
 func (a *App) UpdateConfig(cfg AppConfig) error {
 	resp, err := a.sendRequest(ipc.ReqUpdateConfig, cfg)
 	if err != nil {
@@ -224,7 +224,7 @@ func (a *App) UpdateConfig(cfg AppConfig) error {
 	return nil
 }
 
-// SetFanCurve 设置风扇曲线
+// SetFanCurve sets the fan curve
 func (a *App) SetFanCurve(curve []FanCurvePoint) error {
 	resp, err := a.sendRequest(ipc.ReqSetFanCurve, curve)
 	if err != nil {
@@ -236,7 +236,7 @@ func (a *App) SetFanCurve(curve []FanCurvePoint) error {
 	return nil
 }
 
-// GetFanCurve 获取风扇曲线
+// GetFanCurve gets the fan curve
 func (a *App) GetFanCurve() []FanCurvePoint {
 	resp, err := a.sendRequest(ipc.ReqGetFanCurve, nil)
 	if err != nil {
@@ -250,7 +250,7 @@ func (a *App) GetFanCurve() []FanCurvePoint {
 	return curve
 }
 
-// GetFanCurveProfiles 获取曲线方案列表
+// GetFanCurveProfiles gets the list of curve profiles
 func (a *App) GetFanCurveProfiles() FanCurveProfilesPayload {
 	resp, err := a.sendRequest(ipc.ReqGetFanCurveProfiles, nil)
 	if err != nil || !resp.Success {
@@ -265,7 +265,7 @@ func (a *App) GetFanCurveProfiles() FanCurveProfilesPayload {
 	return payload
 }
 
-// SetActiveFanCurveProfile 设置当前激活曲线方案
+// SetActiveFanCurveProfile sets the currently active curve profile
 func (a *App) SetActiveFanCurveProfile(profileID string) error {
 	resp, err := a.sendRequest(ipc.ReqSetActiveFanCurveProfile, ipc.SetActiveFanCurveProfileParams{ID: profileID})
 	if err != nil {
@@ -277,7 +277,7 @@ func (a *App) SetActiveFanCurveProfile(profileID string) error {
 	return nil
 }
 
-// SaveFanCurveProfile 保存曲线方案
+// SaveFanCurveProfile saves a curve profile
 func (a *App) SaveFanCurveProfile(profileID, name string, curve []FanCurvePoint, setActive bool) (FanCurveProfile, error) {
 	resp, err := a.sendRequest(ipc.ReqSaveFanCurveProfile, ipc.SaveFanCurveProfileParams{
 		ID:        profileID,
@@ -296,7 +296,7 @@ func (a *App) SaveFanCurveProfile(profileID, name string, curve []FanCurvePoint,
 	return profile, nil
 }
 
-// DeleteFanCurveProfile 删除曲线方案
+// DeleteFanCurveProfile deletes a curve profile
 func (a *App) DeleteFanCurveProfile(profileID string) error {
 	resp, err := a.sendRequest(ipc.ReqDeleteFanCurveProfile, ipc.DeleteFanCurveProfileParams{ID: profileID})
 	if err != nil {
@@ -308,7 +308,7 @@ func (a *App) DeleteFanCurveProfile(profileID string) error {
 	return nil
 }
 
-// ExportFanCurveProfiles 导出曲线方案
+// ExportFanCurveProfiles exports curve profiles
 func (a *App) ExportFanCurveProfiles() (string, error) {
 	resp, err := a.sendRequest(ipc.ReqExportFanCurveProfiles, nil)
 	if err != nil {
@@ -322,7 +322,7 @@ func (a *App) ExportFanCurveProfiles() (string, error) {
 	return code, nil
 }
 
-// ImportFanCurveProfiles 导入曲线方案
+// ImportFanCurveProfiles imports curve profiles
 func (a *App) ImportFanCurveProfiles(code string) error {
 	resp, err := a.sendRequest(ipc.ReqImportFanCurveProfiles, ipc.ImportFanCurveProfilesParams{Code: code})
 	if err != nil {
@@ -334,7 +334,7 @@ func (a *App) ImportFanCurveProfiles(code string) error {
 	return nil
 }
 
-// SetAutoControl 设置智能变频
+// SetAutoControl sets smart fan control
 func (a *App) SetAutoControl(enabled bool) error {
 	resp, err := a.sendRequest(ipc.ReqSetAutoControl, ipc.SetAutoControlParams{Enabled: enabled})
 	if err != nil {
@@ -346,7 +346,7 @@ func (a *App) SetAutoControl(enabled bool) error {
 	return nil
 }
 
-// SetManualGear 设置手动挡位
+// SetManualGear sets the manual gear
 func (a *App) SetManualGear(gear, level string) bool {
 	resp, err := a.sendRequest(ipc.ReqSetManualGear, ipc.SetManualGearParams{Gear: gear, Level: level})
 	if err != nil {
@@ -360,7 +360,7 @@ func (a *App) SetManualGear(gear, level string) bool {
 	return success
 }
 
-// GetAvailableGears 获取可用挡位
+// GetAvailableGears gets available gears
 func (a *App) GetAvailableGears() map[string][]GearCommand {
 	resp, err := a.sendRequest(ipc.ReqGetAvailableGears, nil)
 	if err != nil {
@@ -374,13 +374,13 @@ func (a *App) GetAvailableGears() map[string][]GearCommand {
 	return gears
 }
 
-// ManualSetFanSpeed 废弃方法
+// ManualSetFanSpeed deprecated method
 func (a *App) ManualSetFanSpeed(rpm int) bool {
-	guiLogger.Warn("ManualSetFanSpeed 已废弃，请使用 SetManualGear")
+	guiLogger.Warn("ManualSetFanSpeed is deprecated, use SetManualGear instead")
 	return false
 }
 
-// SetCustomSpeed 设置自定义转速
+// SetCustomSpeed sets custom fan speed
 func (a *App) SetCustomSpeed(enabled bool, rpm int) error {
 	resp, err := a.sendRequest(ipc.ReqSetCustomSpeed, ipc.SetCustomSpeedParams{Enabled: enabled, RPM: rpm})
 	if err != nil {
@@ -392,7 +392,7 @@ func (a *App) SetCustomSpeed(enabled bool, rpm int) error {
 	return nil
 }
 
-// SetGearLight 设置挡位灯
+// SetGearLight sets the gear indicator light
 func (a *App) SetGearLight(enabled bool) bool {
 	resp, err := a.sendRequest(ipc.ReqSetGearLight, ipc.SetBoolParams{Enabled: enabled})
 	if err != nil {
@@ -403,7 +403,7 @@ func (a *App) SetGearLight(enabled bool) bool {
 	return success
 }
 
-// SetPowerOnStart 设置通电自启动
+// SetPowerOnStart sets power-on auto-start
 func (a *App) SetPowerOnStart(enabled bool) bool {
 	resp, err := a.sendRequest(ipc.ReqSetPowerOnStart, ipc.SetBoolParams{Enabled: enabled})
 	if err != nil {
@@ -414,7 +414,7 @@ func (a *App) SetPowerOnStart(enabled bool) bool {
 	return success
 }
 
-// SetSmartStartStop 设置智能启停
+// SetSmartStartStop sets smart start/stop
 func (a *App) SetSmartStartStop(mode string) bool {
 	resp, err := a.sendRequest(ipc.ReqSetSmartStartStop, ipc.SetStringParams{Value: mode})
 	if err != nil {
@@ -425,7 +425,7 @@ func (a *App) SetSmartStartStop(mode string) bool {
 	return success
 }
 
-// SetBrightness 设置亮度
+// SetBrightness sets the brightness
 func (a *App) SetBrightness(percentage int) bool {
 	resp, err := a.sendRequest(ipc.ReqSetBrightness, ipc.SetIntParams{Value: percentage})
 	if err != nil {
@@ -436,7 +436,7 @@ func (a *App) SetBrightness(percentage int) bool {
 	return success
 }
 
-// SetLightStrip 设置灯带
+// SetLightStrip sets the light strip
 func (a *App) SetLightStrip(cfg types.LightStripConfig) error {
 	resp, err := a.sendRequest(ipc.ReqSetLightStrip, ipc.SetLightStripParams{Config: cfg})
 	if err != nil {
@@ -448,7 +448,7 @@ func (a *App) SetLightStrip(cfg types.LightStripConfig) error {
 	return nil
 }
 
-// GetTemperature 获取当前温度
+// GetTemperature gets the current temperature
 func (a *App) GetTemperature() TemperatureData {
 	resp, err := a.sendRequest(ipc.ReqGetTemperature, nil)
 	if err != nil {
@@ -461,7 +461,7 @@ func (a *App) GetTemperature() TemperatureData {
 	return temp
 }
 
-// GetCurrentFanData 获取当前风扇数据
+// GetCurrentFanData gets the current fan data
 func (a *App) GetCurrentFanData() *FanData {
 	resp, err := a.sendRequest(ipc.ReqGetCurrentFanData, nil)
 	if err != nil {
@@ -474,7 +474,7 @@ func (a *App) GetCurrentFanData() *FanData {
 	return &fanData
 }
 
-// TestTemperatureReading 测试温度读取
+// TestTemperatureReading tests temperature reading
 func (a *App) TestTemperatureReading() TemperatureData {
 	resp, err := a.sendRequest(ipc.ReqTestTemperatureReading, nil)
 	if err != nil {
@@ -485,7 +485,7 @@ func (a *App) TestTemperatureReading() TemperatureData {
 	return temp
 }
 
-// TestBridgeProgram 测试桥接程序
+// TestBridgeProgram tests the bridge program
 func (a *App) TestBridgeProgram() BridgeTemperatureData {
 	resp, err := a.sendRequest(ipc.ReqTestBridgeProgram, nil)
 	if err != nil {
@@ -496,7 +496,7 @@ func (a *App) TestBridgeProgram() BridgeTemperatureData {
 	return data
 }
 
-// GetBridgeProgramStatus 获取桥接程序状态
+// GetBridgeProgramStatus gets the bridge program status
 func (a *App) GetBridgeProgramStatus() map[string]any {
 	resp, err := a.sendRequest(ipc.ReqGetBridgeProgramStatus, nil)
 	if err != nil {
@@ -507,7 +507,7 @@ func (a *App) GetBridgeProgramStatus() map[string]any {
 	return status
 }
 
-// SetWindowsAutoStart 设置Windows开机自启动
+// SetWindowsAutoStart sets Windows startup auto-launch
 func (a *App) SetWindowsAutoStart(enable bool) error {
 	resp, err := a.sendRequest(ipc.ReqSetWindowsAutoStart, ipc.SetBoolParams{Enabled: enable})
 	if err != nil {
@@ -519,7 +519,7 @@ func (a *App) SetWindowsAutoStart(enable bool) error {
 	return nil
 }
 
-// IsRunningAsAdmin 检查是否以管理员权限运行
+// IsRunningAsAdmin checks if running with administrator privileges
 func (a *App) IsRunningAsAdmin() bool {
 	resp, err := a.sendRequest(ipc.ReqIsRunningAsAdmin, nil)
 	if err != nil {
@@ -530,7 +530,7 @@ func (a *App) IsRunningAsAdmin() bool {
 	return isAdmin
 }
 
-// GetAutoStartMethod 获取当前的自启动方式
+// GetAutoStartMethod gets the current auto-start method
 func (a *App) GetAutoStartMethod() string {
 	resp, err := a.sendRequest(ipc.ReqGetAutoStartMethod, nil)
 	if err != nil {
@@ -541,7 +541,7 @@ func (a *App) GetAutoStartMethod() string {
 	return method
 }
 
-// SetAutoStartWithMethod 使用指定方式设置自启动
+// SetAutoStartWithMethod sets auto-start using the specified method
 func (a *App) SetAutoStartWithMethod(enable bool, method string) error {
 	resp, err := a.sendRequest(ipc.ReqSetAutoStartWithMethod, ipc.SetAutoStartWithMethodParams{Enable: enable, Method: method})
 	if err != nil {
@@ -553,7 +553,7 @@ func (a *App) SetAutoStartWithMethod(enable bool, method string) error {
 	return nil
 }
 
-// CheckWindowsAutoStart 检查Windows开机自启动状态
+// CheckWindowsAutoStart checks Windows startup auto-launch status
 func (a *App) CheckWindowsAutoStart() bool {
 	resp, err := a.sendRequest(ipc.ReqCheckWindowsAutoStart, nil)
 	if err != nil {
@@ -564,7 +564,7 @@ func (a *App) CheckWindowsAutoStart() bool {
 	return enabled
 }
 
-// IsAutoStartLaunch 返回当前是否为自启动启动
+// IsAutoStartLaunch returns whether the current launch is an auto-start launch
 func (a *App) IsAutoStartLaunch() bool {
 	resp, err := a.sendRequest(ipc.ReqIsAutoStartLaunch, nil)
 	if err != nil {
@@ -575,7 +575,7 @@ func (a *App) IsAutoStartLaunch() bool {
 	return isAutoStart
 }
 
-// ShowWindow 显示主窗口
+// ShowWindow shows the main window
 func (a *App) ShowWindow() {
 	if a.ctx != nil {
 		runtime.WindowShow(a.ctx)
@@ -583,64 +583,64 @@ func (a *App) ShowWindow() {
 	}
 }
 
-// HideWindow 隐藏主窗口到托盘
+// HideWindow hides the main window to tray
 func (a *App) HideWindow() {
 	if a.ctx != nil {
 		runtime.WindowHide(a.ctx)
 	}
 }
 
-// QuitApp 完全退出应用
+// QuitApp fully quits the application
 func (a *App) QuitApp() {
-	guiLogger.Info("GUI 请求退出")
+	guiLogger.Info("GUI requesting quit")
 
-	// 关闭 IPC 连接
+	// Close IPC connection
 	if a.ipcClient != nil {
 		a.ipcClient.Close()
 	}
 
-	// 退出 GUI
+	// Quit GUI
 	if a.ctx != nil {
 		runtime.Quit(a.ctx)
 	}
 }
 
-// QuitAll 完全退出应用（包括核心服务）
+// QuitAll fully quits the application (including core service)
 func (a *App) QuitAll() {
-	guiLogger.Info("GUI 请求完全退出（包括核心服务）")
+	guiLogger.Info("GUI requesting full quit (including core service)")
 
-	// 通知核心服务退出
+	// Notify core service to quit
 	a.sendRequest(ipc.ReqQuitApp, nil)
 
-	// 关闭 IPC 连接
+	// Close IPC connection
 	if a.ipcClient != nil {
 		a.ipcClient.Close()
 	}
 
-	// 退出 GUI
+	// Quit GUI
 	if a.ctx != nil {
 		runtime.Quit(a.ctx)
 	}
 }
 
-// OnWindowClosing 窗口关闭事件处理
+// OnWindowClosing handles the window close event
 func (a *App) OnWindowClosing(ctx context.Context) bool {
-	// 返回 false 允许窗口正常关闭并退出 GUI
-	// 核心服务会继续在后台运行
+	// Return false to allow normal window close and quit GUI
+	// Core service will continue running in the background
 	return false
 }
 
-// InitSystemTray 初始化系统托盘（保持API兼容，实际由核心服务处理）
+// InitSystemTray initializes the system tray (kept for API compatibility, actually handled by core service)
 func (a *App) InitSystemTray() {
-	// 托盘由核心服务管理，GUI 不需要处理
+	// Tray is managed by core service, GUI does not need to handle it
 }
 
-// UpdateGuiResponseTime 更新GUI响应时间（供前端调用）
+// UpdateGuiResponseTime updates the GUI response time (called by frontend)
 func (a *App) UpdateGuiResponseTime() {
 	a.sendRequest(ipc.ReqUpdateGuiResponseTime, nil)
 }
 
-// GetDebugInfo 获取调试信息
+// GetDebugInfo gets debug information
 func (a *App) GetDebugInfo() map[string]any {
 	resp, err := a.sendRequest(ipc.ReqGetDebugInfo, nil)
 	if err != nil {
@@ -651,7 +651,7 @@ func (a *App) GetDebugInfo() map[string]any {
 	return info
 }
 
-// SetDebugMode 设置调试模式
+// SetDebugMode sets the debug mode
 func (a *App) SetDebugMode(enabled bool) error {
 	resp, err := a.sendRequest(ipc.ReqSetDebugMode, ipc.SetBoolParams{Enabled: enabled})
 	if err != nil {
