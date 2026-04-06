@@ -806,8 +806,11 @@ func (a *CoreApp) ConnectDevice() bool {
 			a.ipcServer.BroadcastEvent(ipc.EventDeviceConnected, deviceInfo)
 		}
 
-		if err := a.applyConfiguredLightStrip(); err != nil {
-			a.logError("应用灯带配置失败: %v", err)
+		// BS1 不支持灯带
+		if !a.deviceManager.IsBS1() {
+			if err := a.applyConfiguredLightStrip(); err != nil {
+				a.logError("应用灯带配置失败: %v", err)
+			}
 		}
 		a.safeGo("startTemperatureMonitoring@ConnectDevice", func() {
 			a.startTemperatureMonitoring()
@@ -846,24 +849,27 @@ func (a *CoreApp) reapplyConfigAfterReconnect() {
 		}
 	}
 
-	// 重新应用挡位灯配置
-	if cfg.GearLight {
-		a.logInfo("重新开启挡位灯")
-		if !a.deviceManager.SetGearLight(true) {
-			a.logError("重新开启挡位灯失败")
+	// 以下功能仅 BS2/BS2PRO 支持
+	if !a.deviceManager.IsBS1() {
+		// 重新应用挡位灯配置
+		if cfg.GearLight {
+			a.logInfo("重新开启挡位灯")
+			if !a.deviceManager.SetGearLight(true) {
+				a.logError("重新开启挡位灯失败")
+			}
+		}
+
+		if err := a.applyConfiguredLightStrip(); err != nil {
+			a.logError("重连后重新应用灯带配置失败: %v", err)
 		}
 	}
 
-	// 重新应用通电自启动配置
+	// 重新应用通电自启动配置（BS1 和 BS2/BS2PRO 都支持）
 	if cfg.PowerOnStart {
 		a.logInfo("重新开启通电自启动")
 		if !a.deviceManager.SetPowerOnStart(true) {
 			a.logError("重新开启通电自启动失败")
 		}
-	}
-
-	if err := a.applyConfiguredLightStrip(); err != nil {
-		a.logError("重连后重新应用灯带配置失败: %v", err)
 	}
 }
 
@@ -878,13 +884,7 @@ func (a *CoreApp) GetDeviceStatus() map[string]any {
 		productIDHex = fmt.Sprintf("0x%04X", productID)
 	}
 
-	model := ""
-	switch productID {
-	case device.ProductID1:
-		model = "BS2PRO"
-	case device.ProductID2:
-		model = "BS2"
-	}
+	model := a.deviceManager.GetModelName()
 
 	return map[string]any{
 		"connected":   a.isConnected,

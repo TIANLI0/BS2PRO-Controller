@@ -27,6 +27,7 @@ import clsx from 'clsx';
 interface DeviceStatusProps {
   isConnected: boolean;
   deviceProductId: string | null;
+  deviceModel: string | null;
   fanData: types.FanData | null;
   temperature: types.TemperatureData | null;
   config: types.AppConfig;
@@ -98,10 +99,12 @@ const FanRpmDisplay = memo(function FanRpmDisplay({
   currentRpm,
   targetRpm,
   setGear,
+  isBs1,
 }: {
   currentRpm: number | undefined;
   targetRpm: number | undefined;
   setGear: string | undefined;
+  isBs1?: boolean;
 }) {
   const pct = Math.min(100, ((currentRpm || 0) / 4000) * 100);
 
@@ -112,7 +115,7 @@ const FanRpmDisplay = memo(function FanRpmDisplay({
         <span className="text-xs text-muted-foreground">RPM</span>
       </div>
       <span className="mt-1 text-[11px] text-muted-foreground">
-        目标 {targetRpm ?? '--'} · {setGear || '--'}
+        {isBs1 ? (setGear || '--') : `目标 ${targetRpm ?? '--'} · ${setGear || '--'}`}
       </span>
       <div className="mt-2.5 h-1 w-full overflow-hidden rounded-full bg-muted">
         <div className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${pct}%` }} />
@@ -126,6 +129,7 @@ const FanRpmDisplay = memo(function FanRpmDisplay({
 export default function DeviceStatus({
   isConnected,
   deviceProductId,
+  deviceModel,
   fanData,
   temperature,
   config,
@@ -181,10 +185,11 @@ export default function DeviceStatus({
   };
 
   const normalizedProductId = deviceProductId?.trim().toUpperCase() ?? '';
-  const isProModel = normalizedProductId === '0X1002';
-  const isBs2Model = normalizedProductId === '0X1001';
-  const deviceModel = isProModel ? 'BS2 PRO' : isBs2Model ? 'BS2' : '未知设备';
-  const deviceImageSrc = isBs2Model ? '/bs2.png' : '/bs2pro.png';
+  const isProModel = deviceModel === 'BS2PRO' || normalizedProductId === '0X1002';
+  const isBs2Model = deviceModel === 'BS2' || normalizedProductId === '0X1001';
+  const isBs1Model = deviceModel === 'BS1';
+  const deviceModelName = isBs1Model ? 'BS1' : isProModel ? 'BS2 PRO' : isBs2Model ? 'BS2' : '未知设备';
+  const deviceImageSrc = isBs1Model ? '/bs2.png' : isBs2Model ? '/bs2.png' : '/bs2pro.png';
   const modeTitle = config.autoControl ? '智能控制' : config.customSpeedEnabled ? '固定转速' : '手动策略';
   const modeDesc = config.autoControl
     ? '根据实时温度自动调节转速'
@@ -195,8 +200,9 @@ export default function DeviceStatus({
   const fanSpinDuration = getFanSpinDuration(fanData?.currentRpm);
   const maxRpmInfo = getReportedMaxRpm(fanData?.gearSettings, fanData?.maxGear);
   const maxGearHighLevelRpm = maxRpmInfo.rpm;
-  const maxRpmHint =
-    maxGearHighLevelRpm === 4000
+  const maxRpmHint = isBs1Model
+    ? 'BS1 最高可达超频挡 3000 RPM。'
+    : maxGearHighLevelRpm === 4000
       ? '当前已解锁超频上限，最高可达 4000 RPM。'
       : maxGearHighLevelRpm === 3300
         ? '当前最高为强劲档，最高可达 3300 RPM，使用PD 27W充电头以解锁上限。'
@@ -217,14 +223,14 @@ export default function DeviceStatus({
             >
               <img
                 src={deviceImageSrc}
-                alt={`${deviceModel} device`}
+                alt={`${deviceModelName} device`}
                 className="h-full w-full object-contain"
                 draggable={false}
               />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-lg font-semibold text-foreground">{deviceModel}</span>
+                <span className="text-lg font-semibold text-foreground">{deviceModelName}</span>
                 <span
                   className={clsx(
                     'rounded-full px-2.5 py-1 text-xs font-medium',
@@ -312,6 +318,7 @@ export default function DeviceStatus({
               currentRpm={fanData?.currentRpm}
               targetRpm={fanData?.targetRpm}
               setGear={fanData?.setGear}
+              isBs1={isBs1Model}
             />
           </div>
         </motion.div>

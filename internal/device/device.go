@@ -21,14 +21,18 @@ const (
 	ProductID2 = 0x1001
 )
 
-// Manager HID 设备管理器
+// Manager 设备管理器
 type Manager struct {
 	device         *hid.Device
 	isConnected    bool
 	productID      uint16 // 当前连接的产品ID
+	deviceType     string // "hid" 或 "ble"
 	mutex          sync.RWMutex
 	logger         types.Logger
 	currentFanData *types.FanData
+
+	// BLE 管理器 (BS1)
+	bleManager *BLEManager
 
 	// 回调函数
 	onFanDataUpdate func(data *types.FanData)
@@ -38,7 +42,8 @@ type Manager struct {
 // NewManager 创建新的设备管理器
 func NewManager(logger types.Logger) *Manager {
 	return &Manager{
-		logger: logger,
+		logger:     logger,
+		bleManager: NewBLEManager(logger),
 	}
 }
 
@@ -46,6 +51,7 @@ func NewManager(logger types.Logger) *Manager {
 func (m *Manager) SetCallbacks(onFanDataUpdate func(data *types.FanData), onDisconnect func()) {
 	m.onFanDataUpdate = onFanDataUpdate
 	m.onDisconnect = onDisconnect
+	m.bleManager.SetCallbacks(onFanDataUpdate, onDisconnect)
 }
 
 // Init 初始化 HID 库
@@ -58,7 +64,7 @@ func (m *Manager) Exit() error {
 	return hid.Exit()
 }
 
-// Connect 连接 HID 设备
+// Connect 连接设备（先尝试 HID BS2/BS2PRO，再尝试 BLE BS1）
 func (m *Manager) Connect() (bool, map[string]string) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -67,6 +73,7 @@ func (m *Manager) Connect() (bool, map[string]string) {
 		return true, nil
 	}
 
+	// 先尝试 HID 连接 (BS2/BS2PRO)
 	productIDs := []uint16{ProductID1, ProductID2}
 	var device *hid.Device
 	var err error
@@ -85,47 +92,63 @@ func (m *Manager) Connect() (bool, map[string]string) {
 		}
 	}
 
-	if err != nil {
-		m.logError("所有设备连接尝试都失败")
-		return false, nil
-	}
+	if err == nil && device != nil {
+		// HID 连接成功 (BS2/BS2PRO)
+		m.device = device
+		m.isConnected = true
+		m.productID = connectedProductID
+		m.deviceType = types.DeviceTypeHID
 
-	m.device = device
-	m.isConnected = true
-	m.productID = connectedProductID
-
-	modelName := "BS2PRO"
-	if connectedProductID == ProductID2 {
-		modelName = "BS2"
-	}
-
-	// 获取设备信息
-	deviceInfo, err := device.GetDeviceInfo()
-	var info map[string]string
-	if err == nil {
-		m.logInfo("设备连接成功: %s %s (型号: %s)", deviceInfo.MfrStr, deviceInfo.ProductStr, modelName)
-		info = map[string]string{
-			"manufacturer": deviceInfo.MfrStr,
-			"product":      deviceInfo.ProductStr,
-			"serial":       deviceInfo.SerialNbr,
-			"model":        modelName,
-			"productId":    fmt.Sprintf("0x%04X", connectedProductID),
+		modelName := "BS2PRO"
+		if connectedProductID == ProductID2 {
+			modelName = "BS2"
 		}
-	} else {
-		m.logError("设备连接成功,但获取设备信息失败: %v", err)
-		info = map[string]string{
-			"manufacturer": "Unknown",
-			"product":      modelName,
-			"serial":       "Unknown",
-			"model":        modelName,
-			"productId":    fmt.Sprintf("0x%04X", connectedProductID),
+
+		// 获取设备信息
+		deviceInfo, infoErr := device.GetDeviceInfo()
+		var info map[string]string
+		if infoErr == nil {
+			m.logInfo("设备连接成功: %s %s (型号: %s)", deviceInfo.MfrStr, deviceInfo.ProductStr, modelName)
+			info = map[string]string{
+				"manufacturer": deviceInfo.MfrStr,
+				"product":      deviceInfo.ProductStr,
+				"serial":       deviceInfo.SerialNbr,
+				"model":        modelName,
+				"productId":    fmt.Sprintf("0x%04X", connectedProductID),
+			}
+		} else {
+			m.logError("设备连接成功,但获取设备信息失败: %v", infoErr)
+			info = map[string]string{
+				"manufacturer": "Unknown",
+				"product":      modelName,
+				"serial":       "Unknown",
+				"model":        modelName,
+				"productId":    fmt.Sprintf("0x%04X", connectedProductID),
+			}
 		}
+
+		// 开始监控设备数据
+		go m.monitorDeviceData()
+
+		return true, info
 	}
 
-	// 开始监控设备数据
-	go m.monitorDeviceData()
+	// HID 连接失败，尝试 BLE 连接 (BS1)
+	m.logInfo("HID 设备未找到，尝试 BLE 扫描 BS1 设备...")
+	m.mutex.Unlock() // 释放锁，BLE 扫描可能耗时较长
+	success, bleInfo := m.bleManager.Connect()
+	m.mutex.Lock() // 重新获取锁
 
-	return true, info
+	if success {
+		m.isConnected = true
+		m.deviceType = types.DeviceTypeBLE
+		m.productID = 0
+		m.logInfo("BS1 BLE 设备连接成功")
+		return true, bleInfo
+	}
+
+	m.logError("所有设备连接尝试都失败（HID 和 BLE）")
+	return false, nil
 }
 
 // Disconnect 断开设备连接
@@ -137,13 +160,18 @@ func (m *Manager) Disconnect() {
 		return
 	}
 
-	// 关闭设备
-	if m.device != nil {
-		m.device.Close()
-		m.device = nil
+	if m.deviceType == types.DeviceTypeBLE {
+		m.bleManager.Disconnect()
+	} else {
+		// 关闭 HID 设备
+		if m.device != nil {
+			m.device.Close()
+			m.device = nil
+		}
 	}
 
 	m.isConnected = false
+	m.deviceType = ""
 	m.logInfo("设备连接已断开")
 
 	if m.onDisconnect != nil {
@@ -167,7 +195,13 @@ func (m *Manager) GetProductID() uint16 {
 
 // GetModelName 获取当前连接设备的型号名称
 func (m *Manager) GetModelName() string {
-	productID := m.GetProductID()
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
+	if m.deviceType == types.DeviceTypeBLE {
+		return "BS1"
+	}
+	productID := m.productID
 	if productID == ProductID2 {
 		return "BS2"
 	}
@@ -177,10 +211,26 @@ func (m *Manager) GetModelName() string {
 	return "Unknown"
 }
 
+// GetDeviceType 获取当前连接设备的类型
+func (m *Manager) GetDeviceType() string {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	return m.deviceType
+}
+
+// IsBS1 检查当前连接设备是否为 BS1
+func (m *Manager) IsBS1() bool {
+	return m.GetDeviceType() == types.DeviceTypeBLE
+}
+
 // GetCurrentFanData 获取当前风扇数据
 func (m *Manager) GetCurrentFanData() *types.FanData {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
+
+	if m.deviceType == types.DeviceTypeBLE {
+		return m.bleManager.GetCurrentFanData()
+	}
 	return m.currentFanData
 }
 
@@ -377,6 +427,14 @@ func (m *Manager) parseWorkMode(mode uint8) string {
 
 // SetFanSpeed 设置风扇转速
 func (m *Manager) SetFanSpeed(rpm int) bool {
+	if m.IsBS1() {
+		if err := m.bleManager.SetFanSpeed(rpm); err != nil {
+			m.logError("BS1 设置转速失败: %v", err)
+			return false
+		}
+		return true
+	}
+
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
@@ -426,6 +484,14 @@ func (m *Manager) SetFanSpeed(rpm int) bool {
 
 // SetCustomFanSpeed 设置自定义风扇转速（无限制）
 func (m *Manager) SetCustomFanSpeed(rpm int) bool {
+	if m.IsBS1() {
+		if err := m.bleManager.SetFanSpeed(rpm); err != nil {
+			m.logError("BS1 设置自定义转速失败: %v", err)
+			return false
+		}
+		return true
+	}
+
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
@@ -469,6 +535,10 @@ func (m *Manager) SetCustomFanSpeed(rpm int) bool {
 
 // EnterAutoMode 进入自动模式
 func (m *Manager) EnterAutoMode() error {
+	if m.IsBS1() {
+		return m.bleManager.WriteCommand(types.BS1CmdEnterDynamic)
+	}
+
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
@@ -492,6 +562,15 @@ func (m *Manager) EnterAutoMode() error {
 
 // SetManualGear 设置手动挡位
 func (m *Manager) SetManualGear(gear, level string) bool {
+	if m.IsBS1() {
+		// BS1 只有4个固定挡位，无子级别
+		if err := m.bleManager.SetManualGear(gear); err != nil {
+			m.logError("BS1 设置挡位失败: %v", err)
+			return false
+		}
+		return true
+	}
+
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
@@ -547,6 +626,11 @@ func (m *Manager) SetManualGear(gear, level string) bool {
 
 // SetGearLight 设置挡位灯
 func (m *Manager) SetGearLight(enabled bool) bool {
+	if m.IsBS1() {
+		m.logInfo("BS1 不支持挡位灯设置")
+		return false
+	}
+
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
@@ -575,6 +659,14 @@ func (m *Manager) SetGearLight(enabled bool) bool {
 
 // SetPowerOnStart 设置通电自启动
 func (m *Manager) SetPowerOnStart(enabled bool) bool {
+	if m.IsBS1() {
+		if err := m.bleManager.SetPowerOnStart(enabled); err != nil {
+			m.logError("BS1 设置通电自启动失败: %v", err)
+			return false
+		}
+		return true
+	}
+
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
@@ -603,6 +695,11 @@ func (m *Manager) SetPowerOnStart(enabled bool) bool {
 
 // SetSmartStartStop 设置智能启停
 func (m *Manager) SetSmartStartStop(mode string) bool {
+	if m.IsBS1() {
+		m.logInfo("BS1 不支持智能启停设置")
+		return false
+	}
+
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
@@ -636,6 +733,11 @@ func (m *Manager) SetSmartStartStop(mode string) bool {
 
 // SetBrightness 设置亮度
 func (m *Manager) SetBrightness(percentage int) bool {
+	if m.IsBS1() {
+		m.logInfo("BS1 不支持亮度设置")
+		return false
+	}
+
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 

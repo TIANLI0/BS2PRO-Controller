@@ -58,6 +58,38 @@ export const MANUAL_GEAR_PRESETS: ManualGearPreset[] = [
   },
 ];
 
+// BS1 挡位预设（只有4个固定挡位，无子级别）
+export const BS1_MANUAL_GEAR_PRESETS: ManualGearPreset[] = [
+  {
+    gear: '静音',
+    colorClass: 'text-emerald-500',
+    borderClass: 'border-emerald-500/50',
+    bgClass: 'bg-emerald-500/12',
+    levels: [{ level: '中', rpm: 1300 }],
+  },
+  {
+    gear: '标准',
+    colorClass: 'text-blue-500',
+    borderClass: 'border-blue-500/50',
+    bgClass: 'bg-blue-500/12',
+    levels: [{ level: '中', rpm: 2100 }],
+  },
+  {
+    gear: '强劲',
+    colorClass: 'text-purple-500',
+    borderClass: 'border-purple-500/50',
+    bgClass: 'bg-purple-500/12',
+    levels: [{ level: '中', rpm: 2800 }],
+  },
+  {
+    gear: '超频',
+    colorClass: 'text-orange-500',
+    borderClass: 'border-orange-500/50',
+    bgClass: 'bg-orange-500/12',
+    levels: [{ level: '中', rpm: 3500 }],
+  },
+];
+
 export const getManualGearHighLevelRpm = (gear?: string | null): number | undefined => {
   if (!gear) return undefined;
   const preset = MANUAL_GEAR_PRESETS.find((item) => item.gear === gear);

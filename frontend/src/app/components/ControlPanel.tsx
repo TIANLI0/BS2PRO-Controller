@@ -40,6 +40,7 @@ interface ControlPanelProps {
   isConnected: boolean;
   fanData: types.FanData | null;
   temperature: types.TemperatureData | null;
+  deviceModel: string | null;
 }
 
 type CurveProfile = { id: string; name: string; curve: types.FanCurvePoint[] };
@@ -268,7 +269,7 @@ function HotkeyField({
 
 /* ── Main ControlPanel ── */
 
-export default function ControlPanel({ config, onConfigChange, isConnected, fanData, temperature }: ControlPanelProps) {
+export default function ControlPanel({ config, onConfigChange, isConnected, fanData, temperature, deviceModel }: ControlPanelProps) {
   const [loadingStates, setLoadingStates] = useState<Record<string, boolean>>({});
   const [debugInfo, setDebugInfo] = useState<DebugInfo | null>(null);
   const [debugInfoLoading, setDebugInfoLoading] = useState(false);
@@ -296,6 +297,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
   const [curveProfileLoading, setCurveProfileLoading] = useState(false);
 
   const activeCurveProfileId = ((config as any).activeFanCurveProfileId || '') as string;
+  const isBs1 = deviceModel === 'BS1';
 
   const setLoading = (key: string, value: boolean) => setLoadingStates((prev) => ({ ...prev, [key]: value }));
 
@@ -636,14 +638,15 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
               <div className="mt-1 text-xs text-muted-foreground">{fanData?.workMode ?? '--'}</div>
             </div>
             <div className="rounded-xl border border-border/70 bg-muted/30 p-4 text-center">
-              <div className="text-sm text-muted-foreground">目标转速</div>
-              <div className="mt-1 text-2xl font-semibold tabular-nums text-primary">{fanData?.targetRpm ?? '--'} RPM</div>
-              <div className="mt-1 text-xs text-muted-foreground">挡位 {fanData?.setGear ?? '--'}</div>
+              <div className="text-sm text-muted-foreground">{isBs1 ? '当前挡位' : '目标转速'}</div>
+              <div className="mt-1 text-2xl font-semibold tabular-nums text-primary">{isBs1 ? (fanData?.setGear ?? '--') : `${fanData?.targetRpm ?? '--'} RPM`}</div>
+              <div className="mt-1 text-xs text-muted-foreground">{isBs1 ? (fanData?.workMode ?? '--') : `挡位 ${fanData?.setGear ?? '--'}`}</div>
             </div>
           </div>
         </section>
 
         {/* ═══════════ 1. 灯光效果 ═══════════ */}
+        {!isBs1 && (
         <Section title="灯光效果" icon={Sparkles}>
           <div className="space-y-4 p-5">
             <div className="grid grid-cols-2 gap-3">
@@ -727,6 +730,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
             </div>
           </div>
         </Section>
+        )}
 
         {/* ═══════════ 2. 风扇控制 ═══════════ */}
         <Section title="风扇控制" icon={Settings}>
@@ -843,6 +847,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
 
         {/* ═══════════ 3. 设备设置 ═══════════ */}
         <Section title="设备设置" icon={Zap}>
+          {!isBs1 && (
           <SettingRow
             icon={<Lightbulb className={clsx('h-4 w-4', config.gearLight ? 'text-yellow-500' : '')} />}
             title="挡位灯"
@@ -857,6 +862,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
               size="sm"
             />
           </SettingRow>
+          )}
 
           <SettingRow
             icon={<Power className={clsx('h-4 w-4', config.powerOnStart ? 'text-primary' : '')} />}
@@ -873,6 +879,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
             />
           </SettingRow>
 
+          {!isBs1 && (
           <SettingRow
             icon={<Zap className="h-4 w-4" />}
             title="智能启停"
@@ -889,6 +896,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
               />
             </div>
           </SettingRow>
+          )}
         </Section>
 
         {/* ═══════════ 4. 系统设置 ═══════════ */}

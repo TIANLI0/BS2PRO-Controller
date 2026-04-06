@@ -19,7 +19,7 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/comp
 import { Input } from '@/components/ui/input';
 import { apiService } from '../services/api';
 import { types } from '../../../wailsjs/go/models';
-import { MANUAL_GEAR_PRESETS } from '../lib/manualGearPresets';
+import { MANUAL_GEAR_PRESETS, BS1_MANUAL_GEAR_PRESETS } from '../lib/manualGearPresets';
 import FanCurveProfileSelect from './FanCurveProfileSelect';
 import { toast } from 'sonner';
 import { ToggleSwitch, Button, Badge, Slider } from './ui/index';
@@ -35,6 +35,7 @@ interface FanCurveProps {
   isConnected: boolean;
   fanData: types.FanData | null;
   temperature: types.TemperatureData | null;
+  deviceModel: string | null;
 }
 
 /* ── Temperature indicator overlay (memo, doesn't re-render chart) ── */
@@ -130,7 +131,7 @@ const DraggablePoint = memo(function DraggablePoint({
    ─── Main FanCurve Component ───
    ═══════════════════════════════════════════════════════════ */
 
-const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, temperature }: FanCurveProps) {
+const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, temperature, deviceModel }: FanCurveProps) {
   const [localCurve, setLocalCurve] = useState<types.FanCurvePoint[]>([]);
   const [curveProfiles, setCurveProfiles] = useState<CurveProfile[]>([]);
   const [activeProfileId, setActiveProfileId] = useState('');
@@ -613,7 +614,8 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
 
   /* ── Manual gear ── */
 
-  const manualGearPresets = MANUAL_GEAR_PRESETS;
+  const isBs1 = deviceModel === 'BS1';
+  const manualGearPresets = isBs1 ? BS1_MANUAL_GEAR_PRESETS : MANUAL_GEAR_PRESETS;
 
   const manualPoints = useMemo(() => {
     return manualGearPresets.flatMap((preset, gearIndex) => preset.levels.map((item, levelIndex) => ({
@@ -714,7 +716,7 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
               <div className="rounded-2xl border border-border/70 bg-card p-4 space-y-4">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">手动挡位</span>
-                  <span className="text-xs text-muted-foreground">12 控制点滑块</span>
+                  <span className="text-xs text-muted-foreground">{isBs1 ? '4 控制点滑块' : '12 控制点滑块'}</span>
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -723,19 +725,19 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
                     const rememberedLevel = isActiveGear
                       ? (config.manualLevel || '中')
                       : rememberedManualGearLevels[preset.gear];
-                    const activeLevel = preset.levels.find((l) => l.level === rememberedLevel) ?? preset.levels[1];
+                    const activeLevel = preset.levels.find((l) => l.level === rememberedLevel) ?? preset.levels[0];
                     return (
                       <button
                         key={preset.gear}
                         type="button"
-                        onClick={() => handleGearCardSelect(preset.gear)}
+                        onClick={() => isBs1 ? applyManualGearPreset(preset.gear, '中') : handleGearCardSelect(preset.gear)}
                         className={clsx(
                           'cursor-pointer rounded-xl border px-3 py-2.5 text-left transition-colors',
                           isActiveGear ? `${preset.borderClass} ${preset.bgClass}` : 'border-border/70 bg-background/40 hover:bg-muted/35',
                         )}
                       >
                         <div className={clsx('text-lg font-bold', isActiveGear ? preset.colorClass : 'text-foreground')}>{preset.gear}</div>
-                        <div className={clsx('mt-1 text-base font-semibold', preset.colorClass)}>{activeLevel.rpm}RPM</div>
+                        {!isBs1 && <div className={clsx('mt-1 text-base font-semibold', preset.colorClass)}>{activeLevel.rpm}RPM</div>}
                       </button>
                     );
                   })}

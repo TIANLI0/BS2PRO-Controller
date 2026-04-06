@@ -15,6 +15,7 @@ export default function Home() {
 
   const isConnected = useAppStore((state) => state.isConnected);
   const deviceProductId = useAppStore((state) => state.deviceProductId);
+  const deviceModel = useAppStore((state) => state.deviceModel);
   const config = useAppStore((state) => state.config);
   const fanData = useAppStore((state) => state.fanData);
   const temperature = useAppStore((state) => state.temperature);
@@ -55,6 +56,7 @@ export default function Home() {
         <DeviceStatus
           isConnected={isConnected}
           deviceProductId={deviceProductId}
+          deviceModel={deviceModel}
           fanData={fanData}
           temperature={temperature}
           config={safeConfig}
@@ -70,6 +72,7 @@ export default function Home() {
           isConnected={isConnected}
           fanData={fanData}
           temperature={temperature}
+          deviceModel={deviceModel}
         />
       }
       controlContent={
@@ -79,6 +82,7 @@ export default function Home() {
           isConnected={isConnected}
           fanData={fanData}
           temperature={temperature}
+          deviceModel={deviceModel}
         />
       }
     />

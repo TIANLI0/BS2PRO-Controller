@@ -14,7 +14,7 @@
     !define INFO_PRODUCTNAME "BS2PRO-Controller"
 !endif
 !ifndef INFO_PRODUCTVERSION
-    !define INFO_PRODUCTVERSION "2.9.1"
+    !define INFO_PRODUCTVERSION "2.10.0"
 !endif
 !ifndef INFO_COPYRIGHT
     !define INFO_COPYRIGHT "Copyright © 2026 TIANLI0"

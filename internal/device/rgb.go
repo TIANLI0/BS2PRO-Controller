@@ -15,6 +15,10 @@ const (
 
 // SetLightStrip 设置灯带模式
 func (m *Manager) SetLightStrip(cfg types.LightStripConfig) error {
+	if m.IsBS1() {
+		return fmt.Errorf("BS1 不支持灯带设置")
+	}
+
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
@@ -51,6 +55,10 @@ func (m *Manager) SetLightStrip(cfg types.LightStripConfig) error {
 
 // SetRGBOff 关闭RGB灯光
 func (m *Manager) SetRGBOff() bool {
+	if m.IsBS1() {
+		return false
+	}
+
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 

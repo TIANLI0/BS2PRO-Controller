@@ -11,6 +11,7 @@ type ActiveTab = 'status' | 'curve' | 'control';
 interface AppStore {
   isConnected: boolean;
   deviceProductId: string | null;
+  deviceModel: string | null;
   config: types.AppConfig | null;
   fanData: types.FanData | null;
   temperature: types.TemperatureData | null;
@@ -34,6 +35,7 @@ interface AppStore {
 export const useAppStore = create<AppStore>((set, get) => ({
   isConnected: false,
   deviceProductId: null,
+  deviceModel: null,
   config: null,
   fanData: null,
   temperature: null,
@@ -65,6 +67,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         config: appConfig,
         isConnected: deviceStatus.connected || false,
         deviceProductId: deviceStatus.productId || null,
+        deviceModel: deviceStatus.model || null,
         fanData: deviceStatus.currentData || null,
         error: null,
       });
@@ -93,7 +96,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   disconnectDevice: async () => {
     try {
       await deviceService.disconnect();
-      set({ isConnected: false, deviceProductId: null, fanData: null });
+      set({ isConnected: false, deviceProductId: null, deviceModel: null, fanData: null });
     } catch (error) {
       console.error('断开连接失败:', error);
     }
@@ -115,10 +118,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
     unsubscribers.push(
       deviceService.onDeviceConnected((deviceInfo) => {
         console.log('设备已连接:', deviceInfo);
-        const info = deviceInfo as { productId?: string };
+        const info = deviceInfo as { productId?: string; model?: string };
         set({
           isConnected: true,
           deviceProductId: info.productId || null,
+          deviceModel: info.model || null,
           error: null,
         });
       })
@@ -127,7 +131,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     unsubscribers.push(
       deviceService.onDeviceDisconnected(() => {
         console.log('设备已断开');
-        set({ isConnected: false, deviceProductId: null, fanData: null });
+        set({ isConnected: false, deviceProductId: null, deviceModel: null, fanData: null });
       })
     );
 

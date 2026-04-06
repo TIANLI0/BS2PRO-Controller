@@ -204,6 +204,38 @@ type Logger interface {
 	GetLogDir() string
 }
 
+// DeviceType 设备类型
+const (
+	DeviceTypeHID = "hid" // BS2/BS2PRO (HID 通信)
+	DeviceTypeBLE = "ble" // BS1 (BLE 通信)
+)
+
+// BS1GearCommands BS1 挡位命令（无子级别，只有4个固定挡位）
+// 命令格式: 5AA5 08 03 <gear_number> <checksum>
+var BS1GearCommands = map[string]GearCommand{
+	"静音": {"静音", []byte{0x5a, 0xa5, 0x08, 0x03, 0x01, 0x0c}, 1300},
+	"标准": {"标准", []byte{0x5a, 0xa5, 0x08, 0x03, 0x02, 0x0d}, 2100},
+	"强劲": {"强劲", []byte{0x5a, 0xa5, 0x08, 0x03, 0x03, 0x0e}, 2800},
+	"超频": {"超频", []byte{0x5a, 0xa5, 0x08, 0x03, 0x04, 0x0f}, 3500},
+}
+
+// BS1 BLE 命令常量
+var (
+	// BS1CmdEnterDynamic 进入动态转速模式
+	BS1CmdEnterDynamic = []byte{0x5a, 0xa5, 0x46, 0x03, 0x01, 0x4a}
+	// BS1CmdPowerOnStartEnable 开启通电自启动
+	BS1CmdPowerOnStartEnable = []byte{0x5a, 0xa5, 0x0c, 0x03, 0x01, 0x10}
+	// BS1CmdPowerOnStartDisable 关闭通电自启动
+	BS1CmdPowerOnStartDisable = []byte{0x5a, 0xa5, 0x0c, 0x03, 0x02, 0x11}
+	// BS1CmdHeartbeat1 动态模式心跳包1
+	BS1CmdHeartbeat1 = []byte{0x5a, 0xa5, 0x23, 0x02, 0x25}
+	// BS1CmdHeartbeat2 动态模式心跳包2
+	BS1CmdHeartbeat2 = []byte{0x5a, 0xa5, 0x45, 0x02, 0x47}
+)
+
+// BS1DeviceName BS1 蓝牙设备名称
+const BS1DeviceName = "Flydigi BS1"
+
 // GearCommands 预设挡位命令
 var GearCommands = map[string][]GearCommand{
 	"静音": {
@@ -226,6 +258,25 @@ var GearCommands = map[string][]GearCommand{
 		{"4挡中", []byte{0x5a, 0xa5, 0x26, 0x05, 0x03, 0x74, 0x0e, 0xb0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 3700},
 		{"4挡高", []byte{0x5a, 0xa5, 0x26, 0x05, 0x03, 0xa0, 0x0f, 0xdd, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, 4000},
 	},
+}
+
+// BS1Checksum 计算 BS1 命令校验和: (sum of all bytes + 1) & 0xFF
+func BS1Checksum(data []byte) byte {
+	var sum int
+	for _, b := range data {
+		sum += int(b)
+	}
+	return byte((sum + 1) & 0xFF)
+}
+
+// BuildBS1RPMCommand 构建 BS1 动态转速设置命令
+// 格式: 5AA5 21 04 <rpm_lo> <rpm_hi> <checksum>
+func BuildBS1RPMCommand(rpm int) []byte {
+	lo := byte(rpm & 0xFF)
+	hi := byte((rpm >> 8) & 0xFF)
+	payload := []byte{0x5a, 0xa5, 0x21, 0x04, lo, hi}
+	checksum := BS1Checksum(payload)
+	return append(payload, checksum)
 }
 
 // GetDefaultFanCurve 获取默认风扇曲线
