@@ -98,6 +98,10 @@ export function QuitApp() {
   return window['go']['main']['App']['QuitApp']();
 }
 
+export function RestartPawnIO() {
+  return window['go']['main']['App']['RestartPawnIO']();
+}
+
 export function SaveFanCurveProfile(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['SaveFanCurveProfile'](arg1, arg2, arg3, arg4);
 }

@@ -183,6 +183,10 @@ class ApiService {
     return await (window as any).go?.main?.App?.TestBridgeProgram();
   }
 
+  async restartPawnIO(): Promise<any> {
+    return await (window as any).go?.main?.App?.RestartPawnIO();
+  }
+
   // 事件监听
   onDeviceConnected(callback: (data: DeviceInfo) => void): () => void {
     EventsOn('device-connected', callback);

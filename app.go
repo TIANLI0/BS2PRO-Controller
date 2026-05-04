@@ -507,6 +507,17 @@ func (a *App) GetBridgeProgramStatus() map[string]any {
 	return status
 }
 
+// RestartPawnIO 重启 PawnIO 驱动并重新初始化温度读取
+func (a *App) RestartPawnIO() BridgeTemperatureData {
+	resp, err := a.sendRequest(ipc.ReqRestartPawnIO, nil)
+	if err != nil {
+		return BridgeTemperatureData{Success: false, Error: err.Error()}
+	}
+	var data BridgeTemperatureData
+	json.Unmarshal(resp.Data, &data)
+	return data
+}
+
 // SetWindowsAutoStart 设置Windows开机自启动
 func (a *App) SetWindowsAutoStart(enable bool) error {
 	resp, err := a.sendRequest(ipc.ReqSetWindowsAutoStart, ipc.SetBoolParams{Enabled: enable})

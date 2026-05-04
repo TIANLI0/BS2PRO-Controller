@@ -578,6 +578,13 @@ func (a *CoreApp) handleIPCRequest(req ipc.Request) ipc.Response {
 		status := a.bridgeManager.GetStatus()
 		return a.dataResponse(status)
 
+	case ipc.ReqRestartPawnIO:
+		result, err := a.bridgeManager.RestartPawnIO()
+		if err != nil {
+			return a.errorResponse(err.Error())
+		}
+		return a.dataResponse(result)
+
 	// 自启动相关
 	case ipc.ReqSetWindowsAutoStart:
 		var params ipc.SetBoolParams

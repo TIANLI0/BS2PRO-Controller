@@ -59,6 +59,7 @@ const (
 	ReqTestTemperatureReading RequestType = "TestTemperatureReading"
 	ReqTestBridgeProgram      RequestType = "TestBridgeProgram"
 	ReqGetBridgeProgramStatus RequestType = "GetBridgeProgramStatus"
+	ReqRestartPawnIO          RequestType = "RestartPawnIO"
 
 	// 自启动相关
 	ReqSetWindowsAutoStart    RequestType = "SetWindowsAutoStart"

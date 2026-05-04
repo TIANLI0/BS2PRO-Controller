@@ -350,7 +350,20 @@ export default function DeviceStatus({
           <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-sm dark:border-amber-800/60 dark:bg-amber-900/20">
             <div className="flex items-start gap-2 text-amber-800 dark:text-amber-200">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              <p>{temperature?.bridgeMessage || '温度桥接程序读取失败，请检查 PawnIO 驱动后重试。'}</p>
+              <div className="flex-1">
+                <p>{temperature?.bridgeMessage || '温度桥接程序读取失败，请检查 PawnIO 驱动后重试。'}</p>
+                <button
+                  onClick={async () => {
+                    try {
+                      await apiService.restartPawnIO();
+                    } catch { /* ignore */ }
+                  }}
+                  className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-100 px-3 py-1.5 text-xs font-medium text-amber-900 transition-colors hover:bg-amber-200 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-200 dark:hover:bg-amber-800/60"
+                >
+                  <RotateCw className="h-3 w-3" />
+                  重启 PawnIO 驱动
+                </button>
+              </div>
             </div>
           </div>
         </motion.div>

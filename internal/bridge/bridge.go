@@ -413,3 +413,36 @@ func (m *Manager) GetStatus() map[string]any {
 		"testData": testResult,
 	}
 }
+
+// RestartPawnIO 重启 PawnIO 驱动并重新初始化硬件监控
+func (m *Manager) RestartPawnIO() (types.BridgeTemperatureData, error) {
+	if err := m.EnsureRunning(); err != nil {
+		return types.BridgeTemperatureData{
+			Success: false,
+			Error:   fmt.Sprintf("启动桥接程序失败: %v", err),
+		}, err
+	}
+
+	m.logger.Info("正在通过桥接程序重启 PawnIO 驱动...")
+	response, err := m.SendCommand("RestartPawnIO", "")
+	if err != nil {
+		return types.BridgeTemperatureData{
+			Success: false,
+			Error:   fmt.Sprintf("发送 RestartPawnIO 命令失败: %v", err),
+		}, err
+	}
+
+	if !response.Success {
+		return types.BridgeTemperatureData{
+			Success: false,
+			Error:   response.Error,
+		}, fmt.Errorf("RestartPawnIO 失败: %s", response.Error)
+	}
+
+	result := types.BridgeTemperatureData{Success: true}
+	if response.Data != nil {
+		result = *response.Data
+	}
+	m.logger.Info("PawnIO 驱动重启成功")
+	return result, nil
+}

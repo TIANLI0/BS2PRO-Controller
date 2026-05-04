@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.IO.Pipes;
 using System.Linq;
+using System.ServiceProcess;
 using System.Threading;
 using Newtonsoft.Json;
 using LibreHardwareMonitor.Hardware;
@@ -59,10 +60,14 @@ namespace TempBridge
     {
         private const string PipeName = "BS2PRO_TempBridge";
         private const string MutexName = @"Global\BS2PRO_TempBridge_Singleton";
+        private const int MaxInitRetries = 3;
+        private const int InitRetryDelayMs = 2000;
+        private const int ConsecutiveFailuresBeforeReinit = 5;
         private static Computer computer;
         private static bool running = true;
         private static readonly object lockObject = new object();
         private static Mutex singleInstanceMutex;
+        private static int consecutiveFailures = 0;
 
         static void Main(string[] args)
         {
@@ -261,24 +266,97 @@ namespace TempBridge
 
         static void InitializeHardwareMonitor()
         {
-            EnsurePawnIoInstalled();
+            EnsurePawnIoReady();
 
-            computer = new Computer
+            Exception lastException = null;
+            for (int attempt = 1; attempt <= MaxInitRetries; attempt++)
             {
-                IsCpuEnabled = true,
-                IsGpuEnabled = true,
-                IsMemoryEnabled = false,
-                IsMotherboardEnabled = false,
-                IsControllerEnabled = false,
-                IsNetworkEnabled = false,
-                IsStorageEnabled = false
-            };
+                try
+                {
+                    if (computer != null)
+                    {
+                        try { computer.Close(); } catch { }
+                        computer = null;
+                    }
 
-            computer.Open();
-            computer.Accept(new UpdateVisitor());
+                    computer = new Computer
+                    {
+                        IsCpuEnabled = true,
+                        IsGpuEnabled = true,
+                        IsMemoryEnabled = false,
+                        IsMotherboardEnabled = false,
+                        IsControllerEnabled = false,
+                        IsNetworkEnabled = false,
+                        IsStorageEnabled = false
+                    };
+
+                    computer.Open();
+                    computer.Accept(new UpdateVisitor());
+
+                    // Verify we can actually read at least one temperature
+                    if (HasAnyTemperatureSensor(computer))
+                    {
+                        consecutiveFailures = 0;
+                        return;
+                    }
+
+                    // No sensors found - PawnIO may not be fully ready
+                    if (attempt < MaxInitRetries)
+                    {
+                        computer.Close();
+                        computer = null;
+                        Thread.Sleep(InitRetryDelayMs);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    lastException = ex;
+                    if (attempt < MaxInitRetries)
+                    {
+                        try { computer?.Close(); } catch { }
+                        computer = null;
+                        Thread.Sleep(InitRetryDelayMs);
+                    }
+                }
+            }
+
+            // If we get here, all retries exhausted but computer may still be open
+            // (just without working sensors). Keep it - it might recover on next update.
+            if (computer == null)
+            {
+                string msg = lastException != null
+                    ? lastException.Message
+                    : "初始化硬件监控失败，PawnIO 可能被其他程序占用";
+                throw new InvalidOperationException(msg, lastException);
+            }
         }
 
-        static void EnsurePawnIoInstalled()
+        static bool HasAnyTemperatureSensor(Computer comp)
+        {
+            foreach (IHardware hardware in comp.Hardware)
+            {
+                if (HasTemperatureSensorRecursive(hardware))
+                    return true;
+            }
+            return false;
+        }
+
+        static bool HasTemperatureSensorRecursive(IHardware hardware)
+        {
+            foreach (ISensor sensor in hardware.Sensors)
+            {
+                if (sensor.SensorType == SensorType.Temperature && sensor.Value.HasValue && sensor.Value.Value > 0)
+                    return true;
+            }
+            foreach (IHardware sub in hardware.SubHardware)
+            {
+                if (HasTemperatureSensorRecursive(sub))
+                    return true;
+            }
+            return false;
+        }
+
+        static void EnsurePawnIoReady()
         {
             if (!PawnIo.IsInstalled)
             {
@@ -287,6 +365,103 @@ namespace TempBridge
                     "请先安装 PawnIO（可从 LibreHardwareMonitor 发布包中的 PawnIO_setup.exe 安装），" +
                     "安装完成后重启程序。"
                 );
+            }
+
+            // Check PawnIO driver service is running; attempt start if stopped
+            try
+            {
+                using (var sc = new ServiceController("PawnIO"))
+                {
+                    if (sc.Status != ServiceControllerStatus.Running)
+                    {
+                        sc.Start();
+                        sc.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(10));
+                    }
+                }
+            }
+            catch (InvalidOperationException)
+            {
+                // Service not found - PawnIO may use a different service name, continue
+            }
+            catch (System.ServiceProcess.TimeoutException)
+            {
+                throw new InvalidOperationException(
+                    "PawnIO 驱动服务未能在 10 秒内启动，请检查驱动安装状态。"
+                );
+            }
+        }
+
+        static void ReinitializeHardwareMonitor()
+        {
+            lock (lockObject)
+            {
+                try
+                {
+                    computer?.Close();
+                }
+                catch { }
+                computer = null;
+
+                // Try driver restart (best-effort, kernel drivers often reject stop)
+                RestartPawnIoDriver();
+
+                // Wait a moment for driver/device objects to settle
+                Thread.Sleep(500);
+
+                InitializeHardwareMonitor();
+            }
+        }
+
+        /// <summary>
+        /// Best-effort PawnIO driver restart. Kernel drivers typically reject
+        /// SERVICE_CONTROL_STOP (error 1052), so this method tries stop+start
+        /// first, falls back to just ensuring the service is running.
+        /// The real recovery comes from closing and reopening the Computer object
+        /// to get a fresh device handle — not from restarting the driver itself.
+        /// </summary>
+        static string RestartPawnIoDriver()
+        {
+            try
+            {
+                using (var sc = new ServiceController("PawnIO"))
+                {
+                    // Attempt stop+start (may fail for kernel drivers)
+                    if (sc.Status == ServiceControllerStatus.Running)
+                    {
+                        try
+                        {
+                            sc.Stop();
+                            sc.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromSeconds(5));
+                        }
+                        catch
+                        {
+                            // Kernel driver rejected stop — this is normal.
+                            // Driver is still running, just re-acquire a handle.
+                            return null;
+                        }
+                    }
+
+                    // If stopped (either by us or was already stopped), start it
+                    sc.Refresh();
+                    if (sc.Status != ServiceControllerStatus.Running)
+                    {
+                        sc.Start();
+                        sc.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(10));
+                        Thread.Sleep(500);
+                    }
+                }
+
+                return null;
+            }
+            catch (InvalidOperationException)
+            {
+                // Service not found — driver may use a different registration method
+                return null;
+            }
+            catch (Exception)
+            {
+                // Any other error — continue with handle refresh anyway
+                return null;
             }
         }
 
@@ -372,6 +547,9 @@ namespace TempBridge
                             Data = new TemperatureData { Success = true }
                         };
 
+                    case "RestartPawnIO":
+                        return HandleRestartPawnIO();
+
                     case "Exit":
                         return new Response
                         {
@@ -396,66 +574,147 @@ namespace TempBridge
             }
         }
 
+        static Response HandleRestartPawnIO()
+        {
+            lock (lockObject)
+            {
+                // 1. Close existing Computer to release PawnIO handle
+                try
+                {
+                    computer?.Close();
+                }
+                catch { }
+                computer = null;
+
+                // 2. Best-effort driver restart (kernel drivers usually reject stop, that's OK)
+                RestartPawnIoDriver();
+
+                // 3. Wait for device to settle after handle release
+                Thread.Sleep(500);
+
+                // 4. Reinitialize hardware monitor with fresh PawnIO handle
+                try
+                {
+                    InitializeHardwareMonitor();
+                    consecutiveFailures = 0;
+
+                    // 5. Do a test read to confirm it works
+                    var testData = GetTemperatureDataUnsafe();
+                    return new Response
+                    {
+                        Success = true,
+                        Data = testData
+                    };
+                }
+                catch (Exception ex)
+                {
+                    return new Response
+                    {
+                        Success = false,
+                        Error = string.Format("重新初始化失败: {0}", ex.Message)
+                    };
+                }
+            }
+        }
+
+        /// <summary>
+        /// GetTemperatureData without acquiring lockObject (caller must hold the lock).
+        /// </summary>
+        static TemperatureData GetTemperatureDataUnsafe()
+        {
+            var result = new TemperatureData
+            {
+                UpdateTime = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+            };
+
+            try
+            {
+                computer.Accept(new UpdateVisitor());
+
+                int cpuTemp = 0;
+                int gpuTemp = 0;
+
+                foreach (IHardware hardware in computer.Hardware)
+                {
+                    if (hardware.HardwareType == HardwareType.Cpu)
+                    {
+                        if (cpuTemp == 0)
+                        {
+                            cpuTemp = GetTemperatureFromHardwareTree(
+                                hardware,
+                                new[] { "Average", "Package", "Tctl", "Tdie", "Core" }
+                            );
+                        }
+                    }
+                    else if (hardware.HardwareType == HardwareType.GpuNvidia || 
+                             hardware.HardwareType == HardwareType.GpuAmd ||
+                             hardware.HardwareType == HardwareType.GpuIntel)
+                    {
+                        if (gpuTemp == 0)
+                        {
+                            gpuTemp = GetTemperatureFromHardwareTree(
+                                hardware,
+                                new[] { "Average", "GPU Core", "Core", "Edge", "Junction", "Hot Spot", "Temperature" }
+                            );
+                        }
+                    }
+                }
+
+                result.CpuTemp = cpuTemp;
+                result.GpuTemp = gpuTemp;
+                result.MaxTemp = Math.Max(cpuTemp, gpuTemp);
+                if (cpuTemp == 0 && gpuTemp == 0)
+                {
+                    result.Success = false;
+                    result.Error = "未读取到有效的 CPU/GPU 温度";
+                }
+                else
+                {
+                    result.Success = true;
+                    result.Error = string.Empty;
+                }
+            }
+            catch (Exception ex)
+            {
+                result.Success = false;
+                result.Error = ex.Message;
+            }
+
+            return result;
+        }
+
         static TemperatureData GetTemperatureData()
         {
             lock (lockObject)
             {
-                var result = new TemperatureData
+                var result = GetTemperatureDataUnsafe();
+
+                if (!result.Success || (result.CpuTemp == 0 && result.GpuTemp == 0))
                 {
-                    UpdateTime = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
-                };
+                    consecutiveFailures++;
 
-                try
-                {
-                    computer.Accept(new UpdateVisitor());
-
-                    int cpuTemp = 0;
-                    int gpuTemp = 0;
-
-                    foreach (IHardware hardware in computer.Hardware)
+                    // Auto-reinitialize after consecutive failures (restart PawnIO driver + reinit)
+                    if (consecutiveFailures >= ConsecutiveFailuresBeforeReinit)
                     {
-                        if (hardware.HardwareType == HardwareType.Cpu)
+                        consecutiveFailures = 0;
+                        result.Error = "连续读取失败，正在尝试重启 PawnIO 驱动并重新初始化...";
+
+                        ThreadPool.QueueUserWorkItem(_ =>
                         {
-                            if (cpuTemp == 0)
-                            {
-                                cpuTemp = GetTemperatureFromHardwareTree(
-                                    hardware,
-                                    new[] { "Average", "Package", "Tctl", "Tdie", "Core" }
-                                );
-                            }
-                        }
-                        else if (hardware.HardwareType == HardwareType.GpuNvidia || 
-                                 hardware.HardwareType == HardwareType.GpuAmd ||
-                                 hardware.HardwareType == HardwareType.GpuIntel)
-                        {
-                            if (gpuTemp == 0)
-                            {
-                                gpuTemp = GetTemperatureFromHardwareTree(
-                                    hardware,
-                                    new[] { "Average", "GPU Core", "Core", "Edge", "Junction", "Hot Spot", "Temperature" }
-                                );
-                            }
-                        }
+                            try { ReinitializeHardwareMonitor(); }
+                            catch { }
+                        });
                     }
-
-                    result.CpuTemp = cpuTemp;
-                    result.GpuTemp = gpuTemp;
-                    result.MaxTemp = Math.Max(cpuTemp, gpuTemp);
-                    if (cpuTemp == 0 && gpuTemp == 0)
+                    else if (string.IsNullOrEmpty(result.Error))
                     {
-                        result.Success = false;
-                        result.Error = "未读取到有效的 CPU/GPU 温度（PawnIO 可能尚未就绪，请重启软件或重新安装驱动）";
-                    }
-                    else
-                    {
-                        result.Success = true;
-                        result.Error = string.Empty;
+                        result.Error = string.Format(
+                            "未读取到有效的 CPU/GPU 温度（连续失败 {0}/{1}，达到阈值后将自动重启 PawnIO 驱动）",
+                            consecutiveFailures, ConsecutiveFailuresBeforeReinit);
                     }
                 }
-                catch (Exception ex)
+                else
                 {
-                    result.Success = false;
-                    result.Error = ex.Message;
+                    consecutiveFailures = 0;
                 }
 
                 return result;

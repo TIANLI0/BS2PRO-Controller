@@ -50,6 +50,8 @@ export function QuitAll():Promise<void>;
 
 export function QuitApp():Promise<void>;
 
+export function RestartPawnIO():Promise<types.BridgeTemperatureData>;
+
 export function SaveFanCurveProfile(arg1:string,arg2:string,arg3:Array<types.FanCurvePoint>,arg4:boolean):Promise<types.FanCurveProfile>;
 
 export function SetActiveFanCurveProfile(arg1:string):Promise<void>;
