@@ -49,15 +49,15 @@ export const ToggleSwitch = forwardRef<HTMLButtonElement, ToggleSwitchProps>(
     const isDisabled = disabled || loading;
 
     return (
-      <div className="flex items-center gap-3">
-        {label && <span className="text-sm font-medium text-muted-foreground">{label}</span>}
+      <div className="inline-flex min-h-6 items-center gap-3 align-middle">
+        {label && <span className="inline-flex items-center text-sm leading-none font-medium text-muted-foreground">{label}</span>}
         <Switch
           ref={ref}
           checked={enabled}
           onCheckedChange={onChange}
           disabled={isDisabled}
           aria-label={srLabel || label || 'Toggle'}
-          className={clsx(toggleColorClasses[color], toggleSizeClasses[size], loading && 'animate-pulse')}
+          className={clsx('self-center', toggleColorClasses[color], toggleSizeClasses[size], loading && 'animate-pulse')}
         />
       </div>
     );

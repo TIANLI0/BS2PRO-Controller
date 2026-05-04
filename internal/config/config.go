@@ -89,6 +89,7 @@ func (m *Manager) tryLoadFromPath(configPath string) bool {
 
 	applyMissingHotkeyDefaults(&config, rawConfig)
 	applyMissingSmartControlDefaults(&config, rawConfig)
+	applyMissingThemeDefaults(&config, rawConfig)
 
 	m.config = config
 	return true
@@ -131,6 +132,20 @@ func applyMissingSmartControlDefaults(cfg *types.AppConfig, rawConfig map[string
 	if _, ok := smartControlConfig["filterTransientSpike"]; !ok {
 		cfg.SmartControl.FilterTransientSpike = defaults.FilterTransientSpike
 	}
+}
+
+func applyMissingThemeDefaults(cfg *types.AppConfig, rawConfig map[string]json.RawMessage) {
+	if cfg == nil {
+		return
+	}
+
+	defaultThemeMode := types.ThemeModeSystem
+	if _, ok := rawConfig["themeMode"]; !ok {
+		cfg.ThemeMode = defaultThemeMode
+		return
+	}
+
+	cfg.ThemeMode = types.NormalizeThemeMode(cfg.ThemeMode)
 }
 
 // Save 保存配置

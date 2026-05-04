@@ -48,6 +48,7 @@ export interface AppConfig {
   gearLight: boolean;          // 挡位灯
   powerOnStart: boolean;       // 通电自启动
   windowsAutoStart: boolean;   // Windows开机自启动
+  themeMode?: 'system' | 'light' | 'dark'; // 主题模式
   smartStartStop: string;      // 智能启停
   brightness: number;          // 亮度
   tempUpdateRate: number;      // 温度更新频率(秒)

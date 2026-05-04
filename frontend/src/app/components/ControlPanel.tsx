@@ -511,6 +511,12 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
     { value: 10, label: '10次 (10s)' },
   ];
 
+  const themeModeOptions = [
+    { value: 'system', label: '跟随系统' },
+    { value: 'light', label: '浅色' },
+    { value: 'dark', label: '深色' },
+  ];
+
   const lightModeOptions = [
     { value: 'off', label: '关闭灯光', description: '关闭所有RGB灯光' },
     { value: 'smart_temp', label: '智能温控', description: '根据温度自动切换灯效' },
@@ -557,6 +563,20 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
       onConfigChange(types.AppConfig.createFrom({ ...config, lightStrip: submitConfig }));
     } catch (e) { alert(`设置灯带失败: ${e}`); } finally { setLoading('lightStrip', false); }
   }, [lightStripConfig, config, onConfigChange, requiredColorCount]);
+
+  const handleThemeModeChange = useCallback(async (mode: string) => {
+    const nextMode = mode === 'light' || mode === 'dark' ? mode : 'system';
+    try {
+      const newCfg = types.AppConfig.createFrom({
+        ...config,
+        themeMode: nextMode,
+      });
+      await apiService.updateConfig(newCfg);
+      onConfigChange(newCfg);
+    } catch {
+      /* noop */
+    }
+  }, [config, onConfigChange]);
 
   const saveHotkeys = useCallback(async (silent = false) => {
     setLoading('hotkeys', true);
@@ -930,6 +950,21 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
 
         {/* ═══════════ 4. 系统设置 ═══════════ */}
         <Section title="系统设置" icon={Monitor}>
+          <SettingRow
+            icon={<Monitor className="h-4 w-4" />}
+            title="界面主题"
+            description="默认跟随系统，也可手动固定浅色或深色主题"
+          >
+            <div className="w-36">
+              <Select
+                value={((config as any).themeMode || 'system') as string}
+                onChange={(v: string | number) => handleThemeModeChange(String(v))}
+                options={themeModeOptions}
+                size="sm"
+              />
+            </div>
+          </SettingRow>
+
           <div className="px-5 py-4">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>

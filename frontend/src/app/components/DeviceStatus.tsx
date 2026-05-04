@@ -66,6 +66,20 @@ const AnimatedTemperatureValue = memo(function AnimatedTemperatureValue({ temp, 
   );
 });
 
+const AnimatedRpmValue = memo(function AnimatedRpmValue({ rpm }: { rpm: number | undefined }) {
+  if (rpm === undefined) {
+    return <span className="text-2xl font-bold tabular-nums text-primary">--</span>;
+  }
+
+  return (
+    <NumberFlow
+      value={rpm}
+      format={{ maximumFractionDigits: 0 }}
+      className="text-2xl font-bold tabular-nums text-primary"
+    />
+  );
+});
+
 /* ── Memo sub-components to avoid parent re-renders ── */
 
 const CpuTempDisplay = memo(function CpuTempDisplay({ temp }: { temp: number | undefined }) {
@@ -122,7 +136,7 @@ const FanRpmDisplay = memo(function FanRpmDisplay({
   return (
     <div className="flex flex-col items-center">
       <div className="flex items-baseline gap-0.5">
-        <span className="text-2xl font-bold tabular-nums text-primary">{currentRpm ?? '--'}</span>
+        <AnimatedRpmValue rpm={currentRpm} />
         <span className="text-xs text-muted-foreground">RPM</span>
       </div>
       <span className="mt-1 text-[11px] text-muted-foreground">

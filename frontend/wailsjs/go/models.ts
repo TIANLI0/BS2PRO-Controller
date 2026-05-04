@@ -166,6 +166,7 @@ export namespace types {
 	    gearLight: boolean;
 	    powerOnStart: boolean;
 	    windowsAutoStart: boolean;
+	    themeMode: string;
 	    smartStartStop: string;
 	    brightness: number;
 	    tempUpdateRate: number;
@@ -198,6 +199,7 @@ export namespace types {
 	        this.gearLight = source["gearLight"];
 	        this.powerOnStart = source["powerOnStart"];
 	        this.windowsAutoStart = source["windowsAutoStart"];
+	        this.themeMode = source["themeMode"];
 	        this.smartStartStop = source["smartStartStop"];
 	        this.brightness = source["brightness"];
 	        this.tempUpdateRate = source["tempUpdateRate"];

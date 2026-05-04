@@ -915,6 +915,7 @@ func (a *CoreApp) UpdateConfig(cfg types.AppConfig) error {
 	}
 	cfg.ManualGearLevels = cloneManualGearLevels(oldCfg.ManualGearLevels)
 	cfg.LightStrip, _ = normalizeLightStripConfig(cfg.LightStrip)
+	cfg.ThemeMode = types.NormalizeThemeMode(cfg.ThemeMode)
 	normalizeCurveProfilesConfig(&cfg)
 	if idx := findCurveProfileIndex(cfg.FanCurveProfiles, cfg.ActiveFanCurveProfileID); idx >= 0 {
 		cfg.FanCurveProfiles[idx].Curve = cloneFanCurve(cfg.FanCurve)
