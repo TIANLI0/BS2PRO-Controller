@@ -99,13 +99,8 @@ function getRequiredColorCount(mode: string): number {
   }
 }
 
-const DEFAULT_MANUAL_HOTKEY = 'Ctrl+Alt+Shift+M';
-const DEFAULT_AUTO_HOTKEY = 'Ctrl+Alt+Shift+A';
-const DEFAULT_CURVE_PROFILE_HOTKEY = 'Ctrl+Alt+Shift+C';
-
-function normalizeHotkeyForDisplay(value: string, fallback: string): string {
-  const trimmed = (value || '').trim();
-  return trimmed || fallback;
+function normalizeHotkeyForDisplay(value: string): string {
+  return (value || '').trim();
 }
 
 function buildShortcutFromKeyboardEvent(e: {
@@ -284,13 +279,13 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
   const [releaseError, setReleaseError] = useState('');
   const [lightStripConfig, setLightStripConfig] = useState<types.LightStripConfig>(() => normalizeLightStripConfig(config));
   const [manualHotkeyInput, setManualHotkeyInput] = useState(
-    normalizeHotkeyForDisplay((config as any).manualGearToggleHotkey, DEFAULT_MANUAL_HOTKEY)
+    normalizeHotkeyForDisplay((config as any).manualGearToggleHotkey)
   );
   const [autoHotkeyInput, setAutoHotkeyInput] = useState(
-    normalizeHotkeyForDisplay((config as any).autoControlToggleHotkey, DEFAULT_AUTO_HOTKEY)
+    normalizeHotkeyForDisplay((config as any).autoControlToggleHotkey)
   );
   const [curveProfileHotkeyInput, setCurveProfileHotkeyInput] = useState(
-    normalizeHotkeyForDisplay((config as any).curveProfileToggleHotkey, DEFAULT_CURVE_PROFILE_HOTKEY)
+    normalizeHotkeyForDisplay((config as any).curveProfileToggleHotkey)
   );
   const [recordingTarget, setRecordingTarget] = useState<'manual' | 'auto' | 'curve' | null>(null);
   const [curveProfiles, setCurveProfiles] = useState<CurveProfile[]>([]);
@@ -445,6 +440,24 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
     } catch { /* noop */ }
   }, [config, onConfigChange]);
 
+  const handleTransientSpikeFilterChange = useCallback(async (enabled: boolean) => {
+    setLoading('transientSpikeFilter', true);
+    try {
+      const nextSmartControl = types.SmartControlConfig.createFrom({
+        ...(config.smartControl || {}),
+        filterTransientSpike: enabled,
+      });
+      const newCfg = types.AppConfig.createFrom({
+        ...config,
+        smartControl: nextSmartControl,
+      });
+      await apiService.updateConfig(newCfg);
+      onConfigChange(newCfg);
+    } catch { /* noop */ } finally {
+      setLoading('transientSpikeFilter', false);
+    }
+  }, [config, onConfigChange]);
+
   const loadCurveProfiles = useCallback(async () => {
     try {
       const payload = await apiService.getFanCurveProfiles();
@@ -477,9 +490,9 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
   useEffect(() => { loadCurveProfiles(); }, [loadCurveProfiles]);
   useEffect(() => { setLightStripConfig(normalizeLightStripConfig(config)); }, [config]);
   useEffect(() => {
-    setManualHotkeyInput(normalizeHotkeyForDisplay((config as any).manualGearToggleHotkey, DEFAULT_MANUAL_HOTKEY));
-    setAutoHotkeyInput(normalizeHotkeyForDisplay((config as any).autoControlToggleHotkey, DEFAULT_AUTO_HOTKEY));
-    setCurveProfileHotkeyInput(normalizeHotkeyForDisplay((config as any).curveProfileToggleHotkey, DEFAULT_CURVE_PROFILE_HOTKEY));
+    setManualHotkeyInput(normalizeHotkeyForDisplay((config as any).manualGearToggleHotkey));
+    setAutoHotkeyInput(normalizeHotkeyForDisplay((config as any).autoControlToggleHotkey));
+    setCurveProfileHotkeyInput(normalizeHotkeyForDisplay((config as any).curveProfileToggleHotkey));
   }, [(config as any).manualGearToggleHotkey, (config as any).autoControlToggleHotkey, (config as any).curveProfileToggleHotkey]);
 
   /* ── Options data ── */
@@ -548,12 +561,13 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
   const saveHotkeys = useCallback(async (silent = false) => {
     setLoading('hotkeys', true);
     try {
-      const manualValue = normalizeHotkeyForDisplay(manualHotkeyInput, DEFAULT_MANUAL_HOTKEY);
-      const autoValue = normalizeHotkeyForDisplay(autoHotkeyInput, DEFAULT_AUTO_HOTKEY);
-      const curveValue = normalizeHotkeyForDisplay(curveProfileHotkeyInput, DEFAULT_CURVE_PROFILE_HOTKEY);
+      const manualValue = normalizeHotkeyForDisplay(manualHotkeyInput);
+      const autoValue = normalizeHotkeyForDisplay(autoHotkeyInput);
+      const curveValue = normalizeHotkeyForDisplay(curveProfileHotkeyInput);
 
-      const uniq = new Set([manualValue, autoValue, curveValue]);
-      if (uniq.size !== 3) {
+      const nonEmptyValues = [manualValue, autoValue, curveValue].filter((value) => value !== '');
+      const uniq = new Set(nonEmptyValues);
+      if (uniq.size !== nonEmptyValues.length) {
         if (!silent) toast.error('三个快捷键不能设置为同一个组合');
         return false;
       }
@@ -779,6 +793,21 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
           </AnimatePresence>
 
           <SettingRow
+            icon={<TriangleAlert className={clsx('h-4 w-4', (config.smartControl as any)?.filterTransientSpike !== false ? 'text-blue-500' : 'text-muted-foreground')} />}
+            title="温度尖峰过滤"
+            description="忽略单次异常跳温，避免孤立跳点干扰智能温控采样和响应。"
+          >
+            <ToggleSwitch
+              enabled={(config.smartControl as any)?.filterTransientSpike !== false}
+              onChange={handleTransientSpikeFilterChange}
+              loading={loadingStates.transientSpikeFilter}
+              size="sm"
+              color="blue"
+              srLabel="切换温度尖峰过滤"
+            />
+          </SettingRow>
+
+          <SettingRow
             icon={<Spline className="h-4 w-4" />}
             title="曲线方案"
             description="在设置页直接切换风扇温控曲线，避免来回切页。"
@@ -906,7 +935,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
               <div>
                 <div className="text-base font-medium text-foreground">全局快捷键</div>
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                  点击右侧输入框后直接按组合键，失焦自动保存，按 Backspace/Delete 或清除按钮恢复默认值。
+                  点击右侧输入框后直接按组合键，失焦自动保存；按 Backspace/Delete 或清除按钮可留空禁用该快捷键。
                 </p>
               </div>
             </div>
@@ -916,7 +945,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
                 title="切换手动挡位"
                 description="在静音、标准、强劲、超频之间轮换，并保留各自的小挡位记忆。"
                 value={manualHotkeyInput}
-                placeholder="点击后按下组合键"
+                placeholder="留空为不设置"
                 recording={recordingTarget === 'manual'}
                 onFocus={() => setRecordingTarget('manual')}
                 onBlur={handleHotkeyInputBlur}
@@ -930,7 +959,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
                 title="开关智能变频"
                 description="快速切换智能控温状态，适合游戏或安静场景之间来回切换。"
                 value={autoHotkeyInput}
-                placeholder="点击后按下组合键"
+                placeholder="留空为不设置"
                 recording={recordingTarget === 'auto'}
                 onFocus={() => setRecordingTarget('auto')}
                 onBlur={handleHotkeyInputBlur}
@@ -944,7 +973,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
                 title="切换温控曲线"
                 description="快速轮换曲线方案，适合办公/游戏/夜间场景一键切换。"
                 value={curveProfileHotkeyInput}
-                placeholder="点击后按下组合键"
+                placeholder="留空为不设置"
                 recording={recordingTarget === 'curve'}
                 onFocus={() => setRecordingTarget('curve')}
                 onBlur={handleHotkeyInputBlur}

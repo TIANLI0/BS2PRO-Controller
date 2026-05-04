@@ -1,5 +1,6 @@
 'use client';
 
+import NumberFlow from '@number-flow/react';
 import { memo, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
@@ -51,6 +52,20 @@ const getFanSpinDuration = (rpm?: number) => {
   return 1.35;
 };
 
+const AnimatedTemperatureValue = memo(function AnimatedTemperatureValue({ temp, colorClass }: { temp: number | undefined; colorClass: string }) {
+  if (temp === undefined) {
+    return <span className={clsx('text-2xl font-bold tabular-nums', colorClass)}>--</span>;
+  }
+
+  return (
+    <NumberFlow
+      value={temp}
+      format={{ maximumFractionDigits: 0 }}
+      className={clsx('text-2xl font-bold tabular-nums', colorClass)}
+    />
+  );
+});
+
 /* ── Memo sub-components to avoid parent re-renders ── */
 
 const CpuTempDisplay = memo(function CpuTempDisplay({ temp }: { temp: number | undefined }) {
@@ -58,9 +73,7 @@ const CpuTempDisplay = memo(function CpuTempDisplay({ temp }: { temp: number | u
   return (
     <div className="flex flex-col items-center">
       <div className="flex items-baseline gap-0.5">
-        <span className={clsx('text-2xl font-bold tabular-nums', status.color)}>
-          {temp ?? '--'}
-        </span>
+        <AnimatedTemperatureValue temp={temp} colorClass={status.color} />
         <span className="text-xs text-muted-foreground">°C</span>
       </div>
       <span className="mt-1 text-[11px] text-muted-foreground">{status.label}</span>
@@ -79,9 +92,7 @@ const GpuTempDisplay = memo(function GpuTempDisplay({ temp }: { temp: number | u
   return (
     <div className="flex flex-col items-center">
       <div className="flex items-baseline gap-0.5">
-        <span className={clsx('text-2xl font-bold tabular-nums', status.color)}>
-          {temp ?? '--'}
-        </span>
+        <AnimatedTemperatureValue temp={temp} colorClass={status.color} />
         <span className="text-xs text-muted-foreground">°C</span>
       </div>
       <span className="mt-1 text-[11px] text-muted-foreground">{status.label}</span>

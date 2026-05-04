@@ -75,14 +75,62 @@ func (m *Manager) tryLoadFromPath(configPath string) bool {
 		return false
 	}
 
+	var rawConfig map[string]json.RawMessage
+	if err := json.Unmarshal(data, &rawConfig); err != nil {
+		m.logError("解析配置文件元数据失败 %s: %v", configPath, err)
+		return false
+	}
+
 	var config types.AppConfig
 	if err := json.Unmarshal(data, &config); err != nil {
 		m.logError("解析配置文件失败 %s: %v", configPath, err)
 		return false
 	}
 
+	applyMissingHotkeyDefaults(&config, rawConfig)
+	applyMissingSmartControlDefaults(&config, rawConfig)
+
 	m.config = config
 	return true
+}
+
+func applyMissingHotkeyDefaults(cfg *types.AppConfig, rawConfig map[string]json.RawMessage) {
+	if cfg == nil {
+		return
+	}
+
+	defaults := types.GetDefaultConfig(false)
+	if _, ok := rawConfig["manualGearToggleHotkey"]; !ok {
+		cfg.ManualGearToggleHotkey = defaults.ManualGearToggleHotkey
+	}
+	if _, ok := rawConfig["autoControlToggleHotkey"]; !ok {
+		cfg.AutoControlToggleHotkey = defaults.AutoControlToggleHotkey
+	}
+	if _, ok := rawConfig["curveProfileToggleHotkey"]; !ok {
+		cfg.CurveProfileToggleHotkey = defaults.CurveProfileToggleHotkey
+	}
+}
+
+func applyMissingSmartControlDefaults(cfg *types.AppConfig, rawConfig map[string]json.RawMessage) {
+	if cfg == nil {
+		return
+	}
+
+	defaults := types.GetDefaultSmartControlConfig(cfg.FanCurve)
+	rawSmartControl, ok := rawConfig["smartControl"]
+	if !ok {
+		cfg.SmartControl.FilterTransientSpike = defaults.FilterTransientSpike
+		return
+	}
+
+	var smartControlConfig map[string]json.RawMessage
+	if err := json.Unmarshal(rawSmartControl, &smartControlConfig); err != nil {
+		return
+	}
+
+	if _, ok := smartControlConfig["filterTransientSpike"]; !ok {
+		cfg.SmartControl.FilterTransientSpike = defaults.FilterTransientSpike
+	}
 }
 
 // Save 保存配置
@@ -211,15 +259,21 @@ func ValidateFanCurve(curve []types.FanCurvePoint) error {
 		return fmt.Errorf("风扇曲线至少需要2个点")
 	}
 
+	for i, point := range curve {
+		if point.Temperature > types.FanCurveMaxTemperature {
+			return fmt.Errorf("风扇曲线第%d个点温度超出范围(最高%d°C)", i+1, types.FanCurveMaxTemperature)
+		}
+		if point.RPM < 0 || point.RPM > 4000 {
+			return fmt.Errorf("风扇曲线第%d个点RPM超出范围(0-4000)", i+1)
+		}
+	}
+
 	for i := 1; i < len(curve); i++ {
 		if curve[i].Temperature <= curve[i-1].Temperature {
 			return fmt.Errorf("风扇曲线温度点必须递增")
 		}
-	}
-
-	for i, point := range curve {
-		if point.RPM < 0 || point.RPM > 4000 {
-			return fmt.Errorf("风扇曲线第%d个点RPM超出范围(0-4000)", i+1)
+		if curve[i].RPM < curve[i-1].RPM {
+			return fmt.Errorf("风扇曲线转速点必须从左到右非递减")
 		}
 	}
 

@@ -26,8 +26,64 @@ import { ToggleSwitch, Button, Badge, Slider } from './ui/index';
 import clsx from 'clsx';
 
 const LOW_RPM_WARNING_DATE_KEY = 'fanCurveLowRpmWarningDate';
+const FAN_CURVE_MIN_TEMP = 30;
+const FAN_CURVE_MAX_TEMP = 110;
+const FAN_CURVE_TEMP_STEP = 5;
+const DEFAULT_CURVE_LENGTH = ((FAN_CURVE_MAX_TEMP - FAN_CURVE_MIN_TEMP) / FAN_CURVE_TEMP_STEP) + 1;
 type LearningProfile = 'quiet' | 'balanced' | 'performance';
 type CurveProfile = { id: string; name: string; curve: types.FanCurvePoint[] };
+
+function syncCurveRpmAtIndex(
+  curve: types.FanCurvePoint[],
+  index: number,
+  targetRpm: number,
+  minRpm: number,
+  maxRpm: number,
+) {
+  const currentPoint = curve[index];
+  if (!currentPoint) {
+    return { curve, changed: false, hasLowRpmPoint: false };
+  }
+
+  const normalizedRpm = Math.max(minRpm, Math.min(maxRpm, Math.round(targetRpm / 50) * 50));
+  const nextCurve = [...curve];
+  let changed = false;
+
+  if (currentPoint.rpm !== normalizedRpm) {
+    nextCurve[index] = { ...currentPoint, rpm: normalizedRpm };
+    changed = true;
+  }
+
+  for (let left = index - 1; left >= 0; left -= 1) {
+    if (nextCurve[left].rpm <= nextCurve[left + 1].rpm) {
+      break;
+    }
+
+    nextCurve[left] = {
+      ...nextCurve[left],
+      rpm: nextCurve[left + 1].rpm,
+    };
+    changed = true;
+  }
+
+  for (let right = index + 1; right < nextCurve.length; right += 1) {
+    if (nextCurve[right].rpm >= nextCurve[right - 1].rpm) {
+      break;
+    }
+
+    nextCurve[right] = {
+      ...nextCurve[right],
+      rpm: nextCurve[right - 1].rpm,
+    };
+    changed = true;
+  }
+
+  return {
+    curve: nextCurve,
+    changed,
+    hasLowRpmPoint: nextCurve.some((point) => point.rpm < 1000),
+  };
+}
 
 interface FanCurveProps {
   config: types.AppConfig;
@@ -165,7 +221,11 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
     return true;
   }, []);
 
-  const temperatureRange = useMemo(() => ({ min: 30, max: 95, ticks: Array.from({ length: 14 }, (_, i) => 30 + i * 5) }), []);
+  const temperatureRange = useMemo(() => ({
+    min: FAN_CURVE_MIN_TEMP,
+    max: FAN_CURVE_MAX_TEMP,
+    ticks: Array.from({ length: DEFAULT_CURVE_LENGTH }, (_, i) => FAN_CURVE_MIN_TEMP + i * FAN_CURVE_TEMP_STEP),
+  }), []);
 
   const syncConfigFromBackend = useCallback(async () => {
     try {
@@ -212,7 +272,7 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
   /* ── Smart control state ── */
 
   const smartControl = useMemo(() => {
-    const curveLength = config.fanCurve?.length || localCurve.length || 14;
+    const curveLength = config.fanCurve?.length || localCurve.length || DEFAULT_CURVE_LENGTH;
     const defaultOffsets = Array.from({ length: curveLength }, () => 0);
     const defaultRateOffsets = Array.from({ length: 7 }, () => 0);
     const existing = config.smartControl;
@@ -220,12 +280,13 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
     const normalizeRateOffsets = (source?: number[]) => Array.isArray(source) ? [...source.slice(0, 7), ...defaultRateOffsets].slice(0, 7) : defaultRateOffsets;
 
     if (!existing) {
-      return { enabled: true, learning: config.debugMode, targetTemp: 68, aggressiveness: 5, hysteresis: 2, minRpmChange: 50, rampUpLimit: 220, rampDownLimit: 160, learnRate: 4, learnWindow: 6, learnDelay: 2, overheatWeight: 8, rpmDeltaWeight: 5, noiseWeight: 4, trendGain: 5, maxLearnOffset: 600, learnedOffsets: defaultOffsets, learnedOffsetsHeat: defaultOffsets, learnedOffsetsCool: defaultOffsets, learnedRateHeat: defaultRateOffsets, learnedRateCool: defaultRateOffsets };
+      return { enabled: true, learning: config.debugMode, filterTransientSpike: true, targetTemp: 68, aggressiveness: 5, hysteresis: 2, minRpmChange: 50, rampUpLimit: 220, rampDownLimit: 160, learnRate: 4, learnWindow: 6, learnDelay: 2, overheatWeight: 8, rpmDeltaWeight: 5, noiseWeight: 4, trendGain: 5, maxLearnOffset: 600, learnedOffsets: defaultOffsets, learnedOffsetsHeat: defaultOffsets, learnedOffsetsCool: defaultOffsets, learnedRateHeat: defaultRateOffsets, learnedRateCool: defaultRateOffsets };
     }
 
     return {
       ...existing,
       learning: config.debugMode,
+      filterTransientSpike: existing.filterTransientSpike ?? true,
       hysteresis: Math.max(1, existing.hysteresis ?? 2),
       learnWindow: existing.learnWindow ?? 6, learnDelay: existing.learnDelay ?? 2,
       overheatWeight: existing.overheatWeight ?? 8, rpmDeltaWeight: existing.rpmDeltaWeight ?? 5,
@@ -335,15 +396,29 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
   /* ── Point update + drag ── */
 
   const updatePoint = useCallback((index: number, newRpm: number) => {
-    const clampedRpm = Math.max(rpmRange.min, Math.min(rpmRange.max, Math.round(newRpm / 50) * 50));
-    if (clampedRpm < 1000 && !lowRpmWarnedInDragRef.current) {
-      lowRpmWarnedInDragRef.current = true;
-      if (shouldShowLowRpmWarningToday()) {
-        setShowLowRpmWarning(true);
+    let didChange = false;
+
+    setLocalCurve((prev) => {
+      const nextState = syncCurveRpmAtIndex(prev, index, newRpm, rpmRange.min, rpmRange.max);
+
+      if (nextState.hasLowRpmPoint && !lowRpmWarnedInDragRef.current) {
+        lowRpmWarnedInDragRef.current = true;
+        if (shouldShowLowRpmWarningToday()) {
+          setShowLowRpmWarning(true);
+        }
       }
+
+      if (!nextState.changed) {
+        return prev;
+      }
+
+      didChange = true;
+      return nextState.curve;
+    });
+
+    if (didChange) {
+      setHasUnsavedChanges(true);
     }
-    setLocalCurve((prev) => { if (prev[index]?.rpm === clampedRpm) return prev; const c = [...prev]; c[index] = { ...c[index], rpm: clampedRpm }; return c; });
-    setHasUnsavedChanges(true);
   }, [rpmRange, shouldShowLowRpmWarningToday]);
 
   const handleDragStart = useCallback((index: number) => {
@@ -546,6 +621,7 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
       { temperature: 65, rpm: Math.min(2600, rpmRange.max) }, { temperature: 70, rpm: Math.min(2900, rpmRange.max) },
       { temperature: 75, rpm: Math.min(3200, rpmRange.max) }, { temperature: 80, rpm: Math.min(3500, rpmRange.max) },
       { temperature: 85, rpm: Math.min(3800, rpmRange.max) }, { temperature: 90, rpm: rpmRange.max }, { temperature: 95, rpm: rpmRange.max },
+      { temperature: 100, rpm: rpmRange.max }, { temperature: 105, rpm: rpmRange.max }, { temperature: 110, rpm: rpmRange.max },
     ];
     setLocalCurve(d);
     setHasUnsavedChanges(true);

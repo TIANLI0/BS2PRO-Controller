@@ -119,6 +119,38 @@ func medianOfThree(a, b, c int) int {
 	return b
 }
 
+// FilterTransientSample 在进入移动平均前抑制最近稳定区间中的单点温度跳变。
+func FilterTransientSample(currentTemp int, recentTemps []int, hysteresis int) (int, bool) {
+	if len(recentTemps) < 3 {
+		return currentTemp, false
+	}
+
+	last3 := recentTemps[len(recentTemps)-3:]
+	baseline := medianOfThree(last3[0], last3[1], last3[2])
+	minRecent := last3[0]
+	maxRecent := last3[0]
+	for _, temp := range last3[1:] {
+		if temp < minRecent {
+			minRecent = temp
+		}
+		if temp > maxRecent {
+			maxRecent = temp
+		}
+	}
+
+	stableBand := max(2, hysteresis+1)
+	if maxRecent-minRecent > stableBand {
+		return currentTemp, false
+	}
+
+	spikeBand := max(5, hysteresis+4)
+	if absInt(currentTemp-baseline) >= spikeBand {
+		return baseline, true
+	}
+
+	return currentTemp, false
+}
+
 // FilterTransientSpike 在控制环节抑制 1 个采样点的短时温度尖峰。
 func FilterTransientSpike(currentTemp int, recentTemps []int, targetTemp, hysteresis int) (int, bool) {
 	if len(recentTemps) < 3 {

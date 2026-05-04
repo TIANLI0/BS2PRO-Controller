@@ -34,6 +34,32 @@ func cloneFanCurve(curve []types.FanCurvePoint) []types.FanCurvePoint {
 	return out
 }
 
+func extendCurveRightEdge(curve []types.FanCurvePoint) ([]types.FanCurvePoint, bool) {
+	if len(curve) == 0 {
+		return nil, false
+	}
+
+	defaultCurve := types.GetDefaultFanCurve()
+	defaultMaxTemp := defaultCurve[len(defaultCurve)-1].Temperature
+	lastPoint := curve[len(curve)-1]
+	if lastPoint.Temperature >= defaultMaxTemp {
+		return curve, false
+	}
+
+	extended := cloneFanCurve(curve)
+	for _, point := range defaultCurve {
+		if point.Temperature <= lastPoint.Temperature {
+			continue
+		}
+		extended = append(extended, types.FanCurvePoint{
+			Temperature: point.Temperature,
+			RPM:         lastPoint.RPM,
+		})
+	}
+
+	return extended, len(extended) != len(curve)
+}
+
 func cloneFanCurveProfiles(profiles []types.FanCurveProfile) []types.FanCurveProfile {
 	if len(profiles) == 0 {
 		return nil
@@ -92,6 +118,10 @@ func normalizeCurveProfilesConfig(cfg *types.AppConfig) bool {
 		baseCurve = types.GetDefaultFanCurve()
 		changed = true
 	}
+	if extendedCurve, extended := extendCurveRightEdge(baseCurve); extended {
+		baseCurve = extendedCurve
+		changed = true
+	}
 
 	if len(cfg.FanCurveProfiles) == 0 {
 		cfg.FanCurveProfiles = []types.FanCurveProfile{{
@@ -116,6 +146,11 @@ func normalizeCurveProfilesConfig(cfg *types.AppConfig) bool {
 		name := normalizeCurveProfileName(profile.Name, fallbackName)
 		if name != profile.Name {
 			profile.Name = name
+			changed = true
+		}
+
+		if extendedCurve, extended := extendCurveRightEdge(profile.Curve); extended {
+			profile.Curve = extendedCurve
 			changed = true
 		}
 

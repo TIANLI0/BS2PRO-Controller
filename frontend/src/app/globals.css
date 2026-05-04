@@ -175,9 +175,10 @@ textarea,
 }
 
 .app-scroll-root {
-  height: 100dvh;
+  height: 100%;
   overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .app-scroll-root--hide-native {
@@ -192,22 +193,24 @@ textarea,
 
 .overlay-scroll-shell {
   position: relative;
-  height: 100dvh;
+  height: 100%;
 }
 
 .app-overlay-scrollbar {
-  position: fixed;
-  top: 8px;
+  position: absolute;
+  top: 6px;
   right: 4px;
-  bottom: 8px;
-  width: 6px;
+  bottom: 6px;
+  width: 8px;
+  padding: 0 1px;
   opacity: 0;
-  pointer-events: auto;
+  pointer-events: none;
   z-index: 70;
   transition: opacity 0.2s ease;
 }
 
 .app-overlay-scrollbar.is-visible {
+  pointer-events: auto;
   opacity: 1;
 }
 

@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	goruntime "runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -15,7 +16,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/windows"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
+	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 	"go.uber.org/zap"
 )
 
@@ -37,15 +38,15 @@ func onSecondInstanceLaunch(secondInstanceData options.SecondInstanceData) {
 	println("工作目录:", secondInstanceData.WorkingDirectory)
 
 	if wailsContext != nil {
-		runtime.WindowUnminimise(*wailsContext)
-		runtime.WindowShow(*wailsContext)
-		runtime.WindowSetAlwaysOnTop(*wailsContext, true)
+		wailsruntime.WindowUnminimise(*wailsContext)
+		wailsruntime.WindowShow(*wailsContext)
+		wailsruntime.WindowSetAlwaysOnTop(*wailsContext, true)
 		go func() {
 			time.Sleep(1 * time.Second)
-			runtime.WindowSetAlwaysOnTop(*wailsContext, false)
+			wailsruntime.WindowSetAlwaysOnTop(*wailsContext, false)
 		}()
 
-		runtime.EventsEmit(*wailsContext, "secondInstanceLaunch", secondInstanceData.Args)
+		wailsruntime.EventsEmit(*wailsContext, "secondInstanceLaunch", secondInstanceData.Args)
 	}
 }
 
@@ -135,6 +136,7 @@ func main() {
 		Title:            "BS2PRO Controller",
 		Width:            1024,
 		Height:           768,
+		Frameless:        goruntime.GOOS == "windows",
 		WindowStartState: windowStartState,
 		AssetServer: &assetserver.Options{
 			Assets: assets,

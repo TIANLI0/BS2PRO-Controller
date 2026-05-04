@@ -150,13 +150,6 @@ func (a *CoreApp) Start() error {
 			a.logError("保存灯带默认配置失败: %v", err)
 		}
 	}
-	if normalizedSmart, changed := smartcontrol.NormalizeConfig(cfg.SmartControl, cfg.FanCurve, cfg.DebugMode); changed {
-		cfg.SmartControl = normalizedSmart
-		a.configManager.Set(cfg)
-		if err := a.configManager.Save(); err != nil {
-			a.logError("保存智能控温默认配置失败: %v", err)
-		}
-	}
 	if normalizeHotkeyConfig(&cfg) {
 		a.configManager.Set(cfg)
 		if err := a.configManager.Save(); err != nil {
@@ -167,6 +160,13 @@ func (a *CoreApp) Start() error {
 		a.configManager.Set(cfg)
 		if err := a.configManager.Save(); err != nil {
 			a.logError("保存温控曲线方案默认配置失败: %v", err)
+		}
+	}
+	if normalizedSmart, changed := smartcontrol.NormalizeConfig(cfg.SmartControl, cfg.FanCurve, cfg.DebugMode); changed {
+		cfg.SmartControl = normalizedSmart
+		a.configManager.Set(cfg)
+		if err := a.configManager.Save(); err != nil {
+			a.logError("保存智能控温默认配置失败: %v", err)
 		}
 	}
 	if normalizeManualGearMemoryConfig(&cfg) {
@@ -909,9 +909,6 @@ func (a *CoreApp) UpdateConfig(cfg types.AppConfig) error {
 	defer a.mutex.Unlock()
 
 	oldCfg := a.configManager.Get()
-	if cfg.CurveProfileToggleHotkey == "" {
-		cfg.CurveProfileToggleHotkey = oldCfg.CurveProfileToggleHotkey
-	}
 	if len(cfg.FanCurveProfiles) == 0 && len(oldCfg.FanCurveProfiles) > 0 {
 		cfg.FanCurveProfiles = cloneFanCurveProfiles(oldCfg.FanCurveProfiles)
 		cfg.ActiveFanCurveProfileID = oldCfg.ActiveFanCurveProfileID
@@ -939,6 +936,10 @@ func (a *CoreApp) UpdateConfig(cfg types.AppConfig) error {
 func (a *CoreApp) SetFanCurve(curve []types.FanCurvePoint) error {
 	a.mutex.Lock()
 	defer a.mutex.Unlock()
+
+	if err := config.ValidateFanCurve(curve); err != nil {
+		return err
+	}
 
 	cfg := a.configManager.Get()
 	normalizeCurveProfilesConfig(&cfg)
@@ -1192,30 +1193,23 @@ func normalizeHotkeyConfig(cfg *types.AppConfig) bool {
 	}
 
 	changed := false
-	if cfg.ManualGearToggleHotkey == "" {
-		cfg.ManualGearToggleHotkey = types.GetDefaultConfig(false).ManualGearToggleHotkey
-		changed = true
+	if cfg.ManualGearToggleHotkey != "" {
+		if _, _, err := hotkeysvc.ParseShortcut(cfg.ManualGearToggleHotkey); err != nil {
+			cfg.ManualGearToggleHotkey = types.GetDefaultConfig(false).ManualGearToggleHotkey
+			changed = true
+		}
 	}
-	if cfg.AutoControlToggleHotkey == "" {
-		cfg.AutoControlToggleHotkey = types.GetDefaultConfig(false).AutoControlToggleHotkey
-		changed = true
+	if cfg.AutoControlToggleHotkey != "" {
+		if _, _, err := hotkeysvc.ParseShortcut(cfg.AutoControlToggleHotkey); err != nil {
+			cfg.AutoControlToggleHotkey = types.GetDefaultConfig(false).AutoControlToggleHotkey
+			changed = true
+		}
 	}
-	if cfg.CurveProfileToggleHotkey == "" {
-		cfg.CurveProfileToggleHotkey = types.GetDefaultConfig(false).CurveProfileToggleHotkey
-		changed = true
-	}
-
-	if _, _, err := hotkeysvc.ParseShortcut(cfg.ManualGearToggleHotkey); err != nil {
-		cfg.ManualGearToggleHotkey = types.GetDefaultConfig(false).ManualGearToggleHotkey
-		changed = true
-	}
-	if _, _, err := hotkeysvc.ParseShortcut(cfg.AutoControlToggleHotkey); err != nil {
-		cfg.AutoControlToggleHotkey = types.GetDefaultConfig(false).AutoControlToggleHotkey
-		changed = true
-	}
-	if _, _, err := hotkeysvc.ParseShortcut(cfg.CurveProfileToggleHotkey); err != nil {
-		cfg.CurveProfileToggleHotkey = types.GetDefaultConfig(false).CurveProfileToggleHotkey
-		changed = true
+	if cfg.CurveProfileToggleHotkey != "" {
+		if _, _, err := hotkeysvc.ParseShortcut(cfg.CurveProfileToggleHotkey); err != nil {
+			cfg.CurveProfileToggleHotkey = types.GetDefaultConfig(false).CurveProfileToggleHotkey
+			changed = true
+		}
 	}
 
 	return changed
@@ -1572,9 +1566,13 @@ func (a *CoreApp) startTemperatureMonitoring() {
 	// 温度采样缓冲区
 	sampleCount := max(cfg.TempSampleCount, 1)
 	tempSamples := make([]int, 0, sampleCount)
+	rawTempHistory := make([]int, 0, 6)
 	recentAvgTemps := make([]int, 0, 24)
 	recentControlTemps := make([]int, 0, 24)
 	initialTemp := a.tempReader.Read()
+	if initialTemp.MaxTemp > 0 {
+		rawTempHistory = append(rawTempHistory, initialTemp.MaxTemp)
+	}
 	lastControlTemp := initialTemp.MaxTemp
 	lastTargetRPM := -1
 	learningDirty := false
@@ -1615,8 +1613,18 @@ func (a *CoreApp) startTemperatureMonitoring() {
 					tempSamples = make([]int, 0, sampleCount)
 				}
 
-				// 添加新采样
-				tempSamples = append(tempSamples, temp.MaxTemp)
+				sampleTemp := temp.MaxTemp
+				sampleSpikeSuppressed := false
+				if smartCfg.FilterTransientSpike {
+					sampleTemp, sampleSpikeSuppressed = smartcontrol.FilterTransientSample(temp.MaxTemp, rawTempHistory, smartCfg.Hysteresis)
+				}
+				rawTempHistory = append(rawTempHistory, temp.MaxTemp)
+				if len(rawTempHistory) > 6 {
+					rawTempHistory = rawTempHistory[len(rawTempHistory)-6:]
+				}
+
+				// 添加新采样。孤立跳点会先被替换为最近稳定基线，避免污染采样窗口。
+				tempSamples = append(tempSamples, sampleTemp)
 				if len(tempSamples) > sampleCount {
 					tempSamples = tempSamples[len(tempSamples)-sampleCount:]
 				}
@@ -1634,7 +1642,12 @@ func (a *CoreApp) startTemperatureMonitoring() {
 					recentAvgTemps = recentAvgTemps[len(recentAvgTemps)-maxHistory:]
 				}
 
-				controlTemp, spikeSuppressed := smartcontrol.FilterTransientSpike(avgTemp, recentAvgTemps, smartCfg.TargetTemp, smartCfg.Hysteresis)
+				controlTemp := avgTemp
+				controlSpikeSuppressed := false
+				if smartCfg.FilterTransientSpike {
+					controlTemp, controlSpikeSuppressed = smartcontrol.FilterTransientSpike(avgTemp, recentAvgTemps, smartCfg.TargetTemp, smartCfg.Hysteresis)
+				}
+				spikeSuppressed := sampleSpikeSuppressed || controlSpikeSuppressed
 				recentControlTemps = append(recentControlTemps, controlTemp)
 				if len(recentControlTemps) > maxHistory {
 					recentControlTemps = recentControlTemps[len(recentControlTemps)-maxHistory:]

@@ -64,6 +64,7 @@ export interface AppConfig {
 export interface SmartControlConfig {
   enabled: boolean;
   learning: boolean;
+  filterTransientSpike: boolean;
   targetTemp: number;
   aggressiveness: number;
   hysteresis: number;

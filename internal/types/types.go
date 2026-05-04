@@ -7,6 +7,10 @@ type FanCurvePoint struct {
 	RPM         int `json:"rpm"`         // 转速 RPM
 }
 
+const (
+	FanCurveMaxTemperature = 110
+)
+
 // FanCurveProfile 温控曲线方案
 type FanCurveProfile struct {
 	ID    string          `json:"id"`
@@ -93,27 +97,28 @@ type LightStripConfig struct {
 
 // SmartControlConfig 智能控温配置
 type SmartControlConfig struct {
-	Enabled            bool  `json:"enabled"`            // 智能耦合控制开关
-	Learning           bool  `json:"learning"`           // 学习开关
-	TargetTemp         int   `json:"targetTemp"`         // 目标温度(°C)
-	Aggressiveness     int   `json:"aggressiveness"`     // 响应激进度(1-10)
-	Hysteresis         int   `json:"hysteresis"`         // 滞回温差(°C)
-	MinRPMChange       int   `json:"minRpmChange"`       // 最小生效转速变化(RPM)
-	RampUpLimit        int   `json:"rampUpLimit"`        // 每次更新最大升速(RPM)
-	RampDownLimit      int   `json:"rampDownLimit"`      // 每次更新最大降速(RPM)
-	LearnRate          int   `json:"learnRate"`          // 学习速度(1-10)
-	LearnWindow        int   `json:"learnWindow"`        // 稳态学习窗口(采样点)
-	LearnDelay         int   `json:"learnDelay"`         // 学习延迟步数(处理热惯性)
-	OverheatWeight     int   `json:"overheatWeight"`     // 过热惩罚权重
-	RPMDeltaWeight     int   `json:"rpmDeltaWeight"`     // 转速变化惩罚权重
-	NoiseWeight        int   `json:"noiseWeight"`        // 高转速噪音惩罚权重
-	TrendGain          int   `json:"trendGain"`          // 温升趋势前馈增益
-	MaxLearnOffset     int   `json:"maxLearnOffset"`     // 学习偏移上限(RPM)
-	LearnedOffsets     []int `json:"learnedOffsets"`     // 每个曲线点的学习偏移(RPM)
-	LearnedOffsetsHeat []int `json:"learnedOffsetsHeat"` // 升温工况学习偏移(RPM)
-	LearnedOffsetsCool []int `json:"learnedOffsetsCool"` // 降温工况学习偏移(RPM)
-	LearnedRateHeat    []int `json:"learnedRateHeat"`    // 升温变化率学习偏置(分桶RPM)
-	LearnedRateCool    []int `json:"learnedRateCool"`    // 降温变化率学习偏置(分桶RPM)
+	Enabled              bool  `json:"enabled"`              // 智能耦合控制开关
+	Learning             bool  `json:"learning"`             // 学习开关
+	FilterTransientSpike bool  `json:"filterTransientSpike"` // 是否过滤孤立温度尖峰
+	TargetTemp           int   `json:"targetTemp"`           // 目标温度(°C)
+	Aggressiveness       int   `json:"aggressiveness"`       // 响应激进度(1-10)
+	Hysteresis           int   `json:"hysteresis"`           // 滞回温差(°C)
+	MinRPMChange         int   `json:"minRpmChange"`         // 最小生效转速变化(RPM)
+	RampUpLimit          int   `json:"rampUpLimit"`          // 每次更新最大升速(RPM)
+	RampDownLimit        int   `json:"rampDownLimit"`        // 每次更新最大降速(RPM)
+	LearnRate            int   `json:"learnRate"`            // 学习速度(1-10)
+	LearnWindow          int   `json:"learnWindow"`          // 稳态学习窗口(采样点)
+	LearnDelay           int   `json:"learnDelay"`           // 学习延迟步数(处理热惯性)
+	OverheatWeight       int   `json:"overheatWeight"`       // 过热惩罚权重
+	RPMDeltaWeight       int   `json:"rpmDeltaWeight"`       // 转速变化惩罚权重
+	NoiseWeight          int   `json:"noiseWeight"`          // 高转速噪音惩罚权重
+	TrendGain            int   `json:"trendGain"`            // 温升趋势前馈增益
+	MaxLearnOffset       int   `json:"maxLearnOffset"`       // 学习偏移上限(RPM)
+	LearnedOffsets       []int `json:"learnedOffsets"`       // 每个曲线点的学习偏移(RPM)
+	LearnedOffsetsHeat   []int `json:"learnedOffsetsHeat"`   // 升温工况学习偏移(RPM)
+	LearnedOffsetsCool   []int `json:"learnedOffsetsCool"`   // 降温工况学习偏移(RPM)
+	LearnedRateHeat      []int `json:"learnedRateHeat"`      // 升温变化率学习偏置(分桶RPM)
+	LearnedRateCool      []int `json:"learnedRateCool"`      // 降温变化率学习偏置(分桶RPM)
 }
 
 // AppConfig 应用配置
@@ -168,27 +173,28 @@ func GetDefaultSmartControlConfig(curve []FanCurvePoint) SmartControlConfig {
 	coolRate := make([]int, 7)
 
 	return SmartControlConfig{
-		Enabled:            true,
-		Learning:           true,
-		TargetTemp:         68,
-		Aggressiveness:     5,
-		Hysteresis:         2,
-		MinRPMChange:       50,
-		RampUpLimit:        220,
-		RampDownLimit:      160,
-		LearnRate:          4,
-		LearnWindow:        6,
-		LearnDelay:         2,
-		OverheatWeight:     8,
-		RPMDeltaWeight:     5,
-		NoiseWeight:        4,
-		TrendGain:          5,
-		MaxLearnOffset:     600,
-		LearnedOffsets:     offsets,
-		LearnedOffsetsHeat: heatOffsets,
-		LearnedOffsetsCool: coolOffsets,
-		LearnedRateHeat:    heatRate,
-		LearnedRateCool:    coolRate,
+		Enabled:              true,
+		Learning:             true,
+		FilterTransientSpike: true,
+		TargetTemp:           68,
+		Aggressiveness:       5,
+		Hysteresis:           2,
+		MinRPMChange:         50,
+		RampUpLimit:          220,
+		RampDownLimit:        160,
+		LearnRate:            4,
+		LearnWindow:          6,
+		LearnDelay:           2,
+		OverheatWeight:       8,
+		RPMDeltaWeight:       5,
+		NoiseWeight:          4,
+		TrendGain:            5,
+		MaxLearnOffset:       600,
+		LearnedOffsets:       offsets,
+		LearnedOffsetsHeat:   heatOffsets,
+		LearnedOffsetsCool:   coolOffsets,
+		LearnedRateHeat:      heatRate,
+		LearnedRateCool:      coolRate,
 	}
 }
 
@@ -296,6 +302,9 @@ func GetDefaultFanCurve() []FanCurvePoint {
 		{Temperature: 85, RPM: 3800},
 		{Temperature: 90, RPM: 4000},
 		{Temperature: 95, RPM: 4000},
+		{Temperature: 100, RPM: 4000},
+		{Temperature: 105, RPM: 4000},
+		{Temperature: 110, RPM: 4000},
 	}
 }
 
