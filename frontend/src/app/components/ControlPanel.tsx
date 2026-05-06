@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Play,
@@ -10,6 +10,8 @@ import {
   Power,
   Zap,
   Monitor,
+  Cpu,
+  Gpu,
   Bug,
   Eye,
   EyeOff,
@@ -293,6 +295,17 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
 
   const activeCurveProfileId = ((config as any).activeFanCurveProfileId || '') as string;
   const isBs1 = deviceModel === 'BS1';
+  const currentTempSource = (((config as any).tempSource as string) || 'max') as 'max' | 'cpu' | 'gpu';
+  const cpuSensors = useMemo(() => (Array.isArray(temperature?.cpuSensors) ? temperature.cpuSensors : []), [temperature?.cpuSensors]);
+  const gpuSensors = useMemo(() => (Array.isArray(temperature?.gpuSensors) ? temperature.gpuSensors : []), [temperature?.gpuSensors]);
+  const selectedCpuSensor = useMemo(() => {
+    const configured = (((config as any).cpuSensor as string) || 'auto');
+    return cpuSensors.some((sensor) => sensor.key === configured) ? configured : 'auto';
+  }, [config, cpuSensors]);
+  const selectedGpuSensor = useMemo(() => {
+    const configured = (((config as any).gpuSensor as string) || 'auto');
+    return gpuSensors.some((sensor) => sensor.key === configured) ? configured : 'auto';
+  }, [config, gpuSensors]);
 
   const setLoading = (key: string, value: boolean) => setLoadingStates((prev) => ({ ...prev, [key]: value }));
 
@@ -440,6 +453,30 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
     } catch { /* noop */ }
   }, [config, onConfigChange]);
 
+  const handleTempSourceChange = useCallback(async (source: string) => {
+    setLoading('tempSource', true);
+    try {
+      const newCfg = types.AppConfig.createFrom({ ...config, tempSource: source });
+      await apiService.updateConfig(newCfg);
+      onConfigChange(newCfg);
+    } catch { /* noop */ } finally {
+      setLoading('tempSource', false);
+    }
+  }, [config, onConfigChange]);
+
+  const handleTempSensorChange = useCallback(async (kind: 'cpu' | 'gpu', sensorKey: string) => {
+    const loadingKey = kind === 'cpu' ? 'cpuSensor' : 'gpuSensor';
+    setLoading(loadingKey, true);
+    try {
+      const patch = kind === 'cpu' ? { cpuSensor: sensorKey } : { gpuSensor: sensorKey };
+      const newCfg = types.AppConfig.createFrom({ ...config, ...patch });
+      await apiService.updateConfig(newCfg);
+      onConfigChange(newCfg);
+    } catch { /* noop */ } finally {
+      setLoading(loadingKey, false);
+    }
+  }, [config, onConfigChange]);
+
   const handleTransientSpikeFilterChange = useCallback(async (enabled: boolean) => {
     setLoading('transientSpikeFilter', true);
     try {
@@ -509,6 +546,22 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
     { value: 3, label: '3次 (3s)' },
     { value: 5, label: '5次 (5s)' },
     { value: 10, label: '10次 (10s)' },
+  ];
+
+  const tempSourceOptions = [
+    { value: 'max', label: '最高温度' },
+    { value: 'cpu', label: '仅 CPU' },
+    { value: 'gpu', label: '仅 GPU' },
+  ];
+
+  const cpuSensorOptions = [
+    { value: 'auto', label: cpuSensors.length > 0 ? '自动选择 (推荐)' : '自动选择' },
+    ...cpuSensors.map((sensor) => ({ value: sensor.key, label: `${sensor.name} (${sensor.value}°C)` })),
+  ];
+
+  const gpuSensorOptions = [
+    { value: 'auto', label: gpuSensors.length > 0 ? '自动选择 (推荐)' : '自动选择' },
+    ...gpuSensors.map((sensor) => ({ value: sensor.key, label: `${sensor.name} (${sensor.value}°C)` })),
   ];
 
   const themeModeOptions = [
@@ -811,6 +864,85 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
               </motion.div>
             )}
           </AnimatePresence>
+
+          <div className="px-5 py-4">
+            <div className="rounded-2xl border border-border/70 bg-muted/25 p-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                    <BarChart3 className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-base font-medium text-foreground">温度基准</div>
+                    <div className="text-sm text-muted-foreground">选择智能温控参考传感器。</div>
+                  </div>
+                </div>
+                <div className="w-full md:w-40">
+                  <Select
+                    value={currentTempSource}
+                    onChange={(value: string | number) => handleTempSourceChange(String(value))}
+                    options={tempSourceOptions}
+                    size="sm"
+                    className="w-full min-w-0"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <div className="rounded-xl border border-border/70 bg-card px-4 py-3">
+                  <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                    <Cpu className="h-4 w-4 text-primary" />
+                    <span>CPU 基准</span>
+                  </div>
+                  <div className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                    {temperature?.cpuModel?.trim() || '尚未识别到 CPU 型号，TempBridge 可用后会自动显示。'}
+                  </div>
+                  <div className="mt-3">
+                    <Select
+                      value={selectedCpuSensor}
+                      onChange={(value: string | number) => handleTempSensorChange('cpu', String(value))}
+                      options={cpuSensorOptions}
+                      size="sm"
+                      className="w-full min-w-0"
+                      disabled={!cpuSensors.length}
+                    />
+                  </div>
+                  <div className="mt-2 text-xs text-muted-foreground">
+                    {temperature?.cpuTemp && temperature.cpuTemp > 0 ? `当前基准温度 ${temperature.cpuTemp}°C` : '当前无可用 CPU 温度数据'}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-border/70 bg-card px-4 py-3">
+                  <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                    <Gpu className="h-4 w-4 text-primary" />
+                    <span>GPU 基准</span>
+                  </div>
+                  <div className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                    {temperature?.gpuModel?.trim() || '尚未识别到 GPU 型号，TempBridge 可用后会自动显示。'}
+                  </div>
+                  <div className="mt-3">
+                    <Select
+                      value={selectedGpuSensor}
+                      onChange={(value: string | number) => handleTempSensorChange('gpu', String(value))}
+                      options={gpuSensorOptions}
+                      size="sm"
+                      className="w-full min-w-0"
+                      disabled={!gpuSensors.length}
+                    />
+                  </div>
+                  <div className="mt-2 text-xs text-muted-foreground">
+                    {temperature?.gpuTemp && temperature.gpuTemp > 0 ? `当前基准温度 ${temperature.gpuTemp}°C` : '当前无可用 GPU 温度数据'}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3 text-xs text-muted-foreground">
+                {temperature?.controlTemp && temperature.controlTemp > 0
+                  ? `当前控温正在使用 ${temperature.controlSource === 'cpu' ? 'CPU' : temperature.controlSource === 'gpu' ? 'GPU' : '最高温度'} 基准，控制温度 ${temperature.controlTemp}°C。`
+                  : '当前尚未拿到有效的控温基准温度。'}
+              </div>
+            </div>
+          </div>
 
           <SettingRow
             icon={<TriangleAlert className={clsx('h-4 w-4', (config.smartControl as any)?.filterTransientSpike !== false ? 'text-blue-500' : 'text-muted-foreground')} />}

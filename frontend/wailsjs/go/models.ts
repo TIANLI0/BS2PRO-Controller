@@ -171,6 +171,9 @@ export namespace types {
 	    brightness: number;
 	    tempUpdateRate: number;
 	    tempSampleCount: number;
+	    tempSource: string;
+	    cpuSensor: string;
+	    gpuSensor: string;
 	    configPath: string;
 	    manualGear: string;
 	    manualLevel: string;
@@ -204,6 +207,9 @@ export namespace types {
 	        this.brightness = source["brightness"];
 	        this.tempUpdateRate = source["tempUpdateRate"];
 	        this.tempSampleCount = source["tempSampleCount"];
+	        this.tempSource = source["tempSource"];
+	        this.cpuSensor = source["cpuSensor"];
+	        this.gpuSensor = source["gpuSensor"];
 	        this.configPath = source["configPath"];
 	        this.manualGear = source["manualGear"];
 	        this.manualLevel = source["manualLevel"];
@@ -234,10 +240,32 @@ export namespace types {
 		    return a;
 		}
 	}
+	export class TemperatureSensor {
+	    key: string;
+	    name: string;
+	    value: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new TemperatureSensor(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.key = source["key"];
+	        this.name = source["name"];
+	        this.value = source["value"];
+	    }
+	}
 	export class BridgeTemperatureData {
 	    cpuTemp: number;
 	    gpuTemp: number;
 	    maxTemp: number;
+	    controlTemp: number;
+	    controlSource: string;
+	    cpuModel: string;
+	    gpuModel: string;
+	    cpuSensors: TemperatureSensor[];
+	    gpuSensors: TemperatureSensor[];
 	    updateTime: number;
 	    success: boolean;
 	    error: string;
@@ -251,10 +279,34 @@ export namespace types {
 	        this.cpuTemp = source["cpuTemp"];
 	        this.gpuTemp = source["gpuTemp"];
 	        this.maxTemp = source["maxTemp"];
+	        this.controlTemp = source["controlTemp"];
+	        this.controlSource = source["controlSource"];
+	        this.cpuModel = source["cpuModel"];
+	        this.gpuModel = source["gpuModel"];
+	        this.cpuSensors = this.convertValues(source["cpuSensors"], TemperatureSensor);
+	        this.gpuSensors = this.convertValues(source["gpuSensors"], TemperatureSensor);
 	        this.updateTime = source["updateTime"];
 	        this.success = source["success"];
 	        this.error = source["error"];
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	
 	
@@ -331,6 +383,12 @@ export namespace types {
 	    cpuTemp: number;
 	    gpuTemp: number;
 	    maxTemp: number;
+	    controlTemp: number;
+	    controlSource: string;
+	    cpuModel: string;
+	    gpuModel: string;
+	    cpuSensors: TemperatureSensor[];
+	    gpuSensors: TemperatureSensor[];
 	    updateTime: number;
 	    bridgeOk: boolean;
 	    bridgeMessage: string;
@@ -344,10 +402,34 @@ export namespace types {
 	        this.cpuTemp = source["cpuTemp"];
 	        this.gpuTemp = source["gpuTemp"];
 	        this.maxTemp = source["maxTemp"];
+	        this.controlTemp = source["controlTemp"];
+	        this.controlSource = source["controlSource"];
+	        this.cpuModel = source["cpuModel"];
+	        this.gpuModel = source["gpuModel"];
+	        this.cpuSensors = this.convertValues(source["cpuSensors"], TemperatureSensor);
+	        this.gpuSensors = this.convertValues(source["gpuSensors"], TemperatureSensor);
 	        this.updateTime = source["updateTime"];
 	        this.bridgeOk = source["bridgeOk"];
 	        this.bridgeMessage = source["bridgeMessage"];
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 
 }

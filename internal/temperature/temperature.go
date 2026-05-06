@@ -28,14 +28,17 @@ func NewReader(bridgeManager *bridge.Manager, logger types.Logger) *Reader {
 }
 
 // Read 读取温度
-func (r *Reader) Read() types.TemperatureData {
+func (r *Reader) Read(selection types.TemperatureSelection) types.TemperatureData {
+	selection = types.NormalizeTemperatureSelection(selection)
 	temp := types.TemperatureData{
-		UpdateTime: time.Now().Unix(),
-		BridgeOk:   true,
+		UpdateTime:    time.Now().Unix(),
+		BridgeOk:      true,
+		ControlSource: selection.TempSource,
 	}
 
 	// 优先使用桥接程序读取温度
-	bridgeTemp := r.bridgeManager.GetTemperature()
+	bridgeTemp := r.bridgeManager.GetTemperature(selection)
+	copyBridgeTemperatureMetadata(&temp, bridgeTemp, selection)
 	if bridgeTemp.Success {
 		if bridgeTemp.CpuTemp == 0 && bridgeTemp.GpuTemp == 0 {
 			temp.BridgeOk = false
@@ -45,12 +48,10 @@ func (r *Reader) Read() types.TemperatureData {
 			temp.CPUTemp = r.readCPUTemperature()
 			temp.GPUTemp = r.readGPUTemperature()
 			temp.MaxTemp = max(temp.CPUTemp, temp.GPUTemp)
+			temp.ControlTemp = resolveControlTemp(temp.CPUTemp, temp.GPUTemp, selection.TempSource)
 			return temp
 		}
 
-		temp.CPUTemp = bridgeTemp.CpuTemp
-		temp.GPUTemp = bridgeTemp.GpuTemp
-		temp.MaxTemp = bridgeTemp.MaxTemp
 		temp.BridgeOk = true
 		temp.BridgeMsg = ""
 		return temp
@@ -72,8 +73,45 @@ func (r *Reader) Read() types.TemperatureData {
 
 	// 计算最高温度
 	temp.MaxTemp = max(temp.CPUTemp, temp.GPUTemp)
+	temp.ControlTemp = resolveControlTemp(temp.CPUTemp, temp.GPUTemp, selection.TempSource)
 
 	return temp
+}
+
+func copyBridgeTemperatureMetadata(temp *types.TemperatureData, bridgeTemp types.BridgeTemperatureData, selection types.TemperatureSelection) {
+	if temp == nil {
+		return
+	}
+
+	temp.CPUTemp = bridgeTemp.CpuTemp
+	temp.GPUTemp = bridgeTemp.GpuTemp
+	temp.MaxTemp = bridgeTemp.MaxTemp
+	temp.ControlTemp = bridgeTemp.ControlTemp
+	temp.ControlSource = bridgeTemp.ControlSource
+	if temp.ControlSource == "" {
+		temp.ControlSource = selection.TempSource
+	}
+	if temp.ControlTemp == 0 {
+		temp.ControlTemp = resolveControlTemp(temp.CPUTemp, temp.GPUTemp, temp.ControlSource)
+	}
+	temp.CpuModel = bridgeTemp.CpuModel
+	temp.GpuModel = bridgeTemp.GpuModel
+	temp.CpuSensors = bridgeTemp.CpuSensors
+	temp.GpuSensors = bridgeTemp.GpuSensors
+	if bridgeTemp.UpdateTime > 0 {
+		temp.UpdateTime = bridgeTemp.UpdateTime
+	}
+}
+
+func resolveControlTemp(cpuTemp, gpuTemp int, source string) int {
+	switch types.NormalizeTempSource(source) {
+	case types.TempSourceCPU:
+		return cpuTemp
+	case types.TempSourceGPU:
+		return gpuTemp
+	default:
+		return max(cpuTemp, gpuTemp)
+	}
 }
 
 // readCPUTemperature 读取CPU温度

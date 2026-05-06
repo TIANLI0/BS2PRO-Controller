@@ -336,7 +336,16 @@ func (m *Manager) stopUnsafe() {
 }
 
 // GetTemperature 从桥接程序读取温度
-func (m *Manager) GetTemperature() types.BridgeTemperatureData {
+func (m *Manager) GetTemperature(selection types.TemperatureSelection) types.BridgeTemperatureData {
+	selection = types.NormalizeTemperatureSelection(selection)
+	selectionPayload, err := json.Marshal(selection)
+	if err != nil {
+		return types.BridgeTemperatureData{
+			Success: false,
+			Error:   fmt.Sprintf("序列化温度选择配置失败: %v", err),
+		}
+	}
+
 	if err := m.EnsureRunning(); err != nil {
 		return types.BridgeTemperatureData{
 			Success: false,
@@ -345,7 +354,7 @@ func (m *Manager) GetTemperature() types.BridgeTemperatureData {
 	}
 
 	// 通过管道发送温度请求
-	response, err := m.SendCommand("GetTemperature", "")
+	response, err := m.SendCommand("GetTemperature", string(selectionPayload))
 	if err != nil {
 		// 尝试重启桥接程序
 		m.Stop()
@@ -356,6 +365,14 @@ func (m *Manager) GetTemperature() types.BridgeTemperatureData {
 	}
 
 	if !response.Success {
+		if response.Data != nil {
+			result := *response.Data
+			result.Success = false
+			if strings.TrimSpace(response.Error) != "" {
+				result.Error = response.Error
+			}
+			return result
+		}
 		return types.BridgeTemperatureData{
 			Success: false,
 			Error:   response.Error,
@@ -404,7 +421,7 @@ func (m *Manager) GetStatus() map[string]any {
 		}
 	}
 
-	testResult := m.GetTemperature()
+	testResult := m.GetTemperature(types.GetDefaultTemperatureSelection())
 
 	return map[string]any{
 		"exists":   true,

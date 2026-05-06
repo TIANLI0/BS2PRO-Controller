@@ -15,13 +15,51 @@ namespace TempBridge
         public int CpuTemp { get; set; }
         public int GpuTemp { get; set; }
         public int MaxTemp { get; set; }
+        public int ControlTemp { get; set; }
+        public string ControlSource { get; set; }
+        public string CpuModel { get; set; }
+        public string GpuModel { get; set; }
+        public TemperatureSensor[] CpuSensors { get; set; }
+        public TemperatureSensor[] GpuSensors { get; set; }
         public long UpdateTime { get; set; }
         public bool Success { get; set; }
         public string Error { get; set; }
 
         public TemperatureData()
         {
+            ControlSource = "max";
+            CpuModel = string.Empty;
+            GpuModel = string.Empty;
+            CpuSensors = Array.Empty<TemperatureSensor>();
+            GpuSensors = Array.Empty<TemperatureSensor>();
             Error = string.Empty;
+        }
+    }
+
+    public class TemperatureSensor
+    {
+        public string Key { get; set; }
+        public string Name { get; set; }
+        public int Value { get; set; }
+
+        public TemperatureSensor()
+        {
+            Key = string.Empty;
+            Name = string.Empty;
+        }
+    }
+
+    public class TemperatureSelection
+    {
+        public string TempSource { get; set; }
+        public string CpuSensor { get; set; }
+        public string GpuSensor { get; set; }
+
+        public TemperatureSelection()
+        {
+            TempSource = "max";
+            CpuSensor = "auto";
+            GpuSensor = "auto";
         }
     }
 
@@ -179,7 +217,7 @@ namespace TempBridge
 
             InitializeHardwareMonitor();
 
-            TemperatureData data = GetTemperatureData();
+            TemperatureData data = GetTemperatureData(new TemperatureSelection());
             PrintTemperatureSummary(data);
             Console.WriteLine();
             PrintHardwareSnapshot();
@@ -534,10 +572,13 @@ namespace TempBridge
                 switch (command.Type)
                 {
                     case "GetTemperature":
+                        var selection = ParseTemperatureSelection(command.Data);
+                        var data = GetTemperatureData(selection);
                         return new Response
                         {
-                            Success = true,
-                            Data = GetTemperatureData()
+                            Success = data.Success,
+                            Error = data.Success ? string.Empty : data.Error,
+                            Data = data
                         };
 
                     case "Ping":
@@ -599,10 +640,11 @@ namespace TempBridge
                     consecutiveFailures = 0;
 
                     // 5. Do a test read to confirm it works
-                    var testData = GetTemperatureDataUnsafe();
+                    var testData = GetTemperatureDataUnsafe(new TemperatureSelection());
                     return new Response
                     {
-                        Success = true,
+                        Success = testData.Success,
+                        Error = testData.Success ? string.Empty : testData.Error,
                         Data = testData
                     };
                 }
@@ -620,49 +662,107 @@ namespace TempBridge
         /// <summary>
         /// GetTemperatureData without acquiring lockObject (caller must hold the lock).
         /// </summary>
-        static TemperatureData GetTemperatureDataUnsafe()
+        static TemperatureSelection ParseTemperatureSelection(string raw)
         {
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                return new TemperatureSelection();
+            }
+
+            try
+            {
+                return NormalizeTemperatureSelection(
+                    JsonConvert.DeserializeObject<TemperatureSelection>(raw) ?? new TemperatureSelection()
+                );
+            }
+            catch
+            {
+                return new TemperatureSelection();
+            }
+        }
+
+        static TemperatureSelection NormalizeTemperatureSelection(TemperatureSelection selection)
+        {
+            if (selection == null)
+            {
+                return new TemperatureSelection();
+            }
+
+            selection.TempSource = NormalizeTempSource(selection.TempSource);
+            selection.CpuSensor = NormalizeSensorSelection(selection.CpuSensor);
+            selection.GpuSensor = NormalizeSensorSelection(selection.GpuSensor);
+            return selection;
+        }
+
+        static string NormalizeTempSource(string source)
+        {
+            if (string.Equals(source, "cpu", StringComparison.OrdinalIgnoreCase))
+            {
+                return "cpu";
+            }
+            if (string.Equals(source, "gpu", StringComparison.OrdinalIgnoreCase))
+            {
+                return "gpu";
+            }
+            return "max";
+        }
+
+        static string NormalizeSensorSelection(string sensorKey)
+        {
+            return string.IsNullOrWhiteSpace(sensorKey) ? "auto" : sensorKey;
+        }
+
+        static TemperatureData GetTemperatureDataUnsafe(TemperatureSelection selection)
+        {
+            selection = NormalizeTemperatureSelection(selection);
             var result = new TemperatureData
             {
-                UpdateTime = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+                UpdateTime = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+                ControlSource = selection.TempSource
             };
 
             try
             {
                 computer.Accept(new UpdateVisitor());
 
-                int cpuTemp = 0;
-                int gpuTemp = 0;
+                string cpuModel = string.Empty;
+                string gpuModel = string.Empty;
+                var cpuSensors = new System.Collections.Generic.List<TemperatureSensor>();
+                var gpuSensors = new System.Collections.Generic.List<TemperatureSensor>();
 
                 foreach (IHardware hardware in computer.Hardware)
                 {
                     if (hardware.HardwareType == HardwareType.Cpu)
                     {
-                        if (cpuTemp == 0)
-                        {
-                            cpuTemp = GetTemperatureFromHardwareTree(
-                                hardware,
-                                new[] { "Average", "Package", "Tctl", "Tdie", "Core" }
-                            );
-                        }
+                        	if (cpuSensors.Count == 0)
+                        	{
+                        		cpuModel = hardware.Name ?? string.Empty;
+                        		CollectTemperatureSensors(hardware, "cpu", hardware.Name ?? string.Empty, string.Empty, cpuSensors);
+                        	}
                     }
                     else if (hardware.HardwareType == HardwareType.GpuNvidia || 
                              hardware.HardwareType == HardwareType.GpuAmd ||
                              hardware.HardwareType == HardwareType.GpuIntel)
                     {
-                        if (gpuTemp == 0)
-                        {
-                            gpuTemp = GetTemperatureFromHardwareTree(
-                                hardware,
-                                new[] { "Average", "GPU Core", "Core", "Edge", "Junction", "Hot Spot", "Temperature" }
-                            );
-                        }
+                        	if (gpuSensors.Count == 0)
+                        	{
+                        		gpuModel = hardware.Name ?? string.Empty;
+                        		CollectTemperatureSensors(hardware, "gpu", hardware.Name ?? string.Empty, string.Empty, gpuSensors);
+                        	}
                     }
                 }
+
+	                int cpuTemp = SelectTemperature(cpuSensors, selection.CpuSensor, new[] { "Average", "Package", "Tctl", "Tdie", "Core" });
+	                int gpuTemp = SelectTemperature(gpuSensors, selection.GpuSensor, new[] { "Average", "GPU Core", "Core", "Edge", "Junction", "Hot Spot", "Temperature" });
 
                 result.CpuTemp = cpuTemp;
                 result.GpuTemp = gpuTemp;
                 result.MaxTemp = Math.Max(cpuTemp, gpuTemp);
+	                result.ControlTemp = ResolveControlTemp(cpuTemp, gpuTemp, selection.TempSource);
+	                result.CpuModel = cpuModel;
+	                result.GpuModel = gpuModel;
+	                result.CpuSensors = cpuSensors.ToArray();
+	                result.GpuSensors = gpuSensors.ToArray();
                 if (cpuTemp == 0 && gpuTemp == 0)
                 {
                     result.Success = false;
@@ -683,11 +783,11 @@ namespace TempBridge
             return result;
         }
 
-        static TemperatureData GetTemperatureData()
+        static TemperatureData GetTemperatureData(TemperatureSelection selection)
         {
             lock (lockObject)
             {
-                var result = GetTemperatureDataUnsafe();
+	                var result = GetTemperatureDataUnsafe(selection);
 
                 if (!result.Success || (result.CpuTemp == 0 && result.GpuTemp == 0))
                 {
@@ -721,55 +821,82 @@ namespace TempBridge
             }
         }
 
-        static int GetTemperatureFromHardwareTree(IHardware hardware, string[] preferredSensorNames)
+            static void CollectTemperatureSensors(IHardware hardware, string devicePrefix, string keyPath, string displayPath, System.Collections.Generic.List<TemperatureSensor> sensors)
         {
-            int temp = GetPreferredTemperatureFromSensors(hardware.Sensors, preferredSensorNames);
-            if (temp > 0)
-            {
-                return temp;
-            }
-
-            foreach (IHardware subHardware in hardware.SubHardware)
-            {
-                temp = GetTemperatureFromHardwareTree(subHardware, preferredSensorNames);
-                if (temp > 0)
+                foreach (ISensor sensor in hardware.Sensors)
                 {
-                    return temp;
-                }
-            }
+                    if (sensor.SensorType != SensorType.Temperature || !sensor.Value.HasValue)
+                    {
+                        continue;
+                    }
 
-            return 0;
+                    int temp = (int)Math.Round(sensor.Value.Value);
+                    if (temp <= 0 || temp >= 150)
+                    {
+                        continue;
+                    }
+
+                    string sensorPath = string.IsNullOrEmpty(keyPath) ? sensor.Name : keyPath + "/" + sensor.Name;
+                    sensors.Add(new TemperatureSensor
+                    {
+                        Key = devicePrefix + "/" + sensorPath,
+                        Name = string.IsNullOrEmpty(displayPath) ? sensor.Name : displayPath + " / " + sensor.Name,
+                        Value = temp,
+                    });
+                }
+
+                foreach (IHardware subHardware in hardware.SubHardware)
+                {
+                    string subKeyPath = string.IsNullOrEmpty(keyPath)
+                        ? (subHardware.Name ?? string.Empty)
+                        : keyPath + "/" + (subHardware.Name ?? string.Empty);
+                    string subDisplayPath = string.IsNullOrEmpty(displayPath)
+                        ? (subHardware.Name ?? string.Empty)
+                        : displayPath + " / " + (subHardware.Name ?? string.Empty);
+                    CollectTemperatureSensors(subHardware, devicePrefix, subKeyPath, subDisplayPath, sensors);
+                }
         }
 
-        static int GetPreferredTemperatureFromSensors(ISensor[] sensors, string[] preferredSensorNames)
+        static int SelectTemperature(System.Collections.Generic.IReadOnlyList<TemperatureSensor> sensors, string selectedKey, string[] preferredSensorNames)
         {
-            int fallbackTemp = 0;
-
-            foreach (ISensor sensor in sensors)
+                if (sensors == null || sensors.Count == 0)
             {
-                if (sensor.SensorType != SensorType.Temperature || !sensor.Value.HasValue)
-                {
-                    continue;
-                }
-
-                int temp = (int)Math.Round(sensor.Value.Value);
-                if (temp <= 0 || temp >= 150)
-                {
-                    continue;
-                }
-
-                if (ContainsAnyKeyword(sensor.Name, preferredSensorNames))
-                {
-                    return temp;
-                }
-
-                if (fallbackTemp == 0)
-                {
-                    fallbackTemp = temp;
-                }
+                    return 0;
             }
 
-            return fallbackTemp;
+                if (!string.Equals(selectedKey, "auto", StringComparison.OrdinalIgnoreCase))
+                {
+                    foreach (var sensor in sensors)
+                    {
+                        if (string.Equals(sensor.Key, selectedKey, StringComparison.OrdinalIgnoreCase))
+                        {
+                            return sensor.Value;
+                        }
+                    }
+                }
+
+                foreach (var sensor in sensors)
+                {
+                    if (ContainsAnyKeyword(sensor.Name, preferredSensorNames))
+                    {
+                        return sensor.Value;
+                    }
+                }
+
+                return sensors[0].Value;
+            }
+
+            static int ResolveControlTemp(int cpuTemp, int gpuTemp, string source)
+            {
+                switch (NormalizeTempSource(source))
+                {
+                    case "cpu":
+                        return cpuTemp;
+                    case "gpu":
+                        return gpuTemp;
+                    default:
+                        return Math.Max(cpuTemp, gpuTemp);
+                }
         }
 
         static bool ContainsAnyKeyword(string source, string[] keywords)

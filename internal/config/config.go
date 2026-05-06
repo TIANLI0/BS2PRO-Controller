@@ -90,6 +90,7 @@ func (m *Manager) tryLoadFromPath(configPath string) bool {
 	applyMissingHotkeyDefaults(&config, rawConfig)
 	applyMissingSmartControlDefaults(&config, rawConfig)
 	applyMissingThemeDefaults(&config, rawConfig)
+	applyMissingTemperatureDefaults(&config, rawConfig)
 
 	m.config = config
 	return true
@@ -146,6 +147,27 @@ func applyMissingThemeDefaults(cfg *types.AppConfig, rawConfig map[string]json.R
 	}
 
 	cfg.ThemeMode = types.NormalizeThemeMode(cfg.ThemeMode)
+}
+
+func applyMissingTemperatureDefaults(cfg *types.AppConfig, rawConfig map[string]json.RawMessage) {
+	if cfg == nil {
+		return
+	}
+
+	defaults := types.GetDefaultTemperatureSelection()
+	if _, ok := rawConfig["tempSource"]; !ok {
+		cfg.TempSource = defaults.TempSource
+	}
+	if _, ok := rawConfig["cpuSensor"]; !ok {
+		cfg.CpuSensor = defaults.CpuSensor
+	}
+	if _, ok := rawConfig["gpuSensor"]; !ok {
+		cfg.GpuSensor = defaults.GpuSensor
+	}
+
+	cfg.TempSource = types.NormalizeTempSource(cfg.TempSource)
+	cfg.CpuSensor = types.NormalizeSensorSelection(cfg.CpuSensor)
+	cfg.GpuSensor = types.NormalizeSensorSelection(cfg.GpuSensor)
 }
 
 // Save 保存配置

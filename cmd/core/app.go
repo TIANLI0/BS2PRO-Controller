@@ -567,11 +567,21 @@ func (a *CoreApp) handleIPCRequest(req ipc.Request) ipc.Response {
 		return a.dataResponse(temp)
 
 	case ipc.ReqTestTemperatureReading:
-		temp := a.tempReader.Read()
+		cfg := a.configManager.Get()
+		temp := a.tempReader.Read(types.TemperatureSelection{
+			TempSource: cfg.TempSource,
+			CpuSensor:  cfg.CpuSensor,
+			GpuSensor:  cfg.GpuSensor,
+		})
 		return a.dataResponse(temp)
 
 	case ipc.ReqTestBridgeProgram:
-		data := a.bridgeManager.GetTemperature()
+		cfg := a.configManager.Get()
+		data := a.bridgeManager.GetTemperature(types.TemperatureSelection{
+			TempSource: cfg.TempSource,
+			CpuSensor:  cfg.CpuSensor,
+			GpuSensor:  cfg.GpuSensor,
+		})
 		return a.dataResponse(data)
 
 	case ipc.ReqGetBridgeProgramStatus:
@@ -916,6 +926,9 @@ func (a *CoreApp) UpdateConfig(cfg types.AppConfig) error {
 	cfg.ManualGearLevels = cloneManualGearLevels(oldCfg.ManualGearLevels)
 	cfg.LightStrip, _ = normalizeLightStripConfig(cfg.LightStrip)
 	cfg.ThemeMode = types.NormalizeThemeMode(cfg.ThemeMode)
+	cfg.TempSource = types.NormalizeTempSource(cfg.TempSource)
+	cfg.CpuSensor = types.NormalizeSensorSelection(cfg.CpuSensor)
+	cfg.GpuSensor = types.NormalizeSensorSelection(cfg.GpuSensor)
 	normalizeCurveProfilesConfig(&cfg)
 	if idx := findCurveProfileIndex(cfg.FanCurveProfiles, cfg.ActiveFanCurveProfileID); idx >= 0 {
 		cfg.FanCurveProfiles[idx].Curve = cloneFanCurve(cfg.FanCurve)
@@ -1570,11 +1583,16 @@ func (a *CoreApp) startTemperatureMonitoring() {
 	rawTempHistory := make([]int, 0, 6)
 	recentAvgTemps := make([]int, 0, 24)
 	recentControlTemps := make([]int, 0, 24)
-	initialTemp := a.tempReader.Read()
-	if initialTemp.MaxTemp > 0 {
-		rawTempHistory = append(rawTempHistory, initialTemp.MaxTemp)
+	initialSelection := types.TemperatureSelection{
+		TempSource: cfg.TempSource,
+		CpuSensor:  cfg.CpuSensor,
+		GpuSensor:  cfg.GpuSensor,
 	}
-	lastControlTemp := initialTemp.MaxTemp
+	initialTemp := a.tempReader.Read(initialSelection)
+	if initialTemp.ControlTemp > 0 {
+		rawTempHistory = append(rawTempHistory, initialTemp.ControlTemp)
+	}
+	lastControlTemp := initialTemp.ControlTemp
 	lastTargetRPM := -1
 	learningDirty := false
 	lastLearningSave := time.Now()
@@ -1585,7 +1603,14 @@ func (a *CoreApp) startTemperatureMonitoring() {
 			a.monitoringTemp = false
 			return
 		case <-time.After(updateInterval):
-			temp := a.tempReader.Read()
+			cfg = a.configManager.Get()
+			updateInterval = time.Duration(cfg.TempUpdateRate) * time.Second
+			selection := types.TemperatureSelection{
+				TempSource: cfg.TempSource,
+				CpuSensor:  cfg.CpuSensor,
+				GpuSensor:  cfg.GpuSensor,
+			}
+			temp := a.tempReader.Read(selection)
 
 			a.mutex.Lock()
 			a.currentTemp = temp
@@ -1596,7 +1621,6 @@ func (a *CoreApp) startTemperatureMonitoring() {
 				a.ipcServer.BroadcastEvent(ipc.EventTemperatureUpdate, temp)
 			}
 
-			cfg := a.configManager.Get()
 			smartCfg, smartChanged := smartcontrol.NormalizeConfig(cfg.SmartControl, cfg.FanCurve, cfg.DebugMode)
 			if smartChanged {
 				cfg.SmartControl = smartCfg
@@ -1606,7 +1630,7 @@ func (a *CoreApp) startTemperatureMonitoring() {
 				}
 			}
 
-			if cfg.AutoControl && temp.MaxTemp > 0 {
+			if cfg.AutoControl && temp.ControlTemp > 0 {
 				// 更新采样配置
 				newSampleCount := max(cfg.TempSampleCount, 1)
 				if newSampleCount != sampleCount {
@@ -1614,12 +1638,12 @@ func (a *CoreApp) startTemperatureMonitoring() {
 					tempSamples = make([]int, 0, sampleCount)
 				}
 
-				sampleTemp := temp.MaxTemp
+				sampleTemp := temp.ControlTemp
 				sampleSpikeSuppressed := false
 				if smartCfg.FilterTransientSpike {
-					sampleTemp, sampleSpikeSuppressed = smartcontrol.FilterTransientSample(temp.MaxTemp, rawTempHistory, smartCfg.Hysteresis)
+					sampleTemp, sampleSpikeSuppressed = smartcontrol.FilterTransientSample(temp.ControlTemp, rawTempHistory, smartCfg.Hysteresis)
 				}
-				rawTempHistory = append(rawTempHistory, temp.MaxTemp)
+				rawTempHistory = append(rawTempHistory, temp.ControlTemp)
 				if len(rawTempHistory) > 6 {
 					rawTempHistory = rawTempHistory[len(rawTempHistory)-6:]
 				}
@@ -1720,7 +1744,7 @@ func (a *CoreApp) startTemperatureMonitoring() {
 				}
 
 				if baseRPM > 0 {
-					a.logDebug("智能控温: 温度=%d°C 平均=%d°C 控制温度=%d°C 基础=%dRPM 目标=%dRPM", temp.MaxTemp, avgTemp, controlTemp, baseRPM, targetRPM)
+					a.logDebug("智能控温: 最高=%d°C 基准=%s 当前=%d°C 平均=%d°C 控制温度=%d°C 基础=%dRPM 目标=%dRPM", temp.MaxTemp, temp.ControlSource, temp.ControlTemp, avgTemp, controlTemp, baseRPM, targetRPM)
 				}
 
 				lastControlTemp = controlTemp

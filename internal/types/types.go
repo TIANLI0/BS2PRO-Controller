@@ -12,6 +12,10 @@ const (
 	ThemeModeSystem        = "system"
 	ThemeModeLight         = "light"
 	ThemeModeDark          = "dark"
+	TempSourceMax          = "max"
+	TempSourceCPU          = "cpu"
+	TempSourceGPU          = "gpu"
+	TempSensorAuto         = "auto"
 )
 
 // NormalizeThemeMode 归一化主题模式，非法值回退为 system。
@@ -24,6 +28,57 @@ func NormalizeThemeMode(mode string) string {
 	default:
 		return ThemeModeSystem
 	}
+}
+
+// NormalizeTempSource 归一化控温温度来源，非法值回退为 max。
+func NormalizeTempSource(source string) string {
+	switch source {
+	case TempSourceCPU:
+		return TempSourceCPU
+	case TempSourceGPU:
+		return TempSourceGPU
+	default:
+		return TempSourceMax
+	}
+}
+
+// NormalizeSensorSelection 归一化传感器选择，空值回退为 auto。
+func NormalizeSensorSelection(selection string) string {
+	if selection == "" {
+		return TempSensorAuto
+	}
+	return selection
+}
+
+// TemperatureSelection 温度读取选择配置。
+type TemperatureSelection struct {
+	TempSource string `json:"tempSource"`
+	CpuSensor  string `json:"cpuSensor"`
+	GpuSensor  string `json:"gpuSensor"`
+}
+
+// NormalizeTemperatureSelection 归一化温度选择配置。
+func NormalizeTemperatureSelection(selection TemperatureSelection) TemperatureSelection {
+	selection.TempSource = NormalizeTempSource(selection.TempSource)
+	selection.CpuSensor = NormalizeSensorSelection(selection.CpuSensor)
+	selection.GpuSensor = NormalizeSensorSelection(selection.GpuSensor)
+	return selection
+}
+
+// GetDefaultTemperatureSelection 获取默认温度选择配置。
+func GetDefaultTemperatureSelection() TemperatureSelection {
+	return TemperatureSelection{
+		TempSource: TempSourceMax,
+		CpuSensor:  TempSensorAuto,
+		GpuSensor:  TempSensorAuto,
+	}
+}
+
+// TemperatureSensor 可选温度传感器信息。
+type TemperatureSensor struct {
+	Key   string `json:"key"`
+	Name  string `json:"name"`
+	Value int    `json:"value"`
 }
 
 // FanCurveProfile 温控曲线方案
@@ -64,22 +119,34 @@ type GearCommand struct {
 
 // TemperatureData 温度数据
 type TemperatureData struct {
-	CPUTemp    int    `json:"cpuTemp"`       // CPU温度
-	GPUTemp    int    `json:"gpuTemp"`       // GPU温度
-	MaxTemp    int    `json:"maxTemp"`       // 最高温度
-	UpdateTime int64  `json:"updateTime"`    // 更新时间戳
-	BridgeOk   bool   `json:"bridgeOk"`      // 桥接程序是否正常
-	BridgeMsg  string `json:"bridgeMessage"` // 桥接故障提示
+	CPUTemp       int                 `json:"cpuTemp"`       // CPU温度
+	GPUTemp       int                 `json:"gpuTemp"`       // GPU温度
+	MaxTemp       int                 `json:"maxTemp"`       // 最高温度
+	ControlTemp   int                 `json:"controlTemp"`   // 当前控温基准温度
+	ControlSource string              `json:"controlSource"` // 当前控温基准来源
+	CpuModel      string              `json:"cpuModel"`      // 当前识别的 CPU 型号
+	GpuModel      string              `json:"gpuModel"`      // 当前识别的 GPU 型号
+	CpuSensors    []TemperatureSensor `json:"cpuSensors"`    // 当前识别到的 CPU 温度传感器
+	GpuSensors    []TemperatureSensor `json:"gpuSensors"`    // 当前识别到的 GPU 温度传感器
+	UpdateTime    int64               `json:"updateTime"`    // 更新时间戳
+	BridgeOk      bool                `json:"bridgeOk"`      // 桥接程序是否正常
+	BridgeMsg     string              `json:"bridgeMessage"` // 桥接故障提示
 }
 
 // BridgeTemperatureData 桥接程序返回的温度数据
 type BridgeTemperatureData struct {
-	CpuTemp    int    `json:"cpuTemp"`
-	GpuTemp    int    `json:"gpuTemp"`
-	MaxTemp    int    `json:"maxTemp"`
-	UpdateTime int64  `json:"updateTime"`
-	Success    bool   `json:"success"`
-	Error      string `json:"error"`
+	CpuTemp       int                 `json:"cpuTemp"`
+	GpuTemp       int                 `json:"gpuTemp"`
+	MaxTemp       int                 `json:"maxTemp"`
+	ControlTemp   int                 `json:"controlTemp"`
+	ControlSource string              `json:"controlSource"`
+	CpuModel      string              `json:"cpuModel"`
+	GpuModel      string              `json:"gpuModel"`
+	CpuSensors    []TemperatureSensor `json:"cpuSensors"`
+	GpuSensors    []TemperatureSensor `json:"gpuSensors"`
+	UpdateTime    int64               `json:"updateTime"`
+	Success       bool                `json:"success"`
+	Error         string              `json:"error"`
 }
 
 // BridgeCommand 桥接程序命令
@@ -154,6 +221,9 @@ type AppConfig struct {
 	Brightness               int                `json:"brightness"`               // 亮度
 	TempUpdateRate           int                `json:"tempUpdateRate"`           // 温度更新频率(秒)
 	TempSampleCount          int                `json:"tempSampleCount"`          // 温度采样次数(用于平均)
+	TempSource               string             `json:"tempSource"`               // 控温温度来源: max/cpu/gpu
+	CpuSensor                string             `json:"cpuSensor"`                // CPU 传感器选择: auto 或传感器 key
+	GpuSensor                string             `json:"gpuSensor"`                // GPU 传感器选择: auto 或传感器 key
 	ConfigPath               string             `json:"configPath"`               // 配置文件路径
 	ManualGear               string             `json:"manualGear"`               // 手动挡位设置
 	ManualLevel              string             `json:"manualLevel"`              // 手动挡位级别(低中高)
@@ -327,6 +397,7 @@ func GetDefaultFanCurve() []FanCurvePoint {
 // GetDefaultConfig 获取默认配置
 func GetDefaultConfig(isAutoStart bool) AppConfig {
 	defaultCurve := GetDefaultFanCurve()
+	defaultTempSelection := GetDefaultTemperatureSelection()
 
 	return AppConfig{
 		AutoControl:              false,
@@ -352,6 +423,9 @@ func GetDefaultConfig(isAutoStart bool) AppConfig {
 		Brightness:              100,
 		TempUpdateRate:          2,
 		TempSampleCount:         1,
+		TempSource:              defaultTempSelection.TempSource,
+		CpuSensor:               defaultTempSelection.CpuSensor,
+		GpuSensor:               defaultTempSelection.GpuSensor,
 		ConfigPath:              "",
 		ManualGear:              "标准",
 		ManualLevel:             "中",

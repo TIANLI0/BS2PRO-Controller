@@ -80,6 +80,61 @@ const AnimatedRpmValue = memo(function AnimatedRpmValue({ rpm }: { rpm: number |
   );
 });
 
+const MetricHeader = memo(function MetricHeader({
+  icon,
+  label,
+}: {
+  icon: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <div className="mb-3 flex items-center justify-center">
+      <div className="flex min-w-0 max-w-full items-center justify-center gap-2 text-sm font-medium text-muted-foreground">
+        <span className="shrink-0">{icon}</span>
+        <span className="shrink-0">{label}</span>
+      </div>
+    </div>
+  );
+});
+
+const HardwareIdentitySummary = memo(function HardwareIdentitySummary({
+  cpuModel,
+  gpuModel,
+}: {
+  cpuModel: string | undefined;
+  gpuModel: string | undefined;
+}) {
+  const items = [
+    { key: 'cpu', model: cpuModel?.trim(), icon: Cpu },
+    { key: 'gpu', model: gpuModel?.trim(), icon: Gpu },
+  ].filter((item) => item.model);
+
+  if (items.length === 0) {
+    return null;
+  }
+
+  return (
+    <TooltipProvider>
+      <div className="pointer-events-none absolute right-5 top-4 hidden max-w-[calc(100%-11rem)] min-w-0 items-center justify-end gap-2 overflow-hidden md:flex">
+        {items.map((item) => {
+          const Icon = item.icon;
+          return (
+            <Tooltip key={item.key}>
+              <TooltipTrigger asChild>
+                <div className="pointer-events-auto flex min-w-0 max-w-[16rem] items-center gap-1.5 rounded-full border border-border/70 bg-background/75 px-2.5 py-1 text-[11px] shadow-sm shadow-black/5 backdrop-blur-xl">
+                  <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <span className="min-w-0 truncate text-foreground/85">{item.model}</span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>{item.model}</TooltipContent>
+            </Tooltip>
+          );
+        })}
+      </div>
+    </TooltipProvider>
+  );
+});
+
 /* ── Memo sub-components to avoid parent re-renders ── */
 
 const CpuTempDisplay = memo(function CpuTempDisplay({ temp }: { temp: number | undefined }) {
@@ -312,33 +367,35 @@ export default function DeviceStatus({
         >
           {/* CPU */}
           <div className="flex h-full flex-col rounded-2xl border border-border/70 bg-card/85 p-5 backdrop-blur-xl transition-shadow hover:shadow-md hover:shadow-primary/10">
-            <div className="mb-3 flex items-center justify-center gap-2 text-sm font-medium text-muted-foreground">
-              <Cpu className="h-4 w-4" />
-              CPU
-            </div>
+            <MetricHeader
+              icon={<Cpu className="h-4 w-4" />}
+              label="CPU"
+            />
             <CpuTempDisplay temp={temperature?.cpuTemp} />
           </div>
 
           {/* GPU */}
           <div className="flex h-full flex-col rounded-2xl border border-border/70 bg-card/85 p-5 backdrop-blur-xl transition-shadow hover:shadow-md hover:shadow-primary/10">
-            <div className="mb-3 flex items-center justify-center gap-2 text-sm font-medium text-muted-foreground">
-              <Gpu className="h-4 w-4" />
-              GPU
-            </div>
+            <MetricHeader
+              icon={<Gpu className="h-4 w-4" />}
+              label="GPU"
+            />
             <GpuTempDisplay temp={temperature?.gpuTemp} />
           </div>
 
           {/* Fan */}
           <div className="flex h-full flex-col rounded-2xl border border-border/70 bg-card/85 p-5 backdrop-blur-xl transition-shadow hover:shadow-md hover:shadow-primary/10">
-            <div className="mb-3 flex items-center justify-center gap-2 text-sm font-medium text-muted-foreground">
-              <motion.div
-                animate={fanSpinDuration ? { rotate: 360 } : { rotate: 0 }}
-                transition={fanSpinDuration ? { duration: fanSpinDuration, repeat: Infinity, ease: 'linear' } : undefined}
-              >
-                <Fan className="h-4 w-4" />
-              </motion.div>
-              风扇
-            </div>
+            <MetricHeader
+              icon={(
+                <motion.div
+                  animate={fanSpinDuration ? { rotate: 360 } : { rotate: 0 }}
+                  transition={fanSpinDuration ? { duration: fanSpinDuration, repeat: Infinity, ease: 'linear' } : undefined}
+                >
+                  <Fan className="h-4 w-4" />
+                </motion.div>
+              )}
+              label="风扇"
+            />
             <FanRpmDisplay
               currentRpm={fanData?.currentRpm}
               targetRpm={fanData?.targetRpm}
@@ -400,8 +457,10 @@ export default function DeviceStatus({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.15, duration: 0.3 }}
-          className="rounded-3xl border border-border/70 bg-card/80 p-5 backdrop-blur-2xl"
+          className="relative rounded-3xl border border-border/70 bg-card/80 p-5 backdrop-blur-2xl"
         >
+          <HardwareIdentitySummary cpuModel={temperature?.cpuModel} gpuModel={temperature?.gpuModel} />
+
           <div className="mb-4 flex items-center gap-2">
             <Gauge className="h-4 w-4 text-muted-foreground" />
             <h3 className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
