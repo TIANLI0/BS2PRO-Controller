@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import OverlayScrollContainer from "./components/OverlayScrollContainer";
 import SystemThemeSync from "./components/SystemThemeSync";
 import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { BRAND } from "./lib/brand";
 
 const geistSans = Geist({
@@ -32,8 +32,10 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <SystemThemeSync />
-        <OverlayScrollContainer>{children}</OverlayScrollContainer>
-        <Toaster richColors closeButton position="top-right" />
+        <TooltipProvider delayDuration={180}>
+          {children}
+          <Toaster richColors closeButton position="top-right" />
+        </TooltipProvider>
       </body>
     </html>
   );

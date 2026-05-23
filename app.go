@@ -27,14 +27,16 @@ type App struct {
 
 // 为了与前端 API 兼容，重新导出类型
 type (
-	FanCurvePoint           = types.FanCurvePoint
-	FanCurveProfile         = types.FanCurveProfile
-	FanCurveProfilesPayload = types.FanCurveProfilesPayload
-	FanData                 = types.FanData
-	GearCommand             = types.GearCommand
-	TemperatureData         = types.TemperatureData
-	BridgeTemperatureData   = types.BridgeTemperatureData
-	AppConfig               = types.AppConfig
+	FanCurvePoint             = types.FanCurvePoint
+	FanCurveProfile           = types.FanCurveProfile
+	FanCurveProfilesPayload   = types.FanCurveProfilesPayload
+	FanData                   = types.FanData
+	GearCommand               = types.GearCommand
+	TemperatureData           = types.TemperatureData
+	TemperatureHistoryPoint   = types.TemperatureHistoryPoint
+	TemperatureHistoryPayload = types.TemperatureHistoryPayload
+	BridgeTemperatureData     = types.BridgeTemperatureData
+	AppConfig                 = types.AppConfig
 )
 
 var guiLogger *zap.SugaredLogger
@@ -97,6 +99,12 @@ func (a *App) handleCoreEvent(event ipc.Event) {
 			a.currentTemp = temp
 			a.mutex.Unlock()
 			runtime.EventsEmit(a.ctx, "temperature-update", temp)
+		}
+
+	case ipc.EventTemperatureHistoryUpdate:
+		var point types.TemperatureHistoryPoint
+		if err := json.Unmarshal(event.Data, &point); err == nil {
+			runtime.EventsEmit(a.ctx, "temperature-history-update", point)
 		}
 
 	case ipc.EventDeviceConnected:
@@ -466,6 +474,29 @@ func (a *App) GetTemperature() TemperatureData {
 	var temp TemperatureData
 	json.Unmarshal(resp.Data, &temp)
 	return temp
+}
+
+// GetTemperatureHistory 获取核心服务记录的温度历史。
+func (a *App) GetTemperatureHistory() TemperatureHistoryPayload {
+	resp, err := a.sendRequest(ipc.ReqGetTemperatureHistory, nil)
+	if err != nil || !resp.Success {
+		return TemperatureHistoryPayload{}
+	}
+	var payload TemperatureHistoryPayload
+	json.Unmarshal(resp.Data, &payload)
+	return payload
+}
+
+// SetTemperatureHistoryEnabled 设置后台历史记录开关。
+func (a *App) SetTemperatureHistoryEnabled(enabled bool) error {
+	resp, err := a.sendRequest(ipc.ReqSetTemperatureHistoryEnabled, ipc.SetBoolParams{Enabled: enabled})
+	if err != nil {
+		return err
+	}
+	if !resp.Success {
+		return fmt.Errorf("%s", resp.Error)
+	}
+	return nil
 }
 
 // GetCurrentFanData 获取当前风扇数据

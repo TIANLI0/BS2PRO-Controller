@@ -34,6 +34,8 @@ export function GetFanCurveProfiles():Promise<types.FanCurveProfilesPayload>;
 
 export function GetTemperature():Promise<types.TemperatureData>;
 
+export function GetTemperatureHistory():Promise<types.TemperatureHistoryPayload>;
+
 export function HideWindow():Promise<void>;
 
 export function ImportFanCurveProfiles(arg1:string):Promise<void>;
@@ -77,6 +79,8 @@ export function SetManualGear(arg1:string,arg2:string):Promise<boolean>;
 export function SetPowerOnStart(arg1:boolean):Promise<boolean>;
 
 export function SetSmartStartStop(arg1:string):Promise<boolean>;
+
+export function SetTemperatureHistoryEnabled(arg1:boolean):Promise<void>;
 
 export function SetWindowsAutoStart(arg1:boolean):Promise<void>;
 

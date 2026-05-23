@@ -3,6 +3,7 @@
 import { types } from '../../wailsjs/go/models';
 import AppFatalError from './components/AppFatalError';
 import AppLoadingSkeleton from './components/AppLoadingSkeleton';
+import AboutPanel from './components/AboutPanel';
 import AppShell from './components/AppShell';
 import ControlPanel from './components/ControlPanel';
 import DeviceStatus from './components/DeviceStatus';
@@ -24,12 +25,15 @@ export default function Home() {
   const isLoading = useAppStore((state) => state.isLoading);
   const error = useAppStore((state) => state.error);
   const activeTab = useAppStore((state) => state.activeTab);
+  const curveFocusTarget = useAppStore((state) => state.curveFocusTarget);
 
   const initializeApp = useAppStore((state) => state.initializeApp);
   const connectDevice = useAppStore((state) => state.connectDevice);
   const disconnectDevice = useAppStore((state) => state.disconnectDevice);
   const updateConfig = useAppStore((state) => state.updateConfig);
   const setActiveTab = useAppStore((state) => state.setActiveTab);
+  const openCurveTab = useAppStore((state) => state.openCurveTab);
+  const clearCurveFocusTarget = useAppStore((state) => state.clearCurveFocusTarget);
   const clearBridgeWarning = useAppStore((state) => state.clearBridgeWarning);
 
   if (isLoading) {
@@ -64,6 +68,8 @@ export default function Home() {
           onConnect={connectDevice}
           onDisconnect={disconnectDevice}
           onConfigChange={updateConfig}
+          onOpenCurveEditor={() => openCurveTab('curve-editor')}
+          onOpenHistoryDetails={() => openCurveTab('history-details')}
         />
       }
       curveContent={
@@ -74,6 +80,8 @@ export default function Home() {
           fanData={fanData}
           temperature={temperature}
           deviceModel={deviceModel}
+          focusTarget={curveFocusTarget}
+          onFocusHandled={clearCurveFocusTarget}
         />
       }
       controlContent={
@@ -87,6 +95,7 @@ export default function Home() {
           deviceModel={deviceModel}
         />
       }
+      aboutContent={<AboutPanel />}
     />
   );
 }

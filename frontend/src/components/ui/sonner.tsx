@@ -26,6 +26,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
           <Loader2Icon className="size-4 animate-spin" />
         ),
       }}
+      offset={props.offset ?? "56px"}
       style={
         {
           "--normal-bg": "var(--popover)",

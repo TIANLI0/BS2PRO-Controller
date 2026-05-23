@@ -1,15 +1,15 @@
 'use client';
 
-import NumberFlow from '@number-flow/react';
 import { memo, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   AlertTriangle,
+  ArrowUpRight,
+  Bluetooth,
   CircleHelp,
   Cpu,
   Zap,
   RotateCw,
-  Wifi,
   Fan,
   Gpu,
   Settings,
@@ -20,9 +20,11 @@ import {
 } from 'lucide-react';
 import { types } from '../../../wailsjs/go/models';
 import { apiService } from '../services/api';
+import { useTemperatureHistory } from '../hooks/useTemperatureHistory';
+import { type TemperatureHistoryPoint } from '../lib/temperature-history';
 import { getReportedMaxRpm } from '../lib/manualGearPresets';
 import { ToggleSwitch, Button } from './ui/index';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import clsx from 'clsx';
 
 interface DeviceStatusProps {
@@ -35,6 +37,8 @@ interface DeviceStatusProps {
   onConnect: () => void;
   onDisconnect: () => void;
   onConfigChange: (config: types.AppConfig) => void;
+  onOpenCurveEditor: () => void;
+  onOpenHistoryDetails: () => void;
 }
 
 interface BridgeRuntimeStatus {
@@ -48,8 +52,8 @@ interface BridgeRuntimeStatus {
 const getTempStatus = (temp: number) => {
   if (temp > 85) return { color: 'text-red-500', bg: 'bg-red-500', label: '过热' };
   if (temp > 75) return { color: 'text-orange-500', bg: 'bg-orange-500', label: '偏高' };
-  if (temp > 60) return { color: 'text-yellow-500', bg: 'bg-yellow-500', label: '正常' };
-  return { color: 'text-green-500', bg: 'bg-green-500', label: '良好' };
+  if (temp > 60) return { color: 'text-primary', bg: 'bg-primary', label: '正常' };
+  return { color: 'text-primary', bg: 'bg-primary', label: '良好' };
 };
 
 const getFanSpinDuration = (rpm?: number) => {
@@ -61,30 +65,18 @@ const getFanSpinDuration = (rpm?: number) => {
 };
 
 const AnimatedTemperatureValue = memo(function AnimatedTemperatureValue({ temp, colorClass }: { temp: number | undefined; colorClass: string }) {
-  if (temp === undefined) {
-    return <span className={clsx('text-2xl font-bold tabular-nums', colorClass)}>--</span>;
-  }
-
-  return (
-    <NumberFlow
-      value={temp}
-      format={{ maximumFractionDigits: 0 }}
-      className={clsx('text-2xl font-bold tabular-nums', colorClass)}
-    />
-  );
+  return <span className={clsx('text-[28px] font-bold leading-none tabular-nums', colorClass)}>{temp ?? '--'}</span>;
 });
 
 const AnimatedRpmValue = memo(function AnimatedRpmValue({ rpm }: { rpm: number | undefined }) {
-  if (rpm === undefined) {
-    return <span className="text-2xl font-bold tabular-nums text-primary">--</span>;
-  }
+  return <span className="text-[28px] font-bold leading-none tabular-nums text-primary">{rpm ?? '--'}</span>;
+});
 
+const SpinningFanIcon = memo(function SpinningFanIcon({ duration, className }: { duration: number; className: string }) {
   return (
-    <NumberFlow
-      value={rpm}
-      format={{ maximumFractionDigits: 0 }}
-      className="text-2xl font-bold tabular-nums text-primary"
-    />
+    <span className={clsx('inline-flex', duration > 0 && 'animate-spin')} style={duration > 0 ? { animationDuration: `${duration}s` } : undefined}>
+      <Fan className={className} />
+    </span>
   );
 });
 
@@ -97,7 +89,7 @@ const MetricHeader = memo(function MetricHeader({
 }) {
   return (
     <div className="mb-3 flex items-center justify-center">
-      <div className="flex min-w-0 max-w-full items-center justify-center gap-2 text-sm font-medium text-muted-foreground">
+      <div className="flex min-w-0 max-w-full items-center justify-center gap-1.5 text-xs font-semibold text-muted-foreground">
         <span className="shrink-0">{icon}</span>
         <span className="shrink-0">{label}</span>
       </div>
@@ -122,24 +114,22 @@ const HardwareIdentitySummary = memo(function HardwareIdentitySummary({
   }
 
   return (
-    <TooltipProvider>
-      <div className="pointer-events-none absolute right-5 top-4 hidden max-w-[calc(100%-11rem)] min-w-0 items-center justify-end gap-2 overflow-hidden md:flex">
-        {items.map((item) => {
-          const Icon = item.icon;
-          return (
-            <Tooltip key={item.key}>
-              <TooltipTrigger asChild>
-                <div className="pointer-events-auto flex min-w-0 max-w-[16rem] items-center gap-1.5 rounded-full border border-border/70 bg-background/75 px-2.5 py-1 text-[11px] shadow-sm shadow-black/5 backdrop-blur-xl">
-                  <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                  <span className="min-w-0 truncate text-foreground/85">{item.model}</span>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>{item.model}</TooltipContent>
-            </Tooltip>
-          );
-        })}
-      </div>
-    </TooltipProvider>
+    <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+      {items.map((item) => {
+        const Icon = item.icon;
+        return (
+          <Tooltip key={item.key}>
+            <TooltipTrigger asChild>
+              <div className="flex min-w-0 max-w-[18rem] items-center gap-1.5 rounded-full border border-border/70 bg-background/75 px-2.5 py-1 text-[11px] shadow-sm shadow-black/5 backdrop-blur-xl">
+                <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <span className="min-w-0 truncate text-foreground/85">{item.model}</span>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>{item.model}</TooltipContent>
+          </Tooltip>
+        );
+      })}
+    </div>
   );
 });
 
@@ -212,6 +202,202 @@ const FanRpmDisplay = memo(function FanRpmDisplay({
   );
 });
 
+const MiniFanCurveChart = memo(function MiniFanCurveChart({
+  curve,
+  currentTemp,
+  onOpen,
+}: {
+  curve: types.FanCurvePoint[] | undefined;
+  currentTemp: number | undefined;
+  onOpen?: () => void;
+}) {
+  const points = Array.isArray(curve) ? curve.filter((point) => typeof point.temperature === 'number' && typeof point.rpm === 'number') : [];
+  const source = points.length > 0 ? points : [
+    { temperature: 30, rpm: 600 },
+    { temperature: 45, rpm: 1200 },
+    { temperature: 60, rpm: 2300 },
+    { temperature: 75, rpm: 3300 },
+    { temperature: 95, rpm: 4000 },
+  ];
+  const minTemp = Math.min(...source.map((point) => point.temperature), 30);
+  const maxTemp = Math.max(...source.map((point) => point.temperature), 100);
+  const maxRpm = Math.max(4000, ...source.map((point) => point.rpm));
+  const width = 520;
+  const height = 146;
+  const pad = { left: 44, right: 20, top: 14, bottom: 18 };
+  const plotWidth = width - pad.left - pad.right;
+  const plotHeight = height - pad.top - pad.bottom;
+  const xForTemp = (temp: number) => pad.left + ((temp - minTemp) / Math.max(1, maxTemp - minTemp)) * plotWidth;
+  const yForRpm = (rpm: number) => pad.top + plotHeight - (rpm / maxRpm) * plotHeight;
+  const linePoints = source.map((point) => `${xForTemp(point.temperature).toFixed(1)},${yForRpm(point.rpm).toFixed(1)}`).join(' ');
+  const areaPoints = `${pad.left},${pad.top + plotHeight} ${linePoints} ${pad.left + plotWidth},${pad.top + plotHeight}`;
+  const currentX = typeof currentTemp === 'number' && currentTemp > 0
+    ? Math.max(pad.left, Math.min(pad.left + plotWidth, xForTemp(currentTemp)))
+    : null;
+  const yTicks = [0, 1000, 2000, 3000, 4000].filter((tick) => tick <= maxRpm);
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className={clsx(
+        'group flex h-full w-full flex-col rounded-xl border border-border bg-card p-3 text-left shadow-sm shadow-black/5',
+        onOpen && 'cursor-pointer transition-colors hover:border-primary/35 hover:bg-primary/5 hover:shadow-md',
+      )}
+    >
+      <div className="mb-2 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-xs font-semibold text-foreground">风扇转速曲线</div>
+          <div className="text-[11px] text-muted-foreground">RPM</div>
+        </div>
+        <div className="flex items-center gap-2">
+          {onOpen && (
+            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-primary opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100">
+              曲线页
+              <ArrowUpRight className="h-3 w-3" />
+            </span>
+          )}
+          <div className="text-[11px] font-medium text-muted-foreground">{maxTemp} °C</div>
+        </div>
+      </div>
+      <div className="aspect-[520/146] w-full overflow-hidden">
+        <svg viewBox={`0 0 ${width} ${height}`} className="h-full w-full" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+          {yTicks.map((tick) => {
+            const y = yForRpm(tick);
+            return (
+              <g key={tick}>
+                <line x1={pad.left} y1={y} x2={pad.left + plotWidth} y2={y} stroke="var(--chart-grid)" strokeWidth="1" />
+                <text x={pad.left - 8} y={y + 4} textAnchor="end" fontSize="10" fill="var(--chart-tick)">{tick}</text>
+              </g>
+            );
+          })}
+          <polygon points={areaPoints} fill="var(--chart-primary)" opacity="0.14" />
+          <polyline points={linePoints} fill="none" stroke="var(--chart-primary)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+          {currentX !== null && (
+            <line x1={currentX} y1={pad.top} x2={currentX} y2={pad.top + plotHeight} stroke="var(--chart-temperature-indicator)" strokeWidth="1.5" strokeDasharray="4 4" opacity="0.9" />
+          )}
+          <text x={pad.left} y={height - 7} fontSize="10" fill="var(--chart-tick)">{minTemp}</text>
+          <text x={pad.left + plotWidth} y={height - 7} textAnchor="end" fontSize="10" fill="var(--chart-tick)">{maxTemp} °C</text>
+        </svg>
+      </div>
+    </button>
+  );
+});
+
+const TemperatureHistoryPanel = memo(function TemperatureHistoryPanel({
+  points,
+  enabled,
+  source,
+  onOpen,
+}: {
+  points: Array<{ timestamp: number; cpuTemp: number; gpuTemp: number; fanRpm: number }>;
+  enabled: boolean;
+  source: 'core' | 'session';
+  onOpen?: () => void;
+}) {
+  const width = 520;
+  const height = 168;
+  const pad = { left: 8, right: 8, top: 10, bottom: 10 };
+  const plotWidth = width - pad.left - pad.right;
+  const plotHeight = height - pad.top - pad.bottom;
+  const sourceLabel = source === 'core' ? '后台记录' : '本次打开';
+  const validTemps = points.flatMap((point) => [point.cpuTemp, point.gpuTemp]).filter((value) => value > 0);
+  const validFanRpm = points.map((point) => point.fanRpm).filter((value) => value > 0);
+  const minY = Math.max(0, Math.floor((Math.min(...validTemps, 35) - 6) / 5) * 5);
+  const maxY = Math.min(110, Math.ceil((Math.max(...validTemps, 80) + 6) / 5) * 5);
+  const rangeY = Math.max(10, maxY - minY);
+  const maxFanRpm = Math.max(4000, ...validFanRpm, 0);
+  const minTs = points[0]?.timestamp ?? 0;
+  const maxTs = points[points.length - 1]?.timestamp ?? minTs;
+  const rangeTs = Math.max(1, maxTs - minTs);
+  const xFor = (timestamp: number, index: number) => {
+    if (points.length <= 1) return pad.left + plotWidth / 2;
+    if (rangeTs <= 1 && points.length > 1) return pad.left + (index / Math.max(1, points.length - 1)) * plotWidth;
+    return pad.left + ((timestamp - minTs) / rangeTs) * plotWidth;
+  };
+  const yForTemp = (temp: number) => pad.top + plotHeight - ((temp - minY) / rangeY) * plotHeight;
+  const yForFan = (rpm: number) => pad.top + plotHeight - (rpm / Math.max(1, maxFanRpm)) * plotHeight;
+  const buildPath = (selector: (point: TemperatureHistoryPoint) => number, projectY: (value: number) => number) => {
+    let path = '';
+    let started = false;
+    points.forEach((point, index) => {
+      const value = selector(point);
+      if (value <= 0) {
+        started = false;
+        return;
+      }
+      path += `${started ? 'L' : 'M'} ${xFor(point.timestamp, index).toFixed(1)} ${projectY(value).toFixed(1)} `;
+      started = true;
+    });
+    return path.trim();
+  };
+  const cpuPath = buildPath((point) => point.cpuTemp, yForTemp);
+  const gpuPath = buildPath((point) => point.gpuTemp, yForTemp);
+  const fanPath = buildPath((point) => point.fanRpm, yForFan);
+  const gridLines = [0.2, 0.5, 0.8];
+  const handlePanelKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!onOpen) return;
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      onOpen();
+    }
+  };
+
+  return (
+    <div
+      role={onOpen ? 'button' : undefined}
+      tabIndex={onOpen ? 0 : undefined}
+      onClick={onOpen}
+      onKeyDown={handlePanelKeyDown}
+      className={clsx(
+        'group flex h-full min-h-[244px] flex-col rounded-xl border border-border bg-card p-3 shadow-sm shadow-black/5',
+        onOpen && 'cursor-pointer transition-colors hover:border-primary/35 hover:bg-primary/5 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
+      )}
+    >
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="text-xs font-semibold text-foreground">温度与风扇历史</div>
+          <span className="rounded-full border border-border/70 bg-background/70 px-2 py-0.5 text-[10px] text-muted-foreground">{sourceLabel}</span>
+          {onOpen && (
+            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-primary opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100">
+              详情
+              <ArrowUpRight className="h-3 w-3" />
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="flex min-h-[168px] flex-1 overflow-hidden rounded-lg bg-muted/25 p-2.5">
+        {points.length === 0 ? (
+          <div className="flex h-full w-full items-center justify-center text-center text-[11px] leading-relaxed text-muted-foreground">
+            {enabled ? '等待温度数据' : '后台记录已关闭，当前展示本次打开后的临时历史。'}
+          </div>
+        ) : points.length < 2 ? (
+          <div className="flex h-full w-full items-center justify-center text-center text-[11px] leading-relaxed text-muted-foreground">
+            {source === 'core' ? '已记录 1 条后台样本，等待更多数据。' : '已记录 1 条会话样本，等待更多数据。'}
+          </div>
+        ) : (
+          <div className="h-full w-full overflow-hidden">
+            <svg viewBox={`0 0 ${width} ${height}`} className="h-full w-full" preserveAspectRatio="none" aria-hidden="true">
+            {gridLines.map((ratio) => {
+              const y = pad.top + plotHeight * ratio;
+              return (
+                <g key={ratio}>
+                  <line x1={pad.left} y1={y} x2={pad.left + plotWidth} y2={y} stroke="var(--chart-grid)" strokeWidth="1" opacity="0.7" />
+                </g>
+              );
+            })}
+            {cpuPath && <path d={cpuPath} fill="none" stroke="#2f6df6" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />}
+            {gpuPath && <path d={gpuPath} fill="none" stroke="#f97316" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />}
+            {fanPath && <path d={fanPath} fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="4 3" />}
+            </svg>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+});
+
 /* ── Main component ── */
 
 export default function DeviceStatus({
@@ -224,10 +410,17 @@ export default function DeviceStatus({
   onConnect,
   onDisconnect,
   onConfigChange,
+      onOpenCurveEditor,
+      onOpenHistoryDetails,
 }: DeviceStatusProps) {
   const [bridgeWarningReady, setBridgeWarningReady] = useState(false);
   const [activeCurveProfileName, setActiveCurveProfileName] = useState('');
   const [bridgeStatus, setBridgeStatus] = useState<BridgeRuntimeStatus | null>(null);
+  const {
+    points: temperatureHistory,
+    enabled: temperatureHistoryEnabled,
+    source: temperatureHistorySource,
+  } = useTemperatureHistory();
   const hasBridgeWarning = isConnected && temperature?.bridgeOk === false;
 
   useEffect(() => {
@@ -346,13 +539,13 @@ export default function DeviceStatus({
   const maxTempStatus = getTempStatus(temperature?.maxTemp || 0);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* ── Device header card ── */}
-      <div className="relative overflow-hidden rounded-3xl border border-border/70 bg-card/80 p-5 shadow-lg shadow-primary/5 backdrop-blur-2xl">
-        <div className="flex items-center justify-between">
+      <div className="relative overflow-hidden rounded-xl border border-border bg-card p-4 shadow-sm shadow-black/5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div
-              className="flex h-12 w-16 items-center justify-center overflow-hidden"
+              className="flex h-14 w-20 items-center justify-center overflow-hidden rounded-xl bg-muted/45 p-1.5"
             >
               <img
                 src={deviceImageSrc}
@@ -363,12 +556,12 @@ export default function DeviceStatus({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-lg font-semibold text-foreground">{deviceModelName}</span>
+                <span className="text-base font-semibold text-foreground">{deviceModelName}</span>
                 <span
                   className={clsx(
-                    'rounded-full px-2.5 py-1 text-xs font-medium',
+                    'rounded-md px-2 py-0.5 text-[11px] font-semibold',
                     isConnected
-                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                      ? 'bg-primary/10 text-primary'
                       : 'bg-red-500/10 text-red-500',
                   )}
                 >
@@ -376,7 +569,7 @@ export default function DeviceStatus({
                 </span>
               </div>
               {isConnected && (
-                <div className="mt-0.5 flex items-center gap-1.5 text-sm text-muted-foreground">
+                <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
                   {config.autoControl ? (
                     <Zap className="h-3 w-3 text-primary" />
                   ) : (
@@ -385,7 +578,7 @@ export default function DeviceStatus({
                   <span>{modeTitle} · {modeDesc}</span>
                 </div>
               )}
-              {!isConnected && <p className="mt-0.5 text-sm text-muted-foreground">等待蓝牙连接…</p>}
+              {!isConnected && <p className="mt-1 text-xs text-muted-foreground">等待蓝牙连接…</p>}
             </div>
           </div>
 
@@ -401,7 +594,7 @@ export default function DeviceStatus({
             )}
             <Button
               variant={isConnected ? 'secondary' : 'primary'}
-              size="md"
+              size="sm"
               onClick={isConnected ? onDisconnect : onConnect}
             >
               {isConnected ? '断开' : '连接'}
@@ -416,10 +609,10 @@ export default function DeviceStatus({
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: 'easeOut' }}
-          className="grid grid-cols-3 items-stretch gap-4"
+          className="grid grid-cols-1 items-stretch gap-2.5 md:grid-cols-3"
         >
           {/* CPU */}
-          <div className="flex h-full flex-col rounded-2xl border border-border/70 bg-card/85 p-5 backdrop-blur-xl transition-shadow hover:shadow-md hover:shadow-primary/10">
+          <div className="flex h-full flex-col rounded-xl border border-border bg-card p-4 shadow-sm shadow-black/5 transition-shadow hover:shadow-md hover:shadow-primary/10">
             <MetricHeader
               icon={<Cpu className="h-4 w-4" />}
               label="CPU"
@@ -428,7 +621,7 @@ export default function DeviceStatus({
           </div>
 
           {/* GPU */}
-          <div className="flex h-full flex-col rounded-2xl border border-border/70 bg-card/85 p-5 backdrop-blur-xl transition-shadow hover:shadow-md hover:shadow-primary/10">
+          <div className="flex h-full flex-col rounded-xl border border-border bg-card p-4 shadow-sm shadow-black/5 transition-shadow hover:shadow-md hover:shadow-primary/10">
             <MetricHeader
               icon={<Gpu className="h-4 w-4" />}
               label="GPU"
@@ -437,15 +630,10 @@ export default function DeviceStatus({
           </div>
 
           {/* Fan */}
-          <div className="flex h-full flex-col rounded-2xl border border-border/70 bg-card/85 p-5 backdrop-blur-xl transition-shadow hover:shadow-md hover:shadow-primary/10">
+          <div className="flex h-full flex-col rounded-xl border border-border bg-card p-4 shadow-sm shadow-black/5 transition-shadow hover:shadow-md hover:shadow-primary/10">
             <MetricHeader
               icon={(
-                <motion.div
-                  animate={fanSpinDuration ? { rotate: 360 } : { rotate: 0 }}
-                  transition={fanSpinDuration ? { duration: fanSpinDuration, repeat: Infinity, ease: 'linear' } : undefined}
-                >
-                  <Fan className="h-4 w-4" />
-                </motion.div>
+                <SpinningFanIcon duration={fanSpinDuration} className="h-4 w-4" />
               )}
               label="风扇"
             />
@@ -462,10 +650,10 @@ export default function DeviceStatus({
           initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.3 }}
-          className="rounded-2xl border border-dashed border-border bg-card p-14 text-center"
+          className="rounded-xl border border-dashed border-border bg-card p-14 text-center"
         >
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted">
-            <Wifi className="h-7 w-7 text-muted-foreground" />
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-muted">
+            <Bluetooth className="h-7 w-7 text-muted-foreground" />
           </div>
           <h3 className="mb-1.5 text-lg font-semibold">设备未连接</h3>
           <p className="mb-5 text-base text-muted-foreground">请将散热器通过蓝牙连接到电脑</p>
@@ -522,75 +710,91 @@ export default function DeviceStatus({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.15, duration: 0.3 }}
-          className="relative rounded-3xl border border-border/70 bg-card/80 p-5 backdrop-blur-2xl"
+          className="rounded-xl border border-border bg-card p-3 shadow-sm shadow-black/5"
         >
-          <HardwareIdentitySummary cpuModel={temperature?.cpuModel} gpuModel={temperature?.gpuModel} />
-
-          <div className="mb-4 flex items-center gap-2">
-            <Gauge className="h-4 w-4 text-muted-foreground" />
-            <h3 className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
-              控制与保护
-            </h3>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-1">
+            <div className="flex items-center gap-2">
+              <Gauge className="h-4 w-4 text-muted-foreground" />
+              <h3 className="text-xs font-semibold text-muted-foreground">
+                控制与保护
+              </h3>
+            </div>
+            <HardwareIdentitySummary cpuModel={temperature?.cpuModel} gpuModel={temperature?.gpuModel} />
           </div>
 
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <div className="rounded-xl border border-border/70 bg-background/50 p-3.5 backdrop-blur-lg">
+          <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
+            <div className="rounded-xl border border-border bg-background/55 p-3">
               <div className="mb-1 flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Sparkles className="h-3.5 w-3.5" />
                 控制模式
               </div>
-              <div className={clsx('text-base font-semibold', config.autoControl ? 'text-primary' : 'text-amber-600 dark:text-amber-400')}>
+              <div className={clsx('text-sm font-semibold', config.autoControl ? 'text-primary' : 'text-amber-600 dark:text-amber-400')}>
                 {modeDisplayTitle}
               </div>
             </div>
 
-            <div className="group rounded-xl border border-border/70 bg-background/50 p-3.5 backdrop-blur-lg">
+            <div className="group rounded-xl border border-border bg-background/55 p-3">
               <div className="mb-1 flex items-center justify-between gap-2 text-xs text-muted-foreground">
                 <div className="flex items-center gap-1.5">
                   <Power className="h-3.5 w-3.5" />
                   最高转速
                 </div>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        className="inline-flex h-4 w-4 items-center justify-center rounded text-muted-foreground/80 opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
-                        aria-label="最高转速提示"
-                      >
-                        <CircleHelp className="h-3.5 w-3.5" />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent>{maxRpmHint}</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      className="inline-flex h-4 w-4 items-center justify-center rounded text-muted-foreground/80 opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+                      aria-label="最高转速提示"
+                    >
+                      <CircleHelp className="h-3.5 w-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>{maxRpmHint}</TooltipContent>
+                </Tooltip>
               </div>
-              <div className="text-base font-semibold">
+              <div className="text-sm font-semibold">
                 {maxGearHighLevelRpm
                   ? `${maxGearHighLevelRpm} RPM`
                   : maxRpmInfo.codeHex || '--'}
               </div>
             </div>
 
-            <div className="rounded-xl border border-border/70 bg-background/50 p-3.5 backdrop-blur-lg">
+            <div className="rounded-xl border border-border bg-background/55 p-3">
               <div className="mb-1 flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Fan className="h-3.5 w-3.5" />
                 工作模式
               </div>
-              <div className="text-base font-semibold">{fanData?.workMode || '--'}</div>
+              <div className="text-sm font-semibold">{fanData?.workMode || '--'}</div>
             </div>
 
-            <div className="rounded-xl border border-border/70 bg-background/50 p-3.5 backdrop-blur-lg">
+            <div className="rounded-xl border border-border bg-background/55 p-3">
               <div className="mb-1 flex items-center gap-1.5 text-xs text-muted-foreground">
                 <ShieldCheck className="h-3.5 w-3.5" />
                 温度状态
               </div>
-              <div className={clsx('text-base font-semibold tabular-nums', maxTempStatus.color)}>
+              <div className={clsx('text-sm font-semibold tabular-nums', maxTempStatus.color)}>
                 {maxTempStatus.label}
               </div>
             </div>
           </div>
 
+        </motion.div>
+      )}
+
+      {isConnected && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2, duration: 0.3 }}
+          className="grid grid-cols-1 items-stretch gap-2.5 lg:grid-cols-[minmax(0,1.55fr)_minmax(280px,0.95fr)]"
+        >
+          <MiniFanCurveChart curve={config.fanCurve} currentTemp={temperature?.maxTemp} onOpen={onOpenCurveEditor} />
+          <TemperatureHistoryPanel
+            points={temperatureHistory}
+            enabled={temperatureHistoryEnabled}
+            source={temperatureHistorySource}
+            onOpen={onOpenHistoryDetails}
+          />
         </motion.div>
       )}
     </div>

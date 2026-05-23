@@ -547,6 +547,59 @@ export namespace types {
 		}
 	}
 	
+	export class TemperatureHistoryPoint {
+	    timestamp: number;
+	    cpuTemp: number;
+	    gpuTemp: number;
+	    fanRpm: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new TemperatureHistoryPoint(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.timestamp = source["timestamp"];
+	        this.cpuTemp = source["cpuTemp"];
+	        this.gpuTemp = source["gpuTemp"];
+	        this.fanRpm = source["fanRpm"];
+	    }
+	}
+	export class TemperatureHistoryPayload {
+	    enabled: boolean;
+	    sampleIntervalSeconds: number;
+	    points: TemperatureHistoryPoint[];
+	
+	    static createFrom(source: any = {}) {
+	        return new TemperatureHistoryPayload(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.enabled = source["enabled"];
+	        this.sampleIntervalSeconds = source["sampleIntervalSeconds"];
+	        this.points = this.convertValues(source["points"], TemperatureHistoryPoint);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 
 }
 

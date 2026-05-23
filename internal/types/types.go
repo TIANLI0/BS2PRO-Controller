@@ -155,6 +155,21 @@ type TemperatureData struct {
 	BridgeMsg         string                 `json:"bridgeMessage"`     // 桥接故障提示
 }
 
+// TemperatureHistoryPoint CPU/GPU 温度历史点。
+type TemperatureHistoryPoint struct {
+	Timestamp int64 `json:"timestamp"`
+	CPUTemp   int   `json:"cpuTemp"`
+	GPUTemp   int   `json:"gpuTemp"`
+	FanRPM    int   `json:"fanRpm"`
+}
+
+// TemperatureHistoryPayload 温度历史返回载荷。
+type TemperatureHistoryPayload struct {
+	Enabled               bool                      `json:"enabled"`
+	SampleIntervalSeconds int                       `json:"sampleIntervalSeconds"`
+	Points                []TemperatureHistoryPoint `json:"points"`
+}
+
 // BridgeTemperatureData 桥接程序返回的温度数据
 type BridgeTemperatureData struct {
 	CpuTemp           int                    `json:"cpuTemp"`

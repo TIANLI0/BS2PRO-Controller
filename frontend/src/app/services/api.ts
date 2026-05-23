@@ -1,5 +1,5 @@
 // Wails API 服务封装
-import { EventsOn, EventsOff } from '../../../wailsjs/runtime/runtime';
+import { EventsOn } from '../../../wailsjs/runtime/runtime';
 import { 
   ConnectDevice, 
   DisconnectDevice, 
@@ -18,6 +18,8 @@ import {
   SetBrightness,
   SetLightStrip,
   GetTemperature,
+  GetTemperatureHistory,
+  SetTemperatureHistoryEnabled,
   GetCurrentFanData,
   TestTemperatureReading,
   GetDebugInfo,
@@ -169,6 +171,14 @@ class ApiService {
     return await GetTemperature();
   }
 
+  async getTemperatureHistory(): Promise<types.TemperatureHistoryPayload> {
+    return await GetTemperatureHistory();
+  }
+
+  async setTemperatureHistoryEnabled(enabled: boolean): Promise<void> {
+    return await SetTemperatureHistoryEnabled(enabled);
+  }
+
   async getCurrentFanData(): Promise<types.FanData | null> {
     return await GetCurrentFanData();
   }
@@ -192,49 +202,44 @@ class ApiService {
 
   // 事件监听
   onDeviceConnected(callback: (data: DeviceInfo) => void): () => void {
-    EventsOn('device-connected', callback);
-    return () => EventsOff('device-connected');
+    return EventsOn('device-connected', callback);
   }
 
   onDeviceDisconnected(callback: () => void): () => void {
-    EventsOn('device-disconnected', callback);
-    return () => EventsOff('device-disconnected');
+    return EventsOn('device-disconnected', callback);
   }
 
   onDeviceError(callback: (error: string) => void): () => void {
-    EventsOn('device-error', callback);
-    return () => EventsOff('device-error');
+    return EventsOn('device-error', callback);
   }
 
   onFanDataUpdate(callback: (data: types.FanData) => void): () => void {
-    EventsOn('fan-data-update', callback);
-    return () => EventsOff('fan-data-update');
+    return EventsOn('fan-data-update', callback);
   }
 
   onTemperatureUpdate(callback: (data: types.TemperatureData) => void): () => void {
-    EventsOn('temperature-update', callback);
-    return () => EventsOff('temperature-update');
+    return EventsOn('temperature-update', callback);
+  }
+
+  onTemperatureHistoryUpdate(callback: (data: { timestamp: number; cpuTemp: number; gpuTemp: number; fanRpm?: number }) => void): () => void {
+    return EventsOn('temperature-history-update', callback);
   }
 
   onConfigUpdate(callback: (config: types.AppConfig) => void): () => void {
-    EventsOn('config-update', callback);
-    return () => EventsOff('config-update');
+    return EventsOn('config-update', callback);
   }
 
   onHotkeyTriggered(callback: (payload: { action: string; shortcut: string; success: boolean; message: string }) => void): () => void {
-    EventsOn('hotkey-triggered', callback);
-    return () => EventsOff('hotkey-triggered');
+    return EventsOn('hotkey-triggered', callback);
   }
 
   // 调试相关方法
   onLegionPowerModeUpdate(callback: (payload: LegionPowerModePayload) => void): () => void {
-    EventsOn('legion-power-mode-update', callback);
-    return () => EventsOff('legion-power-mode-update');
+    return EventsOn('legion-power-mode-update', callback);
   }
 
   onLegionFnQSupportUpdate(callback: (payload: LegionFnQSupportPayload) => void): () => void {
-    EventsOn('legion-fnq-support-update', callback);
-    return () => EventsOff('legion-fnq-support-update');
+    return EventsOn('legion-fnq-support-update', callback);
   }
 
   async getDebugInfo(): Promise<DebugInfo> {
@@ -251,13 +256,11 @@ class ApiService {
 
   // 调试事件监听
   onHealthPing(callback: (timestamp: number) => void): () => void {
-    EventsOn('health-ping', callback);
-    return () => EventsOff('health-ping');
+    return EventsOn('health-ping', callback);
   }
 
   onHeartbeat(callback: (timestamp: number) => void): () => void {
-    EventsOn('heartbeat', callback);
-    return () => EventsOff('heartbeat');
+    return EventsOn('heartbeat', callback);
   }
 }
 

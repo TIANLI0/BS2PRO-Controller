@@ -357,6 +357,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
   const [recordingTarget, setRecordingTarget] = useState<'manual' | 'auto' | 'curve' | null>(null);
   const [curveProfiles, setCurveProfiles] = useState<CurveProfile[]>([]);
   const [curveProfileLoading, setCurveProfileLoading] = useState(false);
+  const [temperatureHistoryEnabled, setTemperatureHistoryEnabled] = useState(false);
 
   const activeCurveProfileId = ((config as any).activeFanCurveProfileId || '') as string;
   const isBs1 = deviceModel === 'BS1';
@@ -597,6 +598,16 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
     }
   }, [config, onConfigChange]);
 
+  const handleTemperatureHistoryChange = useCallback(async (enabled: boolean) => {
+    setLoading('temperatureHistory', true);
+    try {
+      await apiService.setTemperatureHistoryEnabled(enabled);
+      setTemperatureHistoryEnabled(enabled);
+    } catch { /* noop */ } finally {
+      setLoading('temperatureHistory', false);
+    }
+  }, []);
+
   const updateLegionFnQConfig = useCallback(async (patch: any) => {
     if (!legionFnQSupported) return;
     setLoading('legionFnQ', true);
@@ -640,6 +651,27 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
     } catch {
       setCurveProfiles([]);
     }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadTelemetryState = async () => {
+      try {
+        const payload = await apiService.getTemperatureHistory();
+        if (!cancelled) {
+          setTemperatureHistoryEnabled(payload?.enabled !== false);
+        }
+      } catch {
+        if (!cancelled) {
+          setTemperatureHistoryEnabled(false);
+        }
+      }
+    };
+
+    loadTelemetryState();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleCurveProfileChange = useCallback(async (profileId: string) => {
@@ -1132,6 +1164,21 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
               size="sm"
               color="blue"
               srLabel="切换温度尖峰过滤"
+            />
+          </SettingRow>
+
+          <SettingRow
+            icon={<BarChart3 className="h-4 w-4" />}
+            title="温度历史记录"
+            description="开启后由核心服务保留最近 CPU/GPU 温度曲线；关闭后仅在 GUI 打开期间绘制临时曲线。"
+          >
+            <ToggleSwitch
+              enabled={temperatureHistoryEnabled}
+              onChange={handleTemperatureHistoryChange}
+              loading={loadingStates.temperatureHistory}
+              size="sm"
+              color="blue"
+              srLabel="切换核心温度历史记录"
             />
           </SettingRow>
 

@@ -43,6 +43,7 @@ type CoreApp struct {
 	deviceManager    *device.Manager
 	bridgeManager    *bridge.Manager
 	tempReader       *temperature.Reader
+	tempHistory      *temperature.HistoryRecorder
 	configManager    *config.Manager
 	trayManager      *tray.Manager
 	hotkeyManager    *hotkeysvc.Manager
@@ -98,6 +99,8 @@ func NewCoreApp(debugMode, isAutoStart bool) *CoreApp {
 	deviceMgr := device.NewManager(customLogger)
 	tempReader := temperature.NewReader(bridgeMgr, customLogger)
 	configMgr := config.NewManager(installDir, customLogger)
+	historyPath := filepath.Join(installDir, temperature.DefaultHistoryRelativePath)
+	tempHistory := temperature.NewHistoryRecorder(historyPath, temperature.DefaultHistoryCapacity, temperature.DefaultHistorySampleInterval, customLogger)
 	trayMgr := tray.NewManager(customLogger, iconData)
 	autostartMgr := autostart.NewManager(customLogger)
 	pluginMgr := plugins.NewManager(customLogger)
@@ -107,6 +110,7 @@ func NewCoreApp(debugMode, isAutoStart bool) *CoreApp {
 		deviceManager:      deviceMgr,
 		bridgeManager:      bridgeMgr,
 		tempReader:         tempReader,
+		tempHistory:        tempHistory,
 		currentTemp:        types.TemperatureData{BridgeOk: true},
 		configManager:      configMgr,
 		trayManager:        trayMgr,
@@ -789,6 +793,19 @@ func (a *CoreApp) handleIPCRequest(req ipc.Request) ipc.Response {
 		a.mutex.RUnlock()
 		return a.dataResponse(temp)
 
+	case ipc.ReqGetTemperatureHistory:
+		return a.dataResponse(a.tempHistory.Snapshot())
+
+	case ipc.ReqSetTemperatureHistoryEnabled:
+		var params ipc.SetBoolParams
+		if err := json.Unmarshal(req.Data, &params); err != nil {
+			return a.errorResponse("解析参数失败: " + err.Error())
+		}
+		if err := a.SetTemperatureHistoryEnabled(params.Enabled); err != nil {
+			return a.errorResponse(err.Error())
+		}
+		return a.successResponse(true)
+
 	case ipc.ReqTestTemperatureReading:
 		cfg := a.configManager.Get()
 		temp := a.tempReader.Read(types.TemperatureSelection{
@@ -1175,6 +1192,13 @@ func (a *CoreApp) UpdateConfig(cfg types.AppConfig) error {
 	a.syncManualGearLevelMemoryLocked(cfg)
 	a.applyHotkeyBindings(cfg)
 	a.applyPluginConfig(cfg)
+	return nil
+}
+
+func (a *CoreApp) SetTemperatureHistoryEnabled(enabled bool) error {
+	if err := a.tempHistory.SetEnabled(enabled); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -1854,9 +1878,14 @@ func (a *CoreApp) startTemperatureMonitoring() {
 			a.currentTemp = temp
 			a.mutex.Unlock()
 
+			historyPoint, recorded := a.tempHistory.Add(temp, a.deviceManager.GetCurrentFanData())
+
 			// 广播温度更新
 			if a.ipcServer != nil {
 				a.ipcServer.BroadcastEvent(ipc.EventTemperatureUpdate, temp)
+				if recorded {
+					a.ipcServer.BroadcastEvent(ipc.EventTemperatureHistoryUpdate, historyPoint)
+				}
 			}
 
 			smartCfg, smartChanged := smartcontrol.NormalizeConfig(cfg.SmartControl, cfg.FanCurve, cfg.DebugMode)

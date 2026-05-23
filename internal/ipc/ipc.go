@@ -63,11 +63,13 @@ const (
 	ReqSetLightStrip     RequestType = "SetLightStrip"
 
 	// 温度相关
-	ReqGetTemperature         RequestType = "GetTemperature"
-	ReqTestTemperatureReading RequestType = "TestTemperatureReading"
-	ReqTestBridgeProgram      RequestType = "TestBridgeProgram"
-	ReqGetBridgeProgramStatus RequestType = "GetBridgeProgramStatus"
-	ReqRestartPawnIO          RequestType = "RestartPawnIO"
+	ReqGetTemperature               RequestType = "GetTemperature"
+	ReqGetTemperatureHistory        RequestType = "GetTemperatureHistory"
+	ReqSetTemperatureHistoryEnabled RequestType = "SetTemperatureHistoryEnabled"
+	ReqTestTemperatureReading       RequestType = "TestTemperatureReading"
+	ReqTestBridgeProgram            RequestType = "TestBridgeProgram"
+	ReqGetBridgeProgramStatus       RequestType = "GetBridgeProgramStatus"
+	ReqRestartPawnIO                RequestType = "RestartPawnIO"
 
 	// 自启动相关
 	ReqSetWindowsAutoStart    RequestType = "SetWindowsAutoStart"
@@ -127,17 +129,18 @@ type Event struct {
 
 // EventType 事件类型
 const (
-	EventFanDataUpdate          = "fan-data-update"
-	EventTemperatureUpdate      = "temperature-update"
-	EventDeviceConnected        = "device-connected"
-	EventDeviceDisconnected     = "device-disconnected"
-	EventDeviceError            = "device-error"
-	EventConfigUpdate           = "config-update"
-	EventHotkeyTriggered        = "hotkey-triggered"
-	EventLegionPowerModeUpdate  = "legion-power-mode-update"
-	EventLegionFnQSupportUpdate = "legion-fnq-support-update"
-	EventHealthPing             = "health-ping"
-	EventHeartbeat              = "heartbeat"
+	EventFanDataUpdate            = "fan-data-update"
+	EventTemperatureUpdate        = "temperature-update"
+	EventTemperatureHistoryUpdate = "temperature-history-update"
+	EventDeviceConnected          = "device-connected"
+	EventDeviceDisconnected       = "device-disconnected"
+	EventDeviceError              = "device-error"
+	EventConfigUpdate             = "config-update"
+	EventHotkeyTriggered          = "hotkey-triggered"
+	EventLegionPowerModeUpdate    = "legion-power-mode-update"
+	EventLegionFnQSupportUpdate   = "legion-fnq-support-update"
+	EventHealthPing               = "health-ping"
+	EventHeartbeat                = "heartbeat"
 )
 
 // Server IPC 服务器

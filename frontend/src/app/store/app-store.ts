@@ -3,11 +3,19 @@ import { types } from '../../../wailsjs/go/models';
 import { apiService } from '../services/api';
 import { configService } from '../services/config-service';
 import { deviceService, type DeviceStatusPayload } from '../services/device-service';
+import {
+  appendSampledHistoryPoint,
+  createLiveHistoryPoint,
+  SESSION_HISTORY_LIMIT,
+  SESSION_HISTORY_RETENTION_MS,
+} from '../lib/temperature-history';
+import type { TemperatureHistoryPoint } from '../lib/temperature-history';
 import { toast } from 'sonner';
 
 const getBridgeWarningMessage = () => 'CPU/GPU 温度读取失败，请检查 PawnIO 是否安装成功，或升级到最新版本。';
 
-type ActiveTab = 'status' | 'curve' | 'control';
+type ActiveTab = 'status' | 'curve' | 'control' | 'about';
+export type CurveFocusTarget = 'curve-editor' | 'history-details';
 
 interface AppStore {
   isConnected: boolean;
@@ -21,10 +29,15 @@ interface AppStore {
   isLoading: boolean;
   error: string | null;
   activeTab: ActiveTab;
+  curveFocusTarget: CurveFocusTarget | null;
+  sessionHistoryPoints: TemperatureHistoryPoint[];
 
   setActiveTab: (tab: ActiveTab) => void;
+  openCurveTab: (target: CurveFocusTarget) => void;
+  clearCurveFocusTarget: () => void;
   clearBridgeWarning: () => void;
   handleTemperaturePayload: (data: types.TemperatureData | null) => void;
+  appendSessionHistoryPoint: (data: types.TemperatureData | null) => void;
 
   initializeApp: () => Promise<void>;
   connectDevice: () => Promise<void>;
@@ -46,8 +59,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
   isLoading: true,
   error: null,
   activeTab: 'status',
+  curveFocusTarget: null,
+  sessionHistoryPoints: [],
 
-  setActiveTab: (tab) => set({ activeTab: tab }),
+  setActiveTab: (tab) => set({ activeTab: tab, curveFocusTarget: null }),
+
+  openCurveTab: (target) => set({ activeTab: 'curve', curveFocusTarget: target }),
+
+  clearCurveFocusTarget: () => set({ curveFocusTarget: null }),
 
   clearBridgeWarning: () => set({ bridgeWarning: null }),
 
@@ -57,6 +76,25 @@ export const useAppStore = create<AppStore>((set, get) => ({
       temperature: data,
       bridgeWarning: data?.bridgeOk === false ? bridgeMessage || getBridgeWarningMessage() : null,
     });
+  },
+
+  appendSessionHistoryPoint: (data) => {
+    if (!data) return;
+
+    const point = createLiveHistoryPoint({
+      updateTime: data.updateTime,
+      cpuTemp: data.cpuTemp,
+      gpuTemp: data.gpuTemp,
+    }, Number(get().fanData?.currentRpm || 0));
+
+    if (!point) return;
+
+    set((state) => ({
+      sessionHistoryPoints: appendSampledHistoryPoint(state.sessionHistoryPoints, point, {
+        retentionMs: SESSION_HISTORY_RETENTION_MS,
+        limit: SESSION_HISTORY_LIMIT,
+      }),
+    }));
   },
 
   initializeApp: async () => {
@@ -158,6 +196,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     unsubscribers.push(
       deviceService.onTemperatureUpdate((data) => {
         get().handleTemperaturePayload(data);
+        get().appendSessionHistoryPoint(data);
       })
     );
 

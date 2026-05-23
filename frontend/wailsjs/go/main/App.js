@@ -66,6 +66,10 @@ export function GetTemperature() {
   return window['go']['main']['App']['GetTemperature']();
 }
 
+export function GetTemperatureHistory() {
+  return window['go']['main']['App']['GetTemperatureHistory']();
+}
+
 export function HideWindow() {
   return window['go']['main']['App']['HideWindow']();
 }
@@ -152,6 +156,10 @@ export function SetPowerOnStart(arg1) {
 
 export function SetSmartStartStop(arg1) {
   return window['go']['main']['App']['SetSmartStartStop'](arg1);
+}
+
+export function SetTemperatureHistoryEnabled(arg1) {
+  return window['go']['main']['App']['SetTemperatureHistoryEnabled'](arg1);
 }
 
 export function SetWindowsAutoStart(arg1) {

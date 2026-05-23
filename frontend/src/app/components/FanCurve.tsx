@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   RotateCw,
   Check,
+  History,
   Info,
   Spline,
   TriangleAlert,
@@ -15,9 +16,12 @@ import {
   Download,
   Upload,
 } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Input } from '@/components/ui/input';
 import { apiService } from '../services/api';
+import { useTemperatureHistory } from '../hooks/useTemperatureHistory';
+import { type HistorySeriesKey } from '../lib/temperature-history';
+import type { CurveFocusTarget } from '../store/app-store';
 import { types } from '../../../wailsjs/go/models';
 import { MANUAL_GEAR_PRESETS, BS1_MANUAL_GEAR_PRESETS } from '../lib/manualGearPresets';
 import FanCurveProfileSelect from './FanCurveProfileSelect';
@@ -92,6 +96,39 @@ interface FanCurveProps {
   fanData: types.FanData | null;
   temperature: types.TemperatureData | null;
   deviceModel: string | null;
+  focusTarget: CurveFocusTarget | null;
+  onFocusHandled: () => void;
+}
+
+function formatHistoryTime(timestamp: number) {
+  return new Date(timestamp).toLocaleTimeString('zh-CN', {
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function formatHistoryDateTime(timestamp: number) {
+  return new Date(timestamp).toLocaleTimeString('zh-CN', {
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+}
+
+function formatHistoryDuration(startTimestamp: number, endTimestamp: number) {
+  const durationMs = Math.max(0, endTimestamp - startTimestamp);
+  if (durationMs < 60_000) {
+    return '< 1 分钟';
+  }
+  const totalMinutes = Math.round(durationMs / 60_000);
+  if (totalMinutes < 60) {
+    return `${totalMinutes} 分钟`;
+  }
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return minutes > 0 ? `${hours} 小时 ${minutes} 分钟` : `${hours} 小时`;
 }
 
 /* ── Temperature indicator overlay (memo, doesn't re-render chart) ── */
@@ -187,7 +224,7 @@ const DraggablePoint = memo(function DraggablePoint({
    ─── Main FanCurve Component ───
    ═══════════════════════════════════════════════════════════ */
 
-const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, temperature, deviceModel }: FanCurveProps) {
+const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, temperature, deviceModel, focusTarget, onFocusHandled }: FanCurveProps) {
   const [localCurve, setLocalCurve] = useState<types.FanCurvePoint[]>([]);
   const [curveProfiles, setCurveProfiles] = useState<CurveProfile[]>([]);
   const [activeProfileId, setActiveProfileId] = useState('');
@@ -203,13 +240,26 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [isInteracting, setIsInteracting] = useState(false);
   const [showLowRpmWarning, setShowLowRpmWarning] = useState(false);
+  const [historySeriesVisibility, setHistorySeriesVisibility] = useState<Record<HistorySeriesKey, boolean>>({
+    cpu: true,
+    gpu: true,
+    fan: true,
+  });
   const chartRef = useRef<HTMLDivElement>(null);
+  const curveEditorRef = useRef<HTMLDivElement>(null);
+  const historyDetailsRef = useRef<HTMLElement>(null);
   const previousMaxTempRef = useRef<number | null>(null);
   const lowRpmWarnedInDragRef = useRef(false);
   const chartBoundsRef = useRef<{ top: number; bottom: number; left: number; right: number; yMin: number; yMax: number } | null>(null);
   const dragFrameRef = useRef<number | null>(null);
   const pendingDragYRef = useRef<number | null>(null);
   const [rpmRange, setRpmRange] = useState({ min: 0, max: 4000, ticks: [0, 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000] });
+  const {
+    points: temperatureHistory,
+    enabled: temperatureHistoryEnabled,
+    saving: temperatureHistorySaving,
+    setEnabled: setTemperatureHistoryEnabled,
+  } = useTemperatureHistory();
 
   const activeProfile = useMemo(() => curveProfiles.find((p) => p.id === activeProfileId) ?? null, [curveProfiles, activeProfileId]);
   const externalActiveProfileId = ((config as any).activeFanCurveProfileId || '') as string;
@@ -318,6 +368,26 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
     previousMaxTempRef.current = maxTemp;
   }, [temperature?.maxTemp]);
 
+  useEffect(() => {
+    if (!focusTarget) {
+      return;
+    }
+
+    const target = focusTarget === 'history-details' ? historyDetailsRef.current : curveEditorRef.current;
+    if (!target) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      target.scrollIntoView({ block: 'start' });
+      onFocusHandled();
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
+  }, [focusTarget, onFocusHandled]);
+
   /* ── Learning insight ── */
 
   const learningInsight = useMemo(() => {
@@ -349,6 +419,58 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
       significantPoints,
     };
   }, [config.fanCurve, localCurve, smartControl.learnedOffsets, temperature?.maxTemp]);
+
+  const detailHistoryPoints = useMemo(() => temperatureHistory.slice(-180), [temperatureHistory]);
+
+  const historyTempDomain = useMemo<[number, number]>(() => {
+    const values = detailHistoryPoints.flatMap((point) => [point.cpuTemp, point.gpuTemp]).filter((value) => value > 0);
+    if (values.length === 0) {
+      return [30, 90];
+    }
+    const min = Math.max(0, Math.floor((Math.min(...values) - 4) / 5) * 5);
+    const max = Math.min(110, Math.ceil((Math.max(...values) + 4) / 5) * 5);
+    return [min, Math.max(min + 10, max)];
+  }, [detailHistoryPoints]);
+
+  const historyFanMax = useMemo(() => {
+    return Math.max(4000, ...detailHistoryPoints.map((point) => point.fanRpm).filter((value) => value > 0), 0);
+  }, [detailHistoryPoints]);
+
+  const historySummary = useMemo(() => {
+    const latest = temperatureHistory[temperatureHistory.length - 1] ?? null;
+    const first = temperatureHistory[0] ?? null;
+    const cpuValues = temperatureHistory.map((point) => point.cpuTemp).filter((value) => value > 0);
+    const gpuValues = temperatureHistory.map((point) => point.gpuTemp).filter((value) => value > 0);
+    const fanValues = temperatureHistory.map((point) => point.fanRpm).filter((value) => value > 0);
+    const average = (values: number[]) => values.length > 0 ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : 0;
+
+    return {
+      sampleCount: temperatureHistory.length,
+      latest,
+      latestLabel: latest ? formatHistoryDateTime(latest.timestamp) : '--',
+      durationLabel: first && latest ? formatHistoryDuration(first.timestamp, latest.timestamp) : '--',
+      cpuPeak: cpuValues.length > 0 ? Math.max(...cpuValues) : 0,
+      cpuAverage: average(cpuValues),
+      gpuPeak: gpuValues.length > 0 ? Math.max(...gpuValues) : 0,
+      gpuAverage: average(gpuValues),
+      fanPeak: fanValues.length > 0 ? Math.max(...fanValues) : 0,
+      fanAverage: average(fanValues),
+    };
+  }, [temperatureHistory]);
+  const historyChartData = useMemo(() => detailHistoryPoints.map((point) => ({ ...point })), [detailHistoryPoints]);
+
+  const historySeriesMeta = useMemo(() => ([
+    { key: 'cpu' as const, label: 'CPU', color: '#2f6df6' },
+    { key: 'gpu' as const, label: 'GPU', color: '#f97316' },
+    { key: 'fan' as const, label: '风扇 RPM', color: '#10b981' },
+  ]), []);
+
+  const toggleHistorySeries = useCallback((series: HistorySeriesKey) => {
+    setHistorySeriesVisibility((prev) => ({
+      ...prev,
+      [series]: !prev[series],
+    }));
+  }, []);
 
   /* ── Init ── */
 
@@ -792,8 +914,7 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
   /* ═══════════════════ RENDER ═══════════════════ */
 
   return (
-    <TooltipProvider>
-      <div className="relative space-y-4 overflow-hidden">
+    <div className="relative space-y-4 overflow-hidden">
         {/* ── Header ── */}
         <motion.div
           initial={{ opacity: 0, y: 8 }}
@@ -897,28 +1018,33 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
         </AnimatePresence>
 
         {/* ── Chart ── */}
-        <div
-          ref={chartRef}
-          className={clsx('relative rounded-3xl border bg-card p-4 shadow-sm', dragIndex !== null ? 'ring-2 ring-primary/40 border-primary/30' : 'border-border/70')}
-        >
-          <div className="h-80 md:h-96 relative">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-                <XAxis dataKey="temperature" type="number" domain={[temperatureRange.min, temperatureRange.max]} ticks={temperatureRange.ticks} tickLine={false} axisLine={{ stroke: 'var(--chart-axis)' }} tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} allowDataOverflow label={{ value: '温度 (°C)', position: 'insideBottom', offset: -10, fill: 'var(--chart-tick)', fontSize: 12 }} />
-                <YAxis type="number" domain={[rpmRange.min, rpmRange.max]} ticks={rpmRange.ticks} tickLine={false} axisLine={{ stroke: 'var(--chart-axis)' }} tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} allowDataOverflow label={{ value: '转速 (RPM)', angle: -90, position: 'insideLeft', fill: 'var(--chart-tick)', fontSize: 12 }} />
-                <RechartsTooltip
-                  formatter={(value: number, name: string) => name === 'coupledRpm' ? [`${value} RPM`, '学习曲线'] : [`${value} RPM`, '基础曲线']}
-                  labelFormatter={(v) => `温度: ${v}°C`}
-                  contentStyle={{ backgroundColor: 'var(--chart-tooltip-bg)', border: '1px solid', borderColor: 'var(--chart-tooltip-border)', borderRadius: '8px', boxShadow: 'var(--chart-tooltip-shadow)', padding: '8px 12px', color: 'var(--chart-tooltip-text)' }}
-                  labelStyle={{ color: 'var(--chart-tooltip-text)', fontWeight: 600 }}
-                  itemStyle={{ color: 'var(--chart-tooltip-text)' }}
-                />
-                <Line type="monotone" dataKey="rpm" stroke="var(--chart-primary)" strokeWidth={3} dot={CustomDot} activeDot={false} isAnimationActive={false} />
-                {showCoupledCurve && <Line type="monotone" dataKey="coupledRpm" stroke="var(--chart-primary)" strokeWidth={2} strokeDasharray="6 4" dot={false} activeDot={false} isAnimationActive={false} />}
-              </LineChart>
-            </ResponsiveContainer>
-            <TemperatureIndicator temperature={temperature?.maxTemp ?? null} chartRef={chartRef} temperatureRange={temperatureRange} />
+        <div ref={curveEditorRef}>
+          <div
+            ref={chartRef}
+            className={clsx('relative rounded-3xl border bg-card p-4 shadow-sm', dragIndex !== null ? 'ring-2 ring-primary/40 border-primary/30' : 'border-border/70')}
+          >
+            <div className="h-80 md:h-96 relative">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                  <XAxis dataKey="temperature" type="number" domain={[temperatureRange.min, temperatureRange.max]} ticks={temperatureRange.ticks} tickLine={false} axisLine={{ stroke: 'var(--chart-axis)' }} tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} label={{ value: '温度 (°C)', position: 'insideBottom', offset: -10, fill: 'var(--chart-tick)', fontSize: 12 }} />
+                  <YAxis type="number" domain={[rpmRange.min, rpmRange.max]} ticks={rpmRange.ticks} tickLine={false} axisLine={{ stroke: 'var(--chart-axis)' }} tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} label={{ value: '转速 (RPM)', angle: -90, position: 'insideLeft', fill: 'var(--chart-tick)', fontSize: 12 }} />
+                  <RechartsTooltip
+                    formatter={(value, name) => {
+                      const numericValue = Number(value ?? 0);
+                      return name === 'coupledRpm' ? [`${numericValue} RPM`, '学习曲线'] : [`${numericValue} RPM`, '基础曲线'];
+                    }}
+                    labelFormatter={(v) => `温度: ${v}°C`}
+                    contentStyle={{ backgroundColor: 'var(--chart-tooltip-bg)', border: '1px solid', borderColor: 'var(--chart-tooltip-border)', borderRadius: '8px', boxShadow: 'var(--chart-tooltip-shadow)', padding: '8px 12px', color: 'var(--chart-tooltip-text)' }}
+                    labelStyle={{ color: 'var(--chart-tooltip-text)', fontWeight: 600 }}
+                    itemStyle={{ color: 'var(--chart-tooltip-text)' }}
+                  />
+                  <Line type="monotone" dataKey="rpm" stroke="var(--chart-primary)" strokeWidth={3} dot={CustomDot} activeDot={false} isAnimationActive={false} />
+                  {showCoupledCurve && <Line type="monotone" dataKey="coupledRpm" stroke="var(--chart-primary)" strokeWidth={2} strokeDasharray="6 4" dot={false} activeDot={false} isAnimationActive={false} />}
+                </LineChart>
+              </ResponsiveContainer>
+              <TemperatureIndicator temperature={temperature?.maxTemp ?? null} chartRef={chartRef} temperatureRange={temperatureRange} />
+            </div>
           </div>
         </div>
 
@@ -933,6 +1059,133 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
             <Button variant="primary" size="sm" onClick={saveCurve} disabled={!hasUnsavedChanges} loading={isSaving} icon={<Check className="h-3.5 w-3.5" />}>保存</Button>
           </div>
         </div>
+
+        <section ref={historyDetailsRef} className="rounded-2xl border border-border/70 bg-card p-4 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <History className="h-4 w-4 text-primary" />
+              <div>
+                <div className="text-sm font-medium text-foreground">温度与风扇历史详情</div>
+                <div className="text-xs text-muted-foreground">曲线页保留完整历史概览，便于对照当前曲线与温度走势。</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <ToggleSwitch
+                enabled={temperatureHistoryEnabled}
+                onChange={setTemperatureHistoryEnabled}
+                loading={temperatureHistorySaving}
+                label={temperatureHistorySaving ? '保存中' : '后台记录'}
+                size="sm"
+                color="blue"
+              />
+            </div>
+          </div>
+
+          {temperatureHistory.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-border/70 bg-background/35 px-4 py-8 text-center text-sm text-muted-foreground">
+              {temperatureHistoryEnabled ? '后台记录已开启，等待更多温度与风扇样本。' : '后台记录当前已关闭，可在本页开启。'}
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+                {[
+                  ['最近更新', historySummary.latestLabel, historySummary.latest ? `CPU ${historySummary.latest.cpuTemp || '--'}°C · GPU ${historySummary.latest.gpuTemp || '--'}°C` : '等待样本'],
+                  ['记录跨度', historySummary.durationLabel, `${historySummary.sampleCount} 条样本`],
+                  ['CPU 峰值', historySummary.cpuPeak ? `${historySummary.cpuPeak}°C` : '--', historySummary.cpuAverage ? `平均 ${historySummary.cpuAverage}°C` : '暂无 CPU 温度'],
+                  ['GPU 峰值', historySummary.gpuPeak ? `${historySummary.gpuPeak}°C` : '--', historySummary.gpuAverage ? `平均 ${historySummary.gpuAverage}°C` : '暂无 GPU 温度'],
+                  ['风扇峰值', historySummary.fanPeak ? `${historySummary.fanPeak} RPM` : '--', historySummary.fanAverage ? `平均 ${historySummary.fanAverage} RPM` : '暂无风扇数据'],
+                ].map(([label, value, hint]) => (
+                  <div key={label} className="rounded-xl border border-border/70 bg-background/35 p-3">
+                    <div className="text-[11px] text-muted-foreground">{label}</div>
+                    <div className="mt-1 text-sm font-semibold text-foreground">{value}</div>
+                    <div className="mt-1 text-[11px] text-muted-foreground">{hint}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="rounded-xl border border-border/70 bg-background/35 p-3 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-xs font-medium text-muted-foreground">最近趋势</div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {historySeriesMeta.map((series) => (
+                      <button
+                        key={series.key}
+                        type="button"
+                        onClick={() => toggleHistorySeries(series.key)}
+                        className={clsx(
+                          'inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition-colors',
+                          historySeriesVisibility[series.key]
+                            ? 'border-border bg-card text-foreground'
+                            : 'border-border/60 bg-transparent text-muted-foreground/65',
+                        )}
+                      >
+                        <span className="h-2 w-2 rounded-full" style={{ backgroundColor: series.color }} />
+                        {series.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {historyChartData.length < 2 ? (
+                  <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">已记录 1 条样本，等待更多数据后展示趋势图。</div>
+                ) : (
+                  <div className="h-72">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={historyChartData} margin={{ top: 12, right: 16, left: 4, bottom: 8 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                        <XAxis
+                          dataKey="timestamp"
+                          type="number"
+                          domain={['dataMin', 'dataMax']}
+                          tickFormatter={(value) => formatHistoryTime(Number(value))}
+                          tickLine={false}
+                          minTickGap={24}
+                          axisLine={{ stroke: 'var(--chart-axis)' }}
+                          tick={{ fill: 'var(--chart-tick)', fontSize: 11 }}
+                        />
+                        <YAxis
+                          yAxisId="temp"
+                          type="number"
+                          domain={historyTempDomain}
+                          tickLine={false}
+                          axisLine={{ stroke: 'var(--chart-axis)' }}
+                          tick={{ fill: 'var(--chart-tick)', fontSize: 11 }}
+                          width={40}
+                        />
+                        <YAxis
+                          yAxisId="fan"
+                          orientation="right"
+                          type="number"
+                          domain={[0, historyFanMax]}
+                          tickLine={false}
+                          axisLine={{ stroke: 'var(--chart-axis)' }}
+                          tick={{ fill: 'var(--chart-tick)', fontSize: 11 }}
+                          width={52}
+                        />
+                        <RechartsTooltip
+                          labelFormatter={(value) => formatHistoryDateTime(Number(value))}
+                          formatter={(value, name) => {
+                            const numericValue = Number(value ?? 0);
+                            if (name === 'fanRpm') {
+                              return [`${numericValue} RPM`, '风扇 RPM'];
+                            }
+                            return [`${numericValue} °C`, name === 'cpuTemp' ? 'CPU' : 'GPU'];
+                          }}
+                          contentStyle={{ backgroundColor: 'var(--chart-tooltip-bg)', border: '1px solid', borderColor: 'var(--chart-tooltip-border)', borderRadius: '8px', boxShadow: 'var(--chart-tooltip-shadow)', padding: '8px 12px', color: 'var(--chart-tooltip-text)' }}
+                          labelStyle={{ color: 'var(--chart-tooltip-text)', fontWeight: 600 }}
+                          itemStyle={{ color: 'var(--chart-tooltip-text)' }}
+                        />
+                        {historySeriesVisibility.cpu && <Line yAxisId="temp" type="monotone" dataKey="cpuTemp" stroke="#2f6df6" strokeWidth={2.3} dot={false} activeDot={false} isAnimationActive={false} connectNulls />}
+                        {historySeriesVisibility.gpu && <Line yAxisId="temp" type="monotone" dataKey="gpuTemp" stroke="#f97316" strokeWidth={2.3} dot={false} activeDot={false} isAnimationActive={false} connectNulls />}
+                        {historySeriesVisibility.fan && <Line yAxisId="fan" type="monotone" dataKey="fanRpm" stroke="#10b981" strokeWidth={2} strokeDasharray="5 4" dot={false} activeDot={false} isAnimationActive={false} connectNulls />}
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </section>
 
         <section className="rounded-2xl border border-border/70 bg-card p-4 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1202,7 +1455,6 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
           )}
         </AnimatePresence>
       </div>
-    </TooltipProvider>
   );
 });
 

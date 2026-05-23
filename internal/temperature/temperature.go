@@ -31,7 +31,7 @@ func NewReader(bridgeManager *bridge.Manager, logger types.Logger) *Reader {
 func (r *Reader) Read(selection types.TemperatureSelection) types.TemperatureData {
 	selection = types.NormalizeTemperatureSelection(selection)
 	temp := types.TemperatureData{
-		UpdateTime:    time.Now().Unix(),
+		UpdateTime:    time.Now().UnixMilli(),
 		BridgeOk:      true,
 		ControlSource: selection.TempSource,
 	}
@@ -102,6 +102,9 @@ func copyBridgeTemperatureMetadata(temp *types.TemperatureData, bridgeTemp types
 	temp.GpuDevices = bridgeTemp.GpuDevices
 	if bridgeTemp.UpdateTime > 0 {
 		temp.UpdateTime = bridgeTemp.UpdateTime
+		if temp.UpdateTime < 1_000_000_000_000 {
+			temp.UpdateTime *= 1000
+		}
 	}
 }
 
