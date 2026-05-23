@@ -19,6 +19,7 @@ export default function Home() {
   const config = useAppStore((state) => state.config);
   const fanData = useAppStore((state) => state.fanData);
   const temperature = useAppStore((state) => state.temperature);
+  const legionFnQSupported = useAppStore((state) => state.legionFnQSupported);
   const bridgeWarning = useAppStore((state) => state.bridgeWarning);
   const isLoading = useAppStore((state) => state.isLoading);
   const error = useAppStore((state) => state.error);
@@ -82,6 +83,7 @@ export default function Home() {
           isConnected={isConnected}
           fanData={fanData}
           temperature={temperature}
+          legionFnQSupported={legionFnQSupported}
           deviceModel={deviceModel}
         />
       }

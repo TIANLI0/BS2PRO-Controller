@@ -15,7 +15,7 @@ func DetectSupport() (bool, HostInfo, error) {
 		return false, HostInfo{}, fmt.Errorf("powershell.exe not found: %w", err)
 	}
 
-	cmd := exec.Command("powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", detectHostScript)
+	cmd := newPowerShellCommand("-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", detectHostScript)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return false, HostInfo{}, fmt.Errorf("query Lenovo host info failed: %w: %s", err, strings.TrimSpace(string(output)))

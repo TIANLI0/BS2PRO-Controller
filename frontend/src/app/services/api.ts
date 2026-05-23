@@ -32,6 +32,8 @@ import { types } from '../../../wailsjs/go/models';
 
 import type {
   DeviceInfo,
+  DebugInfo,
+  LegionFnQSupportPayload,
   LegionPowerModePayload,
 } from '../types/app';
 
@@ -230,8 +232,13 @@ class ApiService {
     return () => EventsOff('legion-power-mode-update');
   }
 
-  async getDebugInfo(): Promise<any> {
-    return await GetDebugInfo();
+  onLegionFnQSupportUpdate(callback: (payload: LegionFnQSupportPayload) => void): () => void {
+    EventsOn('legion-fnq-support-update', callback);
+    return () => EventsOff('legion-fnq-support-update');
+  }
+
+  async getDebugInfo(): Promise<DebugInfo> {
+    return await GetDebugInfo() as DebugInfo;
   }
 
   async setDebugMode(enabled: boolean): Promise<void> {

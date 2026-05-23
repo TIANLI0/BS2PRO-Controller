@@ -42,6 +42,7 @@ interface ControlPanelProps {
   isConnected: boolean;
   fanData: types.FanData | null;
   temperature: types.TemperatureData | null;
+  legionFnQSupported: boolean;
   deviceModel: string | null;
 }
 
@@ -329,7 +330,7 @@ function SelectionField({
 
 /* ── Main ControlPanel ── */
 
-export default function ControlPanel({ config, onConfigChange, isConnected, fanData, temperature, deviceModel }: ControlPanelProps) {
+export default function ControlPanel({ config, onConfigChange, isConnected, fanData, temperature, legionFnQSupported, deviceModel }: ControlPanelProps) {
   const [loadingStates, setLoadingStates] = useState<Record<string, boolean>>({});
   const [debugInfo, setDebugInfo] = useState<DebugInfo | null>(null);
   const [debugInfoLoading, setDebugInfoLoading] = useState(false);
@@ -596,6 +597,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
   }, [config, onConfigChange]);
 
   const updateLegionFnQConfig = useCallback(async (patch: any) => {
+    if (!legionFnQSupported) return;
     setLoading('legionFnQ', true);
     try {
       const nextLegionFnQ = normalizeLegionFnQConfig({
@@ -614,7 +616,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
     } finally {
       setLoading('legionFnQ', false);
     }
-  }, [config, legionFnQConfig, onConfigChange]);
+  }, [config, legionFnQConfig, legionFnQSupported, onConfigChange]);
 
   const handleLegionFnQMappingChange = useCallback(async (mode: string, patch: { gear?: string; level?: string }) => {
     const current = legionFnQConfig.modeMapping[mode] || (getDefaultLegionFnQConfig().modeMapping as any)[mode];
@@ -1245,7 +1247,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
           )}
         </Section>
 
-        <Section title="拯救者 Fn+Q 联动" icon={Zap}>
+        {legionFnQSupported && <Section title="拯救者 Fn+Q 联动" icon={Zap}>
           <SettingRow
             icon={<Zap className={clsx('h-4 w-4', legionFnQConfig.enabled ? 'text-primary' : '')} />}
             title="启用插件"
@@ -1318,7 +1320,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
               })}
             </div>
           </div>
-        </Section>
+        </Section>}
 
         {/* ═══════════ 4. 系统设置 ═══════════ */}
         <Section title="系统设置" icon={Monitor}>

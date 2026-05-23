@@ -52,14 +52,16 @@ type CoreApp struct {
 	ipcServer        *ipc.Server
 
 	// 状态
-	isConnected        bool
-	monitoringTemp     bool
-	currentTemp        types.TemperatureData
-	lastDeviceMode     string
-	userSetAutoControl bool
-	isAutoStartLaunch  bool
-	debugMode          bool
-	legionFnQSupported bool
+	isConnected             bool
+	monitoringTemp          bool
+	currentTemp             types.TemperatureData
+	lastDeviceMode          string
+	userSetAutoControl      bool
+	isAutoStartLaunch       bool
+	debugMode               bool
+	legionFnQSupported      atomic.Bool
+	legionFnQSupportChecked atomic.Bool
+	legionFnQRegistered     atomic.Bool
 
 	// 监控相关
 	guiLastResponse   int64
@@ -130,7 +132,6 @@ func NewCoreApp(debugMode, isAutoStart bool) *CoreApp {
 	}
 	app.notifier = notifier.NewManager(customLogger, iconData)
 	app.hotkeyManager = hotkeysvc.NewManager(customLogger, app.handleHotkeyAction)
-	app.registerPlugins()
 
 	return app
 }
@@ -182,10 +183,10 @@ func (a *CoreApp) Start() error {
 			a.logError("保存挡位记忆默认配置失败: %v", err)
 		}
 	}
-	if a.normalizeLegionFnQConfigForHost(&cfg) {
+	if a.applyCachedLegionFnQSupport(&cfg) {
 		a.configManager.Set(cfg)
 		if err := a.configManager.Save(); err != nil {
-			a.logError("保存 Lenovo Legion Fn+Q 配置失败: %v", err)
+			a.logError("保存 Lenovo Legion Fn+Q 缓存配置失败: %v", err)
 		}
 	}
 	a.syncManualGearLevelMemory(cfg)
@@ -230,6 +231,9 @@ func (a *CoreApp) Start() error {
 	if err := a.ipcServer.Start(); err != nil {
 		a.logError("启动 IPC 服务器失败: %v", err)
 		return err
+	}
+	if !a.legionFnQSupportChecked.Load() {
+		a.startLegionFnQSupportDetection()
 	}
 
 	// 初始化系统托盘
@@ -372,19 +376,9 @@ func (a *CoreApp) registerPlugins() {
 	if a.pluginManager == nil {
 		return
 	}
-
-	supported, hostInfo, err := fnqpowermode.DetectSupport()
-	if err != nil {
-		a.logError("failed to detect Lenovo Legion Fn+Q host support: %v", err)
+	if !a.legionFnQRegistered.CompareAndSwap(false, true) {
 		return
 	}
-	if !supported {
-		a.logInfo("Lenovo Legion Fn+Q plugin skipped: unsupported host (manufacturer=%s model=%s family=%s product=%s)",
-			hostInfo.Manufacturer, hostInfo.Model, hostInfo.Family, hostInfo.Product)
-		return
-	}
-
-	a.legionFnQSupported = true
 
 	a.pluginManager.Register(fnqpowermode.New(fnqpowermode.Options{
 		Logger: a.logger,
@@ -394,8 +388,103 @@ func (a *CoreApp) registerPlugins() {
 	}))
 }
 
+func (a *CoreApp) applyCachedLegionFnQSupport(cfg *types.AppConfig) bool {
+	if cfg == nil || !cfg.LegionFnQSupport.Checked {
+		return false
+	}
+
+	a.legionFnQSupportChecked.Store(true)
+	a.legionFnQSupported.Store(cfg.LegionFnQSupport.Supported)
+	a.logInfo("Lenovo Legion Fn+Q host support loaded from config cache: supported=%v", cfg.LegionFnQSupport.Supported)
+
+	if cfg.LegionFnQSupport.Supported {
+		a.registerPlugins()
+		return false
+	}
+
+	return a.normalizeLegionFnQConfigForHost(cfg)
+}
+
+func (a *CoreApp) startLegionFnQSupportDetection() {
+	a.safeGo("detectLegionFnQSupport", func() {
+		supported, hostInfo, err := fnqpowermode.DetectSupport()
+		if err != nil {
+			a.logError("failed to detect Lenovo Legion Fn+Q host support: %v", err)
+			return
+		}
+
+		a.cacheLegionFnQSupportResult(supported)
+		a.legionFnQSupportChecked.Store(true)
+		if !supported {
+			a.logInfo("Lenovo Legion Fn+Q plugin skipped: unsupported host (manufacturer=%s model=%s family=%s product=%s)",
+				hostInfo.Manufacturer, hostInfo.Model, hostInfo.Family, hostInfo.Product)
+			a.disableLegionFnQConfigForUnsupportedHost()
+			a.broadcastLegionFnQSupportUpdate(false)
+			return
+		}
+
+		a.registerPlugins()
+		a.legionFnQSupported.Store(true)
+		a.broadcastLegionFnQSupportUpdate(true)
+
+		a.mutex.RLock()
+		cfg := a.configManager.Get()
+		a.mutex.RUnlock()
+		a.applyPluginConfig(cfg)
+	})
+}
+
+func (a *CoreApp) cacheLegionFnQSupportResult(supported bool) {
+	a.mutex.Lock()
+	defer a.mutex.Unlock()
+
+	cfg := a.configManager.Get()
+	if cfg.LegionFnQSupport.Checked && cfg.LegionFnQSupport.Supported == supported {
+		return
+	}
+
+	cfg.LegionFnQSupport = types.LegionFnQSupportCache{
+		Checked:   true,
+		Supported: supported,
+	}
+	a.configManager.Set(cfg)
+	if err := a.configManager.Save(); err != nil {
+		a.logError("保存 Lenovo Legion Fn+Q 支持缓存失败: %v", err)
+	}
+	if a.ipcServer != nil {
+		a.ipcServer.BroadcastEvent(ipc.EventConfigUpdate, cfg)
+	}
+}
+
+func (a *CoreApp) disableLegionFnQConfigForUnsupportedHost() {
+	a.mutex.Lock()
+	defer a.mutex.Unlock()
+
+	cfg := a.configManager.Get()
+	if !a.normalizeLegionFnQConfigForHost(&cfg) {
+		return
+	}
+
+	a.configManager.Set(cfg)
+	if err := a.configManager.Save(); err != nil {
+		a.logError("保存 Lenovo Legion Fn+Q 配置失败: %v", err)
+	}
+	if a.ipcServer != nil {
+		a.ipcServer.BroadcastEvent(ipc.EventConfigUpdate, cfg)
+	}
+}
+
+func (a *CoreApp) broadcastLegionFnQSupportUpdate(supported bool) {
+	if a.ipcServer == nil {
+		return
+	}
+	a.ipcServer.BroadcastEvent(ipc.EventLegionFnQSupportUpdate, map[string]any{
+		"supported": supported,
+	})
+}
+
 func (a *CoreApp) handleLegionPowerModeChange(state fnqpowermode.PowerModeState) {
-	if !a.legionFnQSupported {
+	if !a.legionFnQSupported.Load() {
 		return
 	}
 
@@ -410,7 +499,7 @@ func (a *CoreApp) handleLegionPowerModeChange(state fnqpowermode.PowerModeState)
 }
 
 func (a *CoreApp) applyPluginConfig(cfg types.AppConfig) {
-	if a.pluginManager == nil || !a.legionFnQSupported {
+	if a.pluginManager == nil || !a.legionFnQSupported.Load() {
 		return
 	}
 
@@ -465,7 +554,7 @@ func (a *CoreApp) applyLegionFnQFanMapping(state fnqpowermode.PowerModeState) {
 }
 
 func (a *CoreApp) normalizeLegionFnQConfigForHost(cfg *types.AppConfig) bool {
-	if cfg == nil || a.legionFnQSupported {
+	if cfg == nil || !a.legionFnQSupportChecked.Load() || a.legionFnQSupported.Load() {
 		return false
 	}
 
@@ -1056,6 +1145,7 @@ func (a *CoreApp) UpdateConfig(cfg types.AppConfig) error {
 		cfg.FanCurveProfiles = cloneFanCurveProfiles(oldCfg.FanCurveProfiles)
 		cfg.ActiveFanCurveProfileID = oldCfg.ActiveFanCurveProfileID
 	}
+	cfg.LegionFnQSupport = oldCfg.LegionFnQSupport
 	cfg.ManualGearLevels = cloneManualGearLevels(oldCfg.ManualGearLevels)
 	cfg.LightStrip, _ = normalizeLightStripConfig(cfg.LightStrip)
 	cfg.ThemeMode = types.NormalizeThemeMode(cfg.ThemeMode)
@@ -1069,7 +1159,7 @@ func (a *CoreApp) UpdateConfig(cfg types.AppConfig) error {
 	}
 	cfg.SmartControl, _ = smartcontrol.NormalizeConfig(cfg.SmartControl, cfg.FanCurve, cfg.DebugMode)
 	cfg.LegionFnQ = types.NormalizeLegionFnQConfig(cfg.LegionFnQ)
-	if !a.legionFnQSupported && (cfg.LegionFnQ.Enabled || cfg.LegionFnQ.TakeOverFan) {
+	if a.legionFnQSupportChecked.Load() && !a.legionFnQSupported.Load() && (cfg.LegionFnQ.Enabled || cfg.LegionFnQ.TakeOverFan) {
 		return fmt.Errorf("Lenovo Legion Fn+Q 仅支持拯救者设备")
 	}
 	normalizeHotkeyConfig(&cfg)
@@ -1645,7 +1735,7 @@ func (a *CoreApp) GetDebugInfo() map[string]any {
 		"trayReady":          a.trayManager.IsReady(),
 		"trayInitialized":    a.trayManager.IsInitialized(),
 		"isConnected":        a.isConnected,
-		"legionFnQSupported": a.legionFnQSupported,
+		"legionFnQSupported": a.legionFnQSupported.Load(),
 		"guiLastResponse":    time.Unix(atomic.LoadInt64(&a.guiLastResponse), 0).Format("2006-01-02 15:04:05"),
 		"monitoringTemp":     a.monitoringTemp,
 		"autoStartLaunch":    a.isAutoStartLaunch,

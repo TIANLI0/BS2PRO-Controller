@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { types } from '../../../wailsjs/go/models';
+import { apiService } from '../services/api';
 import { configService } from '../services/config-service';
 import { deviceService, type DeviceStatusPayload } from '../services/device-service';
 import { toast } from 'sonner';
@@ -15,6 +16,7 @@ interface AppStore {
   config: types.AppConfig | null;
   fanData: types.FanData | null;
   temperature: types.TemperatureData | null;
+  legionFnQSupported: boolean;
   bridgeWarning: string | null;
   isLoading: boolean;
   error: string | null;
@@ -39,6 +41,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   config: null,
   fanData: null,
   temperature: null,
+  legionFnQSupported: false,
   bridgeWarning: null,
   isLoading: true,
   error: null,
@@ -60,8 +63,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
     try {
       set({ isLoading: true });
 
-      const appConfig = await configService.getConfig();
-      const deviceStatus = (await deviceService.getStatus()) as DeviceStatusPayload;
+      const [appConfig, deviceStatus, debugInfo] = await Promise.all([
+        configService.getConfig(),
+        deviceService.getStatus() as Promise<DeviceStatusPayload>,
+        apiService.getDebugInfo().catch(() => null),
+      ]);
 
       set({
         config: appConfig,
@@ -69,6 +75,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         deviceProductId: deviceStatus.productId || null,
         deviceModel: deviceStatus.model || null,
         fanData: deviceStatus.currentData || null,
+        legionFnQSupported: debugInfo?.legionFnQSupported === true,
         error: null,
       });
 
@@ -188,6 +195,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
           description: `当前模式：${modeLabel[mode] || mode}`,
           duration: 2600,
         });
+      })
+    );
+
+    unsubscribers.push(
+      apiService.onLegionFnQSupportUpdate((payload) => {
+        set({ legionFnQSupported: payload?.supported === true });
       })
     );
 

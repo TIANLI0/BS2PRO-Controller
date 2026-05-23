@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"os/exec"
 	"sync"
-	"syscall"
 
 	"github.com/TIANLI0/BS2PRO-Controller/internal/plugins"
 )
@@ -109,8 +108,7 @@ func (p *Plugin) run(ctx context.Context) {
 		p.mutex.Unlock()
 	}()
 
-	cmd := exec.CommandContext(ctx, "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", powerShellListenerScript)
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: 0x08000000}
+	cmd := newPowerShellCommandContext(ctx, "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", powerShellListenerScript)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
