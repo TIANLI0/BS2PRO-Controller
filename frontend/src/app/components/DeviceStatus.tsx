@@ -674,7 +674,7 @@ export default function DeviceStatus({
             <div className="flex items-start gap-2 text-amber-800 dark:text-amber-200">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
               <div className="flex-1">
-                <p>{temperature?.bridgeMessage || '温度桥接程序读取失败，请检查 PawnIO 驱动后重试。'}</p>
+                <p>{temperature?.bridgeMessage || '温度桥接程序读取失败，可重新初始化温度监控后重试。'}</p>
                 {bridgeStatus && (
                   <div className="mt-2 space-y-1 text-xs text-amber-700/90 dark:text-amber-200/80">
                     {bridgeStateLabel && (
@@ -696,7 +696,7 @@ export default function DeviceStatus({
                   className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-100 px-3 py-1.5 text-xs font-medium text-amber-900 transition-colors hover:bg-amber-200 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-200 dark:hover:bg-amber-800/60"
                 >
                   <RotateCw className="h-3 w-3" />
-                  重启 PawnIO 驱动
+                  重新初始化温度监控
                 </button>
               </div>
             </div>

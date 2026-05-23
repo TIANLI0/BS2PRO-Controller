@@ -42,7 +42,7 @@ func (r *Reader) Read(selection types.TemperatureSelection) types.TemperatureDat
 	if bridgeTemp.Success {
 		if bridgeTemp.CpuTemp == 0 && bridgeTemp.GpuTemp == 0 {
 			temp.BridgeOk = false
-			temp.BridgeMsg = "桥接程序返回空温度（CPU/GPU 均为 0），请重启软件或重新安装 PawnIO 驱动。"
+			temp.BridgeMsg = "桥接程序返回空温度（CPU/GPU 均为 0），已尝试备用读取；可重新初始化温度监控或检查 PawnIO/其它硬件监控工具。"
 			r.logger.Warn("桥接程序返回空温度数据，使用备用方法")
 
 			temp.CPUTemp = r.readCPUTemperature()
@@ -62,7 +62,7 @@ func (r *Reader) Read(selection types.TemperatureSelection) types.TemperatureDat
 	temp.BridgeOk = false
 	temp.BridgeMsg = bridgeTemp.Error
 	if strings.TrimSpace(temp.BridgeMsg) == "" {
-		temp.BridgeMsg = "CPU/GPU 温度读取失败，请检查 PawnIO 是否安装成功，或升级最新版。"
+		temp.BridgeMsg = "CPU/GPU 温度读取失败，可重新初始化温度监控；若 CPU 仍为空，请安装/更新 PawnIO 或关闭其它硬件监控工具。"
 	}
 
 	// 读取CPU温度

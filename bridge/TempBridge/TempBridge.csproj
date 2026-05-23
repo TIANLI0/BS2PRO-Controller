@@ -24,6 +24,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Reference Include="System.Management" />
     <Reference Include="System.ServiceProcess" />
   </ItemGroup>
 </Project>

@@ -12,7 +12,7 @@ import {
 import type { TemperatureHistoryPoint } from '../lib/temperature-history';
 import { toast } from 'sonner';
 
-const getBridgeWarningMessage = () => 'CPU/GPU 温度读取失败，请检查 PawnIO 是否安装成功，或升级到最新版本。';
+const getBridgeWarningMessage = () => 'CPU/GPU 温度读取失败，可尝试重新初始化温度监控；若 CPU 仍为空，请安装/更新 PawnIO 或关闭其它硬件监控工具。';
 
 type ActiveTab = 'status' | 'curve' | 'control' | 'about';
 export type CurveFocusTarget = 'curve-editor' | 'history-details';

@@ -1,7 +1,9 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
 using System.Linq;
+using System.Management;
 using System.ServiceProcess;
 using System.Threading;
 using Newtonsoft.Json;
@@ -140,11 +142,13 @@ namespace THRM.TempBridge
         private const int MaxInitRetries = 3;
         private const int InitRetryDelayMs = 2000;
         private const int ConsecutiveFailuresBeforeReinit = 5;
+        private const int MaxReasonableTemperature = 150;
         private static Computer computer;
         private static bool running = true;
         private static readonly object lockObject = new object();
         private static Mutex singleInstanceMutex;
         private static int consecutiveFailures = 0;
+        private static string lastHardwareMonitorError = string.Empty;
 
         static void Main(string[] args)
         {
@@ -290,6 +294,16 @@ namespace THRM.TempBridge
         {
             Console.WriteLine("温度传感器快照");
 
+            if (computer == null)
+            {
+                Console.WriteLine("- LibreHardwareMonitor 未初始化，已尝试使用 Windows 温区兜底读取 CPU 温度");
+                if (!string.IsNullOrWhiteSpace(lastHardwareMonitorError))
+                {
+                    Console.WriteLine("- 初始化信息: " + lastHardwareMonitorError);
+                }
+                return;
+            }
+
             bool foundAny = false;
             foreach (IHardware hardware in computer.Hardware)
             {
@@ -343,7 +357,7 @@ namespace THRM.TempBridge
 
         static void InitializeHardwareMonitor()
         {
-            EnsurePawnIoReady();
+            string pawnIoMessage = EnsurePawnIoReady();
 
             Exception lastException = null;
             for (int attempt = 1; attempt <= MaxInitRetries; attempt++)
@@ -374,8 +388,11 @@ namespace THRM.TempBridge
                     if (HasAnyTemperatureSensor(computer))
                     {
                         consecutiveFailures = 0;
+                        lastHardwareMonitorError = string.Empty;
                         return;
                     }
+
+                    lastException = new InvalidOperationException("LibreHardwareMonitor 未发现有效温度传感器");
 
                     // No sensors found - PawnIO may not be fully ready
                     if (attempt < MaxInitRetries)
@@ -399,13 +416,25 @@ namespace THRM.TempBridge
 
             // If we get here, all retries exhausted but computer may still be open
             // (just without working sensors). Keep it - it might recover on next update.
-            if (computer == null)
+            lastHardwareMonitorError = BuildHardwareMonitorError(lastException, pawnIoMessage);
+        }
+
+        static string BuildHardwareMonitorError(Exception exception, string pawnIoMessage)
+        {
+            var parts = new System.Collections.Generic.List<string>();
+            if (exception != null && !string.IsNullOrWhiteSpace(exception.Message))
             {
-                string msg = lastException != null
-                    ? lastException.Message
-                    : "初始化硬件监控失败，PawnIO 可能被其他程序占用";
-                throw new InvalidOperationException(msg, lastException);
+                parts.Add(exception.Message);
             }
+            if (!string.IsNullOrWhiteSpace(pawnIoMessage))
+            {
+                parts.Add(pawnIoMessage);
+            }
+            if (parts.Count == 0)
+            {
+                parts.Add("LibreHardwareMonitor 暂未返回有效温度传感器");
+            }
+            return string.Join("；", parts.ToArray());
         }
 
         static bool HasAnyTemperatureSensor(Computer comp)
@@ -433,18 +462,15 @@ namespace THRM.TempBridge
             return false;
         }
 
-        static void EnsurePawnIoReady()
+        static string EnsurePawnIoReady()
         {
             if (!PawnIo.IsInstalled)
             {
-                throw new InvalidOperationException(
-                    "检测到 LibreHardwareMonitor 需要 PawnIO 驱动，但系统未安装。" +
-                    "请先安装 PawnIO（可从 LibreHardwareMonitor 发布包中的 PawnIO_setup.exe 安装），" +
-                    "安装完成后重启程序。"
-                );
+                return "PawnIO 驱动未安装，LibreHardwareMonitor 的部分 CPU 传感器可能不可用；已继续使用 Windows 温区兜底";
             }
 
-            // Check PawnIO driver service is running; attempt start if stopped
+            // Check PawnIO driver service is running; start it only when stopped.
+            // Do not stop/restart it here because other hardware tools may share the same driver.
             try
             {
                 using (var sc = new ServiceController("PawnIO"))
@@ -452,7 +478,7 @@ namespace THRM.TempBridge
                     if (sc.Status != ServiceControllerStatus.Running)
                     {
                         sc.Start();
-                        sc.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(10));
+                        sc.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(3));
                     }
                 }
             }
@@ -462,10 +488,14 @@ namespace THRM.TempBridge
             }
             catch (System.ServiceProcess.TimeoutException)
             {
-                throw new InvalidOperationException(
-                    "PawnIO 驱动服务未能在 10 秒内启动，请检查驱动安装状态。"
-                );
+                return "PawnIO 服务启动超时，可能正被系统或其它硬件监控工具占用；已继续使用兼容温度读取";
             }
+            catch (Exception ex)
+            {
+                return "PawnIO 服务检查失败: " + ex.Message;
+            }
+
+            return string.Empty;
         }
 
         static void ReinitializeHardwareMonitor()
@@ -479,67 +509,20 @@ namespace THRM.TempBridge
                 catch { }
                 computer = null;
 
-                // Try driver restart (best-effort, kernel drivers often reject stop)
-                RestartPawnIoDriver();
-
-                // Wait a moment for driver/device objects to settle
-                Thread.Sleep(500);
+                // Wait briefly after releasing handles. Avoid stopping PawnIO because other tools may share it.
+                Thread.Sleep(250);
 
                 InitializeHardwareMonitor();
             }
         }
 
         /// <summary>
-        /// Best-effort PawnIO driver restart. Kernel drivers typically reject
-        /// SERVICE_CONTROL_STOP (error 1052), so this method tries stop+start
-        /// first, falls back to just ensuring the service is running.
-        /// The real recovery comes from closing and reopening the Computer object
-        /// to get a fresh device handle — not from restarting the driver itself.
+        /// Best-effort PawnIO service check. It starts the service only when it is stopped.
+        /// It intentionally does not stop/restart PawnIO because other hardware tools may share it.
         /// </summary>
         static string RestartPawnIoDriver()
         {
-            try
-            {
-                using (var sc = new ServiceController("PawnIO"))
-                {
-                    // Attempt stop+start (may fail for kernel drivers)
-                    if (sc.Status == ServiceControllerStatus.Running)
-                    {
-                        try
-                        {
-                            sc.Stop();
-                            sc.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromSeconds(5));
-                        }
-                        catch
-                        {
-                            // Kernel driver rejected stop — this is normal.
-                            // Driver is still running, just re-acquire a handle.
-                            return null;
-                        }
-                    }
-
-                    // If stopped (either by us or was already stopped), start it
-                    sc.Refresh();
-                    if (sc.Status != ServiceControllerStatus.Running)
-                    {
-                        sc.Start();
-                        sc.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(10));
-                        Thread.Sleep(500);
-                    }
-                }
-
-                return null;
-            }
-            catch (InvalidOperationException)
-            {
-                // Service not found — driver may use a different registration method
-                return null;
-            }
-            catch (Exception)
-            {
-                // Any other error — continue with handle refresh anyway
-                return null;
-            }
+            return EnsurePawnIoReady();
         }
 
         static void StartPipeServer()
@@ -666,20 +649,24 @@ namespace THRM.TempBridge
                 catch { }
                 computer = null;
 
-                // 2. Best-effort driver restart (kernel drivers usually reject stop, that's OK)
-                RestartPawnIoDriver();
+                // 2. Ensure PawnIO is running if it is stopped, then wait after handle release.
+                string pawnIoMessage = RestartPawnIoDriver();
+                Thread.Sleep(250);
 
-                // 3. Wait for device to settle after handle release
-                Thread.Sleep(500);
-
-                // 4. Reinitialize hardware monitor with fresh PawnIO handle
+                // 3. Reinitialize hardware monitor with a fresh handle.
                 try
                 {
                     InitializeHardwareMonitor();
                     consecutiveFailures = 0;
 
-                    // 5. Do a test read to confirm it works
+                    // 4. Do a test read to confirm it works or that fallback can supply data.
                     var testData = GetTemperatureDataUnsafe(new TemperatureSelection());
+                    if (!testData.Success && !string.IsNullOrWhiteSpace(pawnIoMessage))
+                    {
+                        testData.Error = string.IsNullOrWhiteSpace(testData.Error)
+                            ? pawnIoMessage
+                            : testData.Error + "；" + pawnIoMessage;
+                    }
                     return new Response
                     {
                         Success = testData.Success,
@@ -766,85 +753,272 @@ namespace THRM.TempBridge
                 ControlSource = selection.TempSource
             };
 
+            string hardwareError = string.Empty;
+            string cpuModel = string.Empty;
+            string gpuModel = string.Empty;
+            var cpuSensors = new System.Collections.Generic.List<TemperatureSensor>();
+            var gpuCandidates = new System.Collections.Generic.List<GpuCandidate>();
+            int gpuIndex = 0;
+
             try
             {
-                computer.Accept(new UpdateVisitor());
-
-                string cpuModel = string.Empty;
-                string gpuModel = string.Empty;
-                var cpuSensors = new System.Collections.Generic.List<TemperatureSensor>();
-                var gpuCandidates = new System.Collections.Generic.List<GpuCandidate>();
-                int gpuIndex = 0;
-
-                foreach (IHardware hardware in computer.Hardware)
+                if (computer != null)
                 {
-                    if (hardware.HardwareType == HardwareType.Cpu)
+                    computer.Accept(new UpdateVisitor());
+
+                    foreach (IHardware hardware in computer.Hardware)
                     {
-                        	if (cpuSensors.Count == 0)
-                        	{
-                        		cpuModel = hardware.Name ?? string.Empty;
-                        		CollectTemperatureSensors(hardware, "cpu", hardware.Name ?? string.Empty, string.Empty, cpuSensors);
-                        	}
+                        if (hardware.HardwareType == HardwareType.Cpu)
+                        {
+                            if (cpuSensors.Count == 0)
+                            {
+                                cpuModel = hardware.Name ?? string.Empty;
+                                CollectTemperatureSensors(hardware, "cpu", hardware.Name ?? string.Empty, string.Empty, cpuSensors);
+                            }
+                        }
+                        else if (hardware.HardwareType == HardwareType.GpuNvidia ||
+                                 hardware.HardwareType == HardwareType.GpuAmd ||
+                                 hardware.HardwareType == HardwareType.GpuIntel)
+                        {
+                            var sensors = new System.Collections.Generic.List<TemperatureSensor>();
+                            CollectTemperatureSensors(hardware, "gpu", hardware.Name ?? string.Empty, string.Empty, sensors);
+                            gpuCandidates.Add(new GpuCandidate
+                            {
+                                Key = BuildGpuDeviceKey(hardware, gpuIndex),
+                                Model = hardware.Name ?? string.Empty,
+                                Vendor = GetGpuVendor(hardware.HardwareType),
+                                HardwareType = hardware.HardwareType,
+                                Sensors = sensors,
+                            });
+                            gpuIndex++;
+                        }
                     }
-                    else if (hardware.HardwareType == HardwareType.GpuNvidia || 
-                             hardware.HardwareType == HardwareType.GpuAmd ||
-                             hardware.HardwareType == HardwareType.GpuIntel)
-                    {
-                        	var sensors = new System.Collections.Generic.List<TemperatureSensor>();
-                        	CollectTemperatureSensors(hardware, "gpu", hardware.Name ?? string.Empty, string.Empty, sensors);
-                        	gpuCandidates.Add(new GpuCandidate
-                        	{
-                        		Key = BuildGpuDeviceKey(hardware, gpuIndex),
-                        		Model = hardware.Name ?? string.Empty,
-                        		Vendor = GetGpuVendor(hardware.HardwareType),
-                        		HardwareType = hardware.HardwareType,
-                        		Sensors = sensors,
-                        	});
-                        	gpuIndex++;
-                    }
-                }
-
-                    var selectedGpu = SelectGpuCandidate(gpuCandidates, selection.GpuDevice, selection.GpuSensor);
-                    var gpuSensors = selectedGpu != null ? selectedGpu.Sensors : new System.Collections.Generic.List<TemperatureSensor>();
-                    gpuModel = selectedGpu != null ? selectedGpu.Model : string.Empty;
-
-	                int cpuTemp = SelectTemperature(cpuSensors, selection.CpuSensor, new[] { "Average", "Package", "Tctl", "Tdie", "Core" });
-	                int gpuTemp = SelectTemperature(gpuSensors, selection.GpuSensor, new[] { "Average", "GPU Core", "Core", "Edge", "Junction", "Hot Spot", "Temperature" });
-
-                result.CpuTemp = cpuTemp;
-                result.GpuTemp = gpuTemp;
-                result.MaxTemp = Math.Max(cpuTemp, gpuTemp);
-	                result.ControlTemp = ResolveControlTemp(cpuTemp, gpuTemp, selection.TempSource);
-                    result.SelectedGpuDevice = selectedGpu != null ? selectedGpu.Key : selection.GpuDevice;
-	                result.CpuModel = cpuModel;
-	                result.GpuModel = gpuModel;
-	                result.CpuSensors = cpuSensors.ToArray();
-	                result.GpuSensors = gpuSensors.ToArray();
-                    result.GpuDevices = gpuCandidates.Select(candidate => new TemperatureGpuDevice
-                    {
-                        Key = candidate.Key,
-                        Name = candidate.Model,
-                        Vendor = candidate.Vendor,
-                        Sensors = candidate.Sensors != null ? candidate.Sensors.ToArray() : Array.Empty<TemperatureSensor>()
-                    }).ToArray();
-                if (cpuTemp == 0 && gpuTemp == 0)
-                {
-                    result.Success = false;
-                    result.Error = "未读取到有效的 CPU/GPU 温度";
                 }
                 else
                 {
-                    result.Success = true;
-                    result.Error = string.Empty;
+                    hardwareError = lastHardwareMonitorError;
                 }
             }
             catch (Exception ex)
             {
+                hardwareError = ex.Message;
+                lastHardwareMonitorError = ex.Message;
+            }
+
+            if (cpuSensors.Count == 0)
+            {
+                var fallbackCpuSensor = TryReadWindowsCpuTemperatureSensor();
+                if (fallbackCpuSensor != null)
+                {
+                    cpuSensors.Add(fallbackCpuSensor);
+                    if (string.IsNullOrWhiteSpace(cpuModel))
+                    {
+                        cpuModel = "Windows Thermal Zone";
+                    }
+                }
+            }
+
+            var selectedGpu = SelectGpuCandidate(gpuCandidates, selection.GpuDevice, selection.GpuSensor);
+            var gpuSensors = selectedGpu != null ? selectedGpu.Sensors : new System.Collections.Generic.List<TemperatureSensor>();
+            gpuModel = selectedGpu != null ? selectedGpu.Model : string.Empty;
+
+            int cpuTemp = SelectTemperature(cpuSensors, selection.CpuSensor, new[] { "Average", "Package", "Tctl", "Tdie", "Core", "Windows" });
+            int gpuTemp = SelectTemperature(gpuSensors, selection.GpuSensor, new[] { "Average", "GPU Core", "Core", "Edge", "Junction", "Hot Spot", "Temperature" });
+
+            result.CpuTemp = cpuTemp;
+            result.GpuTemp = gpuTemp;
+            result.MaxTemp = Math.Max(cpuTemp, gpuTemp);
+            result.ControlTemp = ResolveControlTemp(cpuTemp, gpuTemp, selection.TempSource);
+            result.SelectedGpuDevice = selectedGpu != null ? selectedGpu.Key : selection.GpuDevice;
+            result.CpuModel = cpuModel;
+            result.GpuModel = gpuModel;
+            result.CpuSensors = cpuSensors.ToArray();
+            result.GpuSensors = gpuSensors.ToArray();
+            result.GpuDevices = gpuCandidates.Select(candidate => new TemperatureGpuDevice
+            {
+                Key = candidate.Key,
+                Name = candidate.Model,
+                Vendor = candidate.Vendor,
+                Sensors = candidate.Sensors != null ? candidate.Sensors.ToArray() : Array.Empty<TemperatureSensor>()
+            }).ToArray();
+
+            if (cpuTemp == 0 && gpuTemp == 0)
+            {
                 result.Success = false;
-                result.Error = ex.Message;
+                result.Error = BuildTemperatureReadError(hardwareError);
+            }
+            else
+            {
+                result.Success = true;
+                result.Error = string.Empty;
             }
 
             return result;
+        }
+
+        static string BuildTemperatureReadError(string hardwareError)
+        {
+            var parts = new System.Collections.Generic.List<string>();
+            parts.Add("未读取到有效的 CPU/GPU 温度");
+
+            string detail = !string.IsNullOrWhiteSpace(hardwareError) ? hardwareError : lastHardwareMonitorError;
+            if (!string.IsNullOrWhiteSpace(detail))
+            {
+                parts.Add("硬件监控信息: " + detail);
+            }
+
+            parts.Add("已尝试 Windows 温区兜底；可重新初始化温度监控，或安装/更新 PawnIO 并关闭可能独占硬件传感器的软件");
+            return string.Join("；", parts.ToArray());
+        }
+
+        static TemperatureSensor TryReadWindowsCpuTemperatureSensor()
+        {
+            int temp = TryReadPerformanceCounterCpuTemperature();
+            if (temp > 0)
+            {
+                return new TemperatureSensor
+                {
+                    Key = "cpu/windows/thermal-zone",
+                    Name = "Windows Thermal Zone",
+                    Value = temp,
+                };
+            }
+
+            temp = TryReadWmiCpuTemperature();
+            if (temp > 0)
+            {
+                return new TemperatureSensor
+                {
+                    Key = "cpu/windows/wmi-thermal-zone",
+                    Name = "Windows WMI Thermal Zone",
+                    Value = temp,
+                };
+            }
+
+            return null;
+        }
+
+        static int TryReadPerformanceCounterCpuTemperature()
+        {
+            const string categoryName = "Thermal Zone Information";
+            const string counterName = "Temperature";
+            string[] preferredInstances = new[] { @"\_TZ.THRM", "_TZ.THRM", "THRM" };
+
+            foreach (string instance in preferredInstances)
+            {
+                int temp = TryReadTemperatureCounter(categoryName, counterName, instance);
+                if (temp > 0)
+                {
+                    return temp;
+                }
+            }
+
+            try
+            {
+                if (!PerformanceCounterCategory.Exists(categoryName))
+                {
+                    return 0;
+                }
+
+                var category = new PerformanceCounterCategory(categoryName);
+                foreach (string instance in category.GetInstanceNames())
+                {
+                    int temp = TryReadTemperatureCounter(categoryName, counterName, instance);
+                    if (temp > 0)
+                    {
+                        return temp;
+                    }
+                }
+            }
+            catch
+            {
+            }
+
+            return 0;
+        }
+
+        static int TryReadTemperatureCounter(string categoryName, string counterName, string instanceName)
+        {
+            try
+            {
+                using (var counter = new PerformanceCounter(categoryName, counterName, instanceName, true))
+                {
+                    return NormalizeCounterTemperature(counter.NextValue());
+                }
+            }
+            catch
+            {
+                return 0;
+            }
+        }
+
+        static int TryReadWmiCpuTemperature()
+        {
+            int best = 0;
+            try
+            {
+                using (var searcher = new ManagementObjectSearcher(@"root\WMI", "SELECT CurrentTemperature FROM MSAcpi_ThermalZoneTemperature"))
+                {
+                    foreach (ManagementObject obj in searcher.Get())
+                    {
+                        using (obj)
+                        {
+                            object value = obj["CurrentTemperature"];
+                            if (value == null)
+                            {
+                                continue;
+                            }
+
+                            int temp = NormalizeWmiTemperature(Convert.ToDouble(value));
+                            if (temp > best)
+                            {
+                                best = temp;
+                            }
+                        }
+                    }
+                }
+            }
+            catch
+            {
+            }
+
+            return best;
+        }
+
+        static int NormalizeCounterTemperature(double raw)
+        {
+            if (raw <= 0)
+            {
+                return 0;
+            }
+
+            double celsius = raw;
+            if (raw > 1000)
+            {
+                celsius = (raw / 10.0) - 273.15;
+            }
+            else if (raw > 200)
+            {
+                celsius = raw - 273.15;
+            }
+
+            return NormalizeCelsius(celsius);
+        }
+
+        static int NormalizeWmiTemperature(double raw)
+        {
+            if (raw <= 0)
+            {
+                return 0;
+            }
+
+            return NormalizeCelsius((raw / 10.0) - 273.15);
+        }
+
+        static int NormalizeCelsius(double celsius)
+        {
+            int rounded = (int)Math.Round(celsius);
+            return rounded > 0 && rounded < MaxReasonableTemperature ? rounded : 0;
         }
 
         static TemperatureData GetTemperatureData(TemperatureSelection selection)
@@ -857,11 +1031,12 @@ namespace THRM.TempBridge
                 {
                     consecutiveFailures++;
 
-                    // Auto-reinitialize after consecutive failures (restart PawnIO driver + reinit)
+                    // Auto-reinitialize after consecutive failures. This refreshes LHM/PawnIO handles
+                    // without stopping the shared PawnIO driver service.
                     if (consecutiveFailures >= ConsecutiveFailuresBeforeReinit)
                     {
                         consecutiveFailures = 0;
-                        result.Error = "连续读取失败，正在尝试重启 PawnIO 驱动并重新初始化...";
+                        result.Error = "连续读取失败，正在重新初始化温度监控并重新获取硬件句柄...";
 
                         ThreadPool.QueueUserWorkItem(_ =>
                         {
@@ -872,7 +1047,7 @@ namespace THRM.TempBridge
                     else if (string.IsNullOrEmpty(result.Error))
                     {
                         result.Error = string.Format(
-                            "未读取到有效的 CPU/GPU 温度（连续失败 {0}/{1}，达到阈值后将自动重启 PawnIO 驱动）",
+                            "未读取到有效的 CPU/GPU 温度（连续失败 {0}/{1}，达到阈值后将自动重新初始化温度监控）",
                             consecutiveFailures, ConsecutiveFailuresBeforeReinit);
                     }
                 }
