@@ -59,6 +59,7 @@ type CoreApp struct {
 	userSetAutoControl bool
 	isAutoStartLaunch  bool
 	debugMode          bool
+	legionFnQSupported bool
 
 	// 监控相关
 	guiLastResponse   int64
@@ -179,6 +180,12 @@ func (a *CoreApp) Start() error {
 		a.configManager.Set(cfg)
 		if err := a.configManager.Save(); err != nil {
 			a.logError("保存挡位记忆默认配置失败: %v", err)
+		}
+	}
+	if a.normalizeLegionFnQConfigForHost(&cfg) {
+		a.configManager.Set(cfg)
+		if err := a.configManager.Save(); err != nil {
+			a.logError("保存 Lenovo Legion Fn+Q 配置失败: %v", err)
 		}
 	}
 	a.syncManualGearLevelMemory(cfg)
@@ -366,6 +373,19 @@ func (a *CoreApp) registerPlugins() {
 		return
 	}
 
+	supported, hostInfo, err := fnqpowermode.DetectSupport()
+	if err != nil {
+		a.logError("failed to detect Lenovo Legion Fn+Q host support: %v", err)
+		return
+	}
+	if !supported {
+		a.logInfo("Lenovo Legion Fn+Q plugin skipped: unsupported host (manufacturer=%s model=%s family=%s product=%s)",
+			hostInfo.Manufacturer, hostInfo.Model, hostInfo.Family, hostInfo.Product)
+		return
+	}
+
+	a.legionFnQSupported = true
+
 	a.pluginManager.Register(fnqpowermode.New(fnqpowermode.Options{
 		Logger: a.logger,
 		OnModeChange: func(state fnqpowermode.PowerModeState) {
@@ -375,6 +395,10 @@ func (a *CoreApp) registerPlugins() {
 }
 
 func (a *CoreApp) handleLegionPowerModeChange(state fnqpowermode.PowerModeState) {
+	if !a.legionFnQSupported {
+		return
+	}
+
 	a.logInfo("Lenovo Legion Fn+Q power mode changed: raw=%d mapped=%d mode=%s source=%s",
 		state.Raw, state.Mapped, state.Mode, state.Source)
 
@@ -386,7 +410,7 @@ func (a *CoreApp) handleLegionPowerModeChange(state fnqpowermode.PowerModeState)
 }
 
 func (a *CoreApp) applyPluginConfig(cfg types.AppConfig) {
-	if a.pluginManager == nil {
+	if a.pluginManager == nil || !a.legionFnQSupported {
 		return
 	}
 
@@ -438,6 +462,24 @@ func (a *CoreApp) applyLegionFnQFanMapping(state fnqpowermode.PowerModeState) {
 		}
 		a.logInfo("Lenovo Legion Fn+Q takeover applied: mode=%s gear=%s level=%s", state.Mode, target.Gear, target.Level)
 	})
+}
+
+func (a *CoreApp) normalizeLegionFnQConfigForHost(cfg *types.AppConfig) bool {
+	if cfg == nil || a.legionFnQSupported {
+		return false
+	}
+
+	changed := false
+	if cfg.LegionFnQ.Enabled {
+		cfg.LegionFnQ.Enabled = false
+		changed = true
+	}
+	if cfg.LegionFnQ.TakeOverFan {
+		cfg.LegionFnQ.TakeOverFan = false
+		changed = true
+	}
+
+	return changed
 }
 
 // onShowWindowRequest 显示窗口请求回调
@@ -1027,6 +1069,9 @@ func (a *CoreApp) UpdateConfig(cfg types.AppConfig) error {
 	}
 	cfg.SmartControl, _ = smartcontrol.NormalizeConfig(cfg.SmartControl, cfg.FanCurve, cfg.DebugMode)
 	cfg.LegionFnQ = types.NormalizeLegionFnQConfig(cfg.LegionFnQ)
+	if !a.legionFnQSupported && (cfg.LegionFnQ.Enabled || cfg.LegionFnQ.TakeOverFan) {
+		return fmt.Errorf("Lenovo Legion Fn+Q 仅支持拯救者设备")
+	}
 	normalizeHotkeyConfig(&cfg)
 	normalizeManualGearMemoryConfig(&cfg)
 
@@ -1596,14 +1641,15 @@ func (a *CoreApp) SetWindowsAutoStart(enable bool) error {
 // GetDebugInfo 获取调试信息
 func (a *CoreApp) GetDebugInfo() map[string]any {
 	info := map[string]any{
-		"debugMode":       a.debugMode,
-		"trayReady":       a.trayManager.IsReady(),
-		"trayInitialized": a.trayManager.IsInitialized(),
-		"isConnected":     a.isConnected,
-		"guiLastResponse": time.Unix(atomic.LoadInt64(&a.guiLastResponse), 0).Format("2006-01-02 15:04:05"),
-		"monitoringTemp":  a.monitoringTemp,
-		"autoStartLaunch": a.isAutoStartLaunch,
-		"hasGUIClients":   a.ipcServer != nil && a.ipcServer.HasClients(),
+		"debugMode":          a.debugMode,
+		"trayReady":          a.trayManager.IsReady(),
+		"trayInitialized":    a.trayManager.IsInitialized(),
+		"isConnected":        a.isConnected,
+		"legionFnQSupported": a.legionFnQSupported,
+		"guiLastResponse":    time.Unix(atomic.LoadInt64(&a.guiLastResponse), 0).Format("2006-01-02 15:04:05"),
+		"monitoringTemp":     a.monitoringTemp,
+		"autoStartLaunch":    a.isAutoStartLaunch,
+		"hasGUIClients":      a.ipcServer != nil && a.ipcServer.HasClients(),
 	}
 	if a.pluginManager != nil {
 		info["plugins"] = a.pluginManager.Statuses()

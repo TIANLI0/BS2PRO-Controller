@@ -1,3 +1,5 @@
+//go:build windows
+
 // Package autostart 提供 Windows 自启动管理功能
 package autostart
 

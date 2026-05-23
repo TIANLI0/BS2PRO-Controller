@@ -153,6 +153,9 @@ func (p *Plugin) scanErrors(pipe interface{ Read([]byte) (int, error) }) {
 	for scanner.Scan() {
 		p.setLastError(fmt.Errorf("%s", scanner.Text()))
 	}
+	if err := scanner.Err(); err != nil {
+		p.setLastError(err)
+	}
 }
 
 func (p *Plugin) handleLine(line []byte) {

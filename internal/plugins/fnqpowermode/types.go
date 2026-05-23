@@ -16,24 +16,17 @@ type PowerModeState struct {
 	Timestamp int64  `json:"timestamp"`
 }
 
+// HostInfo 描述当前主机的机型信息。
+type HostInfo struct {
+	Manufacturer string `json:"manufacturer"`
+	Model        string `json:"model"`
+	Family       string `json:"family"`
+	Product      string `json:"product"`
+	Version      string `json:"version"`
+	Vendor       string `json:"vendor"`
+}
+
 type Options struct {
 	Logger       types.Logger
 	OnModeChange func(PowerModeState)
-}
-
-func modeName(mapped int) string {
-	switch mapped {
-	case 0:
-		return "Quiet"
-	case 1:
-		return "Balance"
-	case 2:
-		return "Performance"
-	case 223:
-		return "Extreme"
-	case 254:
-		return "GodMode"
-	default:
-		return "Unknown"
-	}
 }
