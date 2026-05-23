@@ -151,30 +151,46 @@ func (m *Manager) Connect() (bool, map[string]string) {
 	return false, nil
 }
 
-// Disconnect 断开设备连接
+// Disconnect 断开设备连接，并触发断连回调。
 func (m *Manager) Disconnect() {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
+	m.disconnect(true)
+}
 
+// DisconnectSilently 断开设备连接，但不触发断连回调。
+func (m *Manager) DisconnectSilently() {
+	m.disconnect(false)
+}
+
+func (m *Manager) disconnect(notify bool) {
+	m.mutex.Lock()
 	if !m.isConnected {
+		m.mutex.Unlock()
 		return
 	}
 
 	if m.deviceType == types.DeviceTypeBLE {
 		m.bleManager.Disconnect()
 	} else {
-		// 关闭 HID 设备
 		if m.device != nil {
-			m.device.Close()
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						m.logError("关闭设备时发生错误: %v", r)
+					}
+				}()
+				m.device.Close()
+			}()
 			m.device = nil
 		}
 	}
 
 	m.isConnected = false
 	m.deviceType = ""
-	m.logInfo("设备连接已断开")
+	onDisconnect := notify && m.onDisconnect != nil
+	m.mutex.Unlock()
 
-	if m.onDisconnect != nil {
+	m.logInfo("设备连接已断开")
+	if onDisconnect {
 		m.onDisconnect()
 	}
 }

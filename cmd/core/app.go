@@ -64,6 +64,9 @@ type CoreApp struct {
 	legionFnQSupported      atomic.Bool
 	legionFnQSupportChecked atomic.Bool
 	legionFnQRegistered     atomic.Bool
+	reconnectInProgress     atomic.Bool
+	resumeRecoveryRunning   atomic.Bool
+	lastResumeRecoveryUnix  int64
 
 	// 监控相关
 	guiLastResponse   int64
@@ -76,6 +79,28 @@ type CoreApp struct {
 	mutex                 sync.RWMutex
 	stopMonitoring        chan bool
 	manualGearLevelMemory map[string]string
+}
+
+const (
+	systemResumeDetectionFloor   = 20 * time.Second
+	systemResumeDetectionCeiling = 45 * time.Second
+	systemResumeRecoveryCooldown = 15 * time.Second
+	systemResumeReconnectDelay   = 3 * time.Second
+)
+
+func systemResumeDetectionThreshold(expectedInterval time.Duration) time.Duration {
+	threshold := expectedInterval * 6
+	if threshold < systemResumeDetectionFloor {
+		threshold = systemResumeDetectionFloor
+	}
+	if threshold > systemResumeDetectionCeiling {
+		threshold = systemResumeDetectionCeiling
+	}
+	return threshold
+}
+
+func shouldRecoverFromSystemResumeGap(gap, expectedInterval time.Duration) bool {
+	return gap >= systemResumeDetectionThreshold(expectedInterval)
 }
 
 // NewCoreApp 创建核心应用实例
@@ -994,21 +1019,43 @@ func (a *CoreApp) onDeviceDisconnect() {
 		a.ipcServer.BroadcastEvent(ipc.EventDeviceDisconnected, nil)
 	}
 
-	// 启动自动重连机制
-	a.safeGo("scheduleReconnect", func() {
-		a.scheduleReconnect()
-	})
+	a.requestReconnect("device-disconnect", nil)
 }
 
-// scheduleReconnect 安排设备重连
-func (a *CoreApp) scheduleReconnect() {
-	// 延迟一段时间后尝试重连，避免频繁重试
-	retryDelays := []time.Duration{
+func defaultReconnectDelays() []time.Duration {
+	return []time.Duration{
 		2 * time.Second,
 		5 * time.Second,
 		10 * time.Second,
 		30 * time.Second,
 	}
+}
+
+func cloneReconnectDelays(delays []time.Duration) []time.Duration {
+	if len(delays) == 0 {
+		return defaultReconnectDelays()
+	}
+	cloned := make([]time.Duration, len(delays))
+	copy(cloned, delays)
+	return cloned
+}
+
+func (a *CoreApp) requestReconnect(reason string, retryDelays []time.Duration) {
+	if !a.reconnectInProgress.CompareAndSwap(false, true) {
+		a.logDebug("重连流程已在进行中，忽略新的请求: %s", reason)
+		return
+	}
+
+	delays := cloneReconnectDelays(retryDelays)
+	a.safeGo("reconnect@"+reason, func() {
+		defer a.reconnectInProgress.Store(false)
+		a.runReconnectLoop(reason, delays)
+	})
+}
+
+// runReconnectLoop 安排设备重连
+func (a *CoreApp) runReconnectLoop(reason string, retryDelays []time.Duration) {
+	a.logInfo("启动设备重连流程: %s", reason)
 
 	for i, delay := range retryDelays {
 		// 检查是否已经连接（可能其他途径已重连）
@@ -1021,8 +1068,10 @@ func (a *CoreApp) scheduleReconnect() {
 			return
 		}
 
-		a.logInfo("等待 %v 后尝试第 %d 次重连...", delay, i+1)
-		time.Sleep(delay)
+		if delay > 0 {
+			a.logInfo("等待 %v 后尝试第 %d 次重连...", delay, i+1)
+			time.Sleep(delay)
+		}
 
 		// 再次检查连接状态
 		a.mutex.RLock()
@@ -1051,6 +1100,62 @@ func (a *CoreApp) scheduleReconnect() {
 	}
 
 	a.logError("所有重连尝试均失败，等待下次健康检查")
+}
+
+func (a *CoreApp) maybeRecoverFromSystemResume(source string, gap, expectedInterval time.Duration) bool {
+	if !shouldRecoverFromSystemResumeGap(gap, expectedInterval) {
+		return false
+	}
+
+	nowUnix := time.Now().UnixNano()
+	lastUnix := atomic.LoadInt64(&a.lastResumeRecoveryUnix)
+	if lastUnix > 0 && time.Duration(nowUnix-lastUnix) < systemResumeRecoveryCooldown {
+		return true
+	}
+	if !a.resumeRecoveryRunning.CompareAndSwap(false, true) {
+		return true
+	}
+	atomic.StoreInt64(&a.lastResumeRecoveryUnix, nowUnix)
+
+	a.safeGo("systemResumeRecovery@"+source, func() {
+		defer a.resumeRecoveryRunning.Store(false)
+		a.handleSystemResume(source, gap)
+	})
+	return true
+}
+
+func (a *CoreApp) handleSystemResume(source string, gap time.Duration) {
+	a.logInfo("检测到系统从睡眠/休眠恢复，来源=%s，挂起时长约=%s，开始执行连接自愈", source, gap.Round(time.Second))
+
+	wasConnected := a.deviceManager.IsConnected()
+	a.mutex.RLock()
+	if !wasConnected {
+		wasConnected = a.isConnected
+	}
+	a.mutex.RUnlock()
+
+	a.bridgeManager.Stop()
+
+	if !wasConnected {
+		a.logInfo("系统恢复时设备原本未连接，仅重置桥接状态")
+		return
+	}
+
+	a.deviceManager.DisconnectSilently()
+	a.mutex.Lock()
+	a.isConnected = false
+	a.mutex.Unlock()
+
+	if a.ipcServer != nil {
+		a.ipcServer.BroadcastEvent(ipc.EventDeviceDisconnected, nil)
+	}
+
+	a.requestReconnect("system-resume", []time.Duration{
+		systemResumeReconnectDelay,
+		8 * time.Second,
+		15 * time.Second,
+		30 * time.Second,
+	})
 }
 
 // ConnectDevice 连接设备
@@ -1086,7 +1191,7 @@ func (a *CoreApp) DisconnectDevice() {
 	a.isConnected = false
 	a.mutex.Unlock()
 
-	a.deviceManager.Disconnect()
+	a.deviceManager.DisconnectSilently()
 
 	if a.ipcServer != nil {
 		a.ipcServer.BroadcastEvent(ipc.EventDeviceDisconnected, nil)
@@ -1857,6 +1962,7 @@ func (a *CoreApp) startTemperatureMonitoring() {
 	lastTargetRPM := -1
 	learningDirty := false
 	lastLearningSave := time.Now()
+	lastMonitorTick := time.Now()
 
 	for a.monitoringTemp {
 		select {
@@ -1864,6 +1970,13 @@ func (a *CoreApp) startTemperatureMonitoring() {
 			a.monitoringTemp = false
 			return
 		case <-time.After(updateInterval):
+			now := time.Now()
+			gap := now.Sub(lastMonitorTick)
+			lastMonitorTick = now
+			if a.maybeRecoverFromSystemResume("temperature-monitor", gap, updateInterval) {
+				continue
+			}
+
 			cfg = a.configManager.Get()
 			updateInterval = time.Duration(cfg.TempUpdateRate) * time.Second
 			selection := types.TemperatureSelection{
@@ -2034,10 +2147,18 @@ func (a *CoreApp) startHealthMonitoring() {
 
 	a.safeGo("healthMonitoringLoop", func() {
 		defer a.healthCheckTicker.Stop()
+		lastHealthCheck := time.Now()
 
 		for {
 			select {
 			case <-a.healthCheckTicker.C:
+				now := time.Now()
+				gap := now.Sub(lastHealthCheck)
+				lastHealthCheck = now
+				if a.maybeRecoverFromSystemResume("health-monitor", gap, 30*time.Second) {
+					continue
+				}
+
 				a.performHealthCheck()
 			case <-a.cleanupChan:
 				a.logInfo("健康监控系统已停止")
@@ -2076,13 +2197,7 @@ func (a *CoreApp) checkDeviceHealth() {
 
 	if !connected {
 		a.logInfo("健康检查: 设备未连接，尝试重新连接")
-		a.safeGo("healthReconnect", func() {
-			if a.ConnectDevice() {
-				a.logInfo("健康检查: 设备重连成功")
-			} else {
-				a.logDebug("健康检查: 设备重连失败，等待下次检查")
-			}
-		})
+		a.requestReconnect("health-check", []time.Duration{0})
 	} else {
 		// 验证设备实际连接状态
 		if !a.deviceManager.IsConnected() {
