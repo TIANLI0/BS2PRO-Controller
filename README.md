@@ -1,278 +1,149 @@
-# BS2PRO-Controller
+# THRM
 
-> 飞智空间站 BS 1/2/2PRO 的第三方替代控制器
+<p align="center">
+  <img src="docs/assets/thrm-poster-light.png" alt="THRM 海报" width="960">
+</p>
 
-一个基于 Wails + C# + Next.js 开发的桌面应用，用于控制飞智空间站 BS 1/2/2PRO 散热器设备，提供风扇控制、温度监控等功能。
+> 面向飞智 BS1 / BS2 / BS2 PRO 的第三方散热控制工具
 
-## 功能特性
+> 只想正常使用？请直接下载 Releases 页面里的 Windows 安装包。你不需要安装 Go、Node.js、Bun、Wails 或 .NET SDK。
 
-- 🎮 **设备支持**：支持飞智 BS 1/2/2PRO 散热器
-- 🌡️ **温度监控**：实时监控 CPU/GPU 温度（支持多种温度数据桥接方式）
-- 💨 **风扇控制**：
-  - 自动模式：根据温度自动调节风速
-  - 学习控温：根据目标温度持续学习并微调曲线偏移
-  - 手动模式：自定义固定风速
-  - 曲线模式：自定义温度-风速曲线
-- 📊 **可视化面板**：直观的温度和风速实时显示
-- 🎯 **系统托盘**：支持最小化到系统托盘，后台运行
-- 🚀 **开机自启**：可设置开机自动启动并最小化运行
-- 🔧 **多进程架构**：GUI 和核心服务分离，稳定可靠
-- 🛠️ **灯带配置**：支持灯带复杂调控，感谢群友 @Whether
+## 普通用户先看
 
-## 系统架构
+### 下载与安装
 
-项目采用三进程架构：
+1. 前往 [Releases](https://github.com/TIANLI0/BS2PRO-Controller/releases/latest) 下载最新 Windows 安装包。
+2. 完成安装后启动 THRM。
+3. 程序会自动拉起后台组件，无需手动单独启动核心服务或温度桥接。
+4. 按设备类型连接：
+   - BS1：使用 BLE / 蓝牙连接。
+   - BS2 / BS2 PRO：使用 HID 方式连接，按系统正常接入后在应用内连接即可。
+5. 首次进入状态页后，先确认温度、风扇转速和控制模式都已正常显示。
 
-- **GUI 进程** (`BS2PRO-Controller.exe`)：提供用户界面，使用 Wails 框架
-- **核心服务** (`BS2PRO-Core.exe`)：后台运行，负责设备通信和温度监控
-- **温度桥接进程** (`TempBridge.exe`)：通过 C# 程序获取系统温度数据
+### 你不需要做什么
 
-三个进程通过 IPC (进程间通信) 进行数据交互。
+- 不需要克隆仓库。
+- 不需要安装 Go、Node.js、Bun、Wails CLI。
+- 不需要自己构建 `THRM.exe`、`THRM Core.exe` 或 `THRM TempBridge.exe`。
 
-## 技术栈
+### 核心功能
 
-### 后端
-- **Go 1.25+**：主要开发语言
-- **Wails v2**：跨平台桌面应用框架
-- **go-hid**：HID 设备通信
-- **zap**：日志记录
+- 支持飞智 BS1 / BS2 / BS2 PRO。
+- 实时读取 CPU / GPU 温度，并显示当前风扇状态。
+- 支持智能变频、固定转速、手动挡位和风扇曲线控制。
+- 提供温度与风扇历史记录面板。
+- 支持系统托盘、开机自启、快捷键切换等桌面端能力。
+- 保持开源，可持续迭代。
 
-### 前端
-- **Next.js 16**：React 框架
-- **TypeScript**：类型安全
-- **Tailwind CSS 4**：样式框架
-- **Recharts**：图表可视化
+### 配置与日志
 
-### 温度桥接
-- **C# .NET Framework 4.7.2**：温度数据桥接程序
+- 配置文件优先保存在 `%USERPROFILE%\\.thrm\\config.json`。
+- 如果默认用户目录不可写，会回退到 `<安装目录>\\config\\config.json`。
+- 运行日志写入 `<安装目录>\\logs\\app_YYYY-MM-DD.log` 和 `<安装目录>\\logs\\debug_YYYY-MM-DD.log`。
+- 旧版 `.bs2pro-controller` 配置会在首次读取时自动迁移。
 
-## 开发环境要求
+### 常见问题
 
-### 必需软件
-- **Go 1.21+**：[下载地址](https://golang.org/dl/)
-- **Node.js 18+**：[下载地址](https://nodejs.org/)
-- **Bun**：快速的 JavaScript 运行时 [安装说明](https://bun.sh/)
-- **Wails CLI**：安装命令 `go install github.com/wailsapp/wails/v2/cmd/wails@latest`
-- **.NET SDK 8.0+**：[下载地址](https://dotnet.microsoft.com/download)
-- **go-winres**：Windows 资源工具 `go install github.com/tc-hib/go-winres@latest`
+#### 设备无法连接
 
-### 可选软件
-- **NSIS 3.x**：用于生成安装程序 [下载地址](https://nsis.sourceforge.io/)
+1. 确认设备型号和连接方式匹配：BS1 走蓝牙，BS2 / BS2 PRO 走 HID。
+2. 断开设备后重新连接，再回到 THRM 中点击连接。
+3. 如果是 BS2 / BS2 PRO，请确认 Windows 已正常识别设备。
 
-## 快速开始
+#### 温度没有显示
 
-### 1. 克隆项目
+1. 重新启动 THRM，让温度桥接组件重新初始化。
+2. 检查安装目录中的 `bridge` 文件是否完整。
+3. 如果你同时运行了其它硬件监控工具，先暂时关闭后再试。
 
-```bash
-git clone https://github.com/TIANLI0/BS2PRO-Controller.git
-cd BS2PRO-Controller
-```
+#### 程序关闭后仍在后台
 
-### 2. 安装依赖
+- THRM 支持最小化到托盘运行；如需完全退出，请从托盘菜单执行退出操作。
 
-#### 安装 Go 依赖
+<details>
+<summary>开发者 / 构建说明</summary>
+
+### 技术栈
+
+- Go 1.25+
+- Wails v2
+- Next.js 16
+- TypeScript
+- Tailwind CSS 4
+- C# 温度桥接程序
+
+### 开发环境要求
+
+- Go 1.25+
+- Node.js 18+
+- Bun
+- Wails CLI：`go install github.com/wailsapp/wails/v2/cmd/wails@latest`
+- .NET SDK 8.0+
+- go-winres：`go install github.com/tc-hib/go-winres@latest`
+- NSIS 3.x（可选，用于生成安装程序）
+
+### 本地开发
+
 ```bash
 go mod tidy
-```
-
-#### 安装前端依赖
-```bash
 cd frontend
 bun install
 cd ..
-```
-
-### 3. 开发模式运行
-
-```bash
-# 启动 Wails 开发模式（包含热重载）
 wails dev
 ```
 
-### 4. 构建生产版本
+### 构建
 
-#### 构建温度桥接程序
 ```bash
 build_bridge.bat
-```
-
-#### 构建完整应用
-```bash
 build.bat
 ```
 
-构建完成后，可执行文件位于 `build/bin/` 目录：
-- `BS2PRO-Controller.exe` - GUI 主程序
-- `BS2PRO-Core.exe` - 核心服务
-- `bridge/TempBridge.exe` - 温度桥接程序
+构建完成后主要输出位于 `build/bin/`：
 
-安装程序位于 `build/bin/` 目录：
-- `BS2PRO-Controller-amd64-installer.exe` - Windows 安装程序
+- `THRM.exe`
+- `THRM Core.exe`
+- `bridge/THRM TempBridge.exe`
 
-## 项目结构
+如果本机安装了 NSIS，构建脚本还会一并生成 Windows 安装程序。
 
-```
-BS2PRO-Controller/
-├── main.go                 # GUI 主程序入口
-├── app.go                  # GUI 应用逻辑
-├── wails.json             # Wails 配置文件
-├── build.bat              # Windows 构建脚本
-├── build_bridge.bat       # 桥接程序构建脚本
-├── cmd/
-│   └── core/              # 核心服务程序
-│       ├── main.go        # 服务入口
-│       └── app.go         # 服务逻辑
-│
-├── internal/              # 内部包
-│   ├── autostart/         # 开机自启管理
-│   ├── bridge/            # 温度桥接通信
-│   ├── config/            # 配置管理
-│   ├── device/            # HID 设备通信
-│   ├── ipc/               # 进程间通信
-│   ├── logger/            # 日志模块
-│   ├── temperature/       # 温度监控
-│   ├── tray/              # 系统托盘
-│   ├── types/             # 类型定义
-│   └── version/           # 版本信息
-│
-├── bridge/
-│   └── TempBridge/        # C# 温度桥接程序
-│       └── Program.cs     # 桥接程序源码
-│
-├── frontend/              # Next.js 前端
-│   ├── src/
-│   │   ├── app/
-│   │   │   ├── components/    # React 组件
-│   │   │   ├── services/      # API 服务
-│   │   │   └── types/         # TypeScript 类型
-│   │   └── ...
-│   └── package.json
-│
-└── build/                 # 构建输出目录
+### 项目结构
+
+```text
+cmd/core/                 Go 核心服务
+internal/                 设备、配置、日志、温度、IPC 等内部模块
+bridge/TempBridge/        C# 温度桥接程序
+frontend/                 Wails 前端界面
+scripts/                  资源与辅助脚本
+build/windows/installer/  Windows 安装脚本
 ```
 
-## 使用说明
+### 贡献
 
-### 首次运行
+欢迎提交 Issue 和 Pull Request。
 
-1. 运行 `BS2PRO-Controller.exe` 启动程序
-2. 程序会自动启动核心服务 `BS2PRO-Core.exe`
-3. 连接你的 BS2/BS2PRO 设备（USB 连接）
-4. 程序会自动检测并连接设备
+1. Fork 本项目。
+2. 创建分支。
+3. 提交修改。
+4. 发起 Pull Request。
 
-### 风扇控制模式
-
-#### 自动模式
-- 根据当前温度自动调节风速
-- 适合日常使用
-
-#### 手动模式
-- 设置固定的风速档位（0-9档）
-- 适合特定需求场景
-
-#### 曲线模式
-- 自定义温度-风速曲线
-- 可添加多个控制点
-- 实现精细化的温度控制
-
-### 温度监控
-
-程序支持多种温度监控方式：
-
-1. **TempBridge**：通过 C# 桥接程序获取系统温度
-
-
-### 系统托盘
-
-- 点击托盘图标打开主窗口
-- 右键菜单提供快捷操作
-- 支持最小化到托盘后台运行
-
-## 配置文件
-
-配置文件位于 `%APPDATA%\BS2PRO-Controller\config.json`
-
-主要配置项：
-```json
-{
-  "autoStart": false,           // 开机自启
-  "minimizeToTray": true,       // 关闭时最小化到托盘
-  "temperatureSource": "auto",  // 温度数据源
-  "updateInterval": 1000,       // 更新间隔（毫秒）
-  "fanCurve": [...],           // 风扇曲线
-  "fanMode": "auto"            // 风扇模式
-}
-```
-
-## 日志文件
-
-日志文件位于 `build/bin/logs/` 目录：
-- `core_YYYYMMDD.log` - 核心服务日志
-- `gui_YYYYMMDD.log` - GUI 程序日志
-
-## 常见问题
-
-### 设备无法连接？
-1. 确保 BS2/BS2PRO 设备已正确连接到电脑
-2. 检查设备驱动是否正常安装
-3. 尝试重新插拔设备
-4. 查看日志文件排查具体错误
-
-### 温度无法显示？
-1. 检查温度数据源设置
-2. 如使用 TempBridge，确保 `bridge` 目录下的文件完整
-3. 如使用 AIDA64/HWiNFO，确保软件正在运行并开启了共享内存功能
-
-### 开机自启无效？
-1. 以管理员身份运行程序后重新设置
-2. 检查注册表项：`HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run`
-
-## 构建说明
-
-### 版本号管理
-
-版本号在 `wails.json` 的 `info.productVersion` 字段中定义，构建脚本会自动读取并嵌入到程序中。
-
-### LDFLAGS
-
-构建时会注入版本信息：
-```bash
--ldflags "-X github.com/TIANLI0/BS2PRO-Controller/internal/version.BuildVersion=版本号 -H=windowsgui"
-```
-
-### 生成安装程序
-
-执行 `build.bat` 会自动生成 NSIS 安装程序（需要安装 NSIS）。
-
-## 贡献指南
-
-欢迎提交 Issue 和 Pull Request！
-
-1. Fork 本项目
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 开启 Pull Request
-
-## 开源许可
-
-本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情
+</details>
 
 ## 作者
 
-- **TIANLI0** - [GitHub](https://github.com/TIANLI0)
+- TIANLI0 - [GitHub](https://github.com/TIANLI0)
 - Email: wutianli@tianli0.top
 
 ## 致谢
 
-- [Wails](https://wails.io/) - 优秀的 Go 桌面应用框架
-- [Next.js](https://nextjs.org/) - React 应用框架
-- 飞智- BS2/BS2PRO 硬件设备
+- [Wails](https://wails.io/)
+- [Next.js](https://nextjs.org/)
+- 飞智 BS1 / BS2 / BS2 PRO 设备与相关社区反馈
 
 ## 免责声明
 
 本项目为第三方开源项目，与飞智官方无关。使用本软件产生的任何问题由用户自行承担。
 
----
+## 开源许可
 
-⭐ 如果这个项目对你有帮助，请给一个 Star！
+本项目采用 MIT 许可证，详见 [LICENSE](LICENSE)。

@@ -6,4 +6,3 @@ __pycache__/
 bridge/TempBridge/obj
 bridge/TempBridge/bin
 *.syso
-docs/
