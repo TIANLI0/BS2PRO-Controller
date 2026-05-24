@@ -26,7 +26,7 @@ import { types } from '../../../wailsjs/go/models';
 import { MANUAL_GEAR_PRESETS, BS1_MANUAL_GEAR_PRESETS } from '../lib/manualGearPresets';
 import FanCurveProfileSelect from './FanCurveProfileSelect';
 import { toast } from 'sonner';
-import { ToggleSwitch, Button, Badge, Slider } from './ui/index';
+import { ToggleSwitch, Button, Badge, Slider, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/index';
 import clsx from 'clsx';
 
 const LOW_RPM_WARNING_DATE_KEY = 'fanCurveLowRpmWarningDate';
@@ -914,7 +914,7 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
   /* ═══════════════════ RENDER ═══════════════════ */
 
   return (
-    <div className="relative space-y-4 overflow-hidden">
+    <div className="relative space-y-4 px-1 pb-2">
         {/* ── Header ── */}
         <motion.div
           initial={{ opacity: 0, y: 8 }}
@@ -1419,41 +1419,35 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
           </div>
         </section>
 
-        <AnimatePresence>
-          {showLowRpmWarning && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
-            >
-              <motion.div
-                initial={{ scale: 0.95, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.95, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl"
-              >
-                <div className="mb-4 flex justify-center">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-500/15">
-                    <TriangleAlert className="h-8 w-8 text-amber-600" />
+        <Dialog open={showLowRpmWarning} onOpenChange={setShowLowRpmWarning}>
+          <DialogContent
+            hideClose
+            overlayClassName="bg-black/40 backdrop-blur-sm"
+            className="max-w-md rounded-2xl border border-border p-0 shadow-xl"
+            onPointerDownOutside={(event) => event.preventDefault()}
+            onEscapeKeyDown={(event) => event.preventDefault()}
+          >
+            <div className="p-6">
+              <DialogHeader className="items-center text-center">
+                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber-500/15">
+                  <TriangleAlert className="h-8 w-8 text-amber-600" />
+                </div>
+                <DialogTitle className="text-lg font-bold text-foreground">注意</DialogTitle>
+                <DialogDescription asChild>
+                  <div className="mt-1 rounded-xl border border-amber-300/40 bg-amber-500/10 p-4 text-left text-sm leading-relaxed text-foreground">
+                    低于1000转非飞智官方设计最低转速标准，由此引发的任何问题需要由用户自行承担！
                   </div>
-                </div>
+                </DialogDescription>
+              </DialogHeader>
 
-                <h3 className="mb-3 text-center text-lg font-bold text-foreground">注意</h3>
-                <p className="mb-6 rounded-xl border border-amber-300/40 bg-amber-500/10 p-4 text-sm leading-relaxed text-foreground">
-                  低于1000转非飞智官方设计最低转速标准，由此引发的任何问题需要由用户自行承担！
-                </p>
-
-                <div className="flex justify-end">
-                  <Button variant="secondary" size="sm" onClick={() => setShowLowRpmWarning(false)}>
-                    我已知悉
-                  </Button>
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+              <DialogFooter className="mt-6">
+                <Button variant="secondary" size="sm" onClick={() => setShowLowRpmWarning(false)}>
+                  我已知悉
+                </Button>
+              </DialogFooter>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
   );
 });

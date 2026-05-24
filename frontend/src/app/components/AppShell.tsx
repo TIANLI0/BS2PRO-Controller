@@ -1,6 +1,6 @@
 'use client';
 
-import type { CSSProperties, ReactNode } from 'react';
+import type { CSSProperties, KeyboardEvent, ReactNode } from 'react';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -19,7 +19,7 @@ import {
   Sparkles,
   Info,
 } from 'lucide-react';
-import { Environment, Quit, WindowIsMaximised, WindowMinimise, WindowToggleMaximise } from '../../../wailsjs/runtime/runtime';
+import { BrowserOpenURL, Environment, Quit, WindowIsMaximised, WindowMinimise, WindowToggleMaximise } from '../../../wailsjs/runtime/runtime';
 import { types } from '../../../wailsjs/go/models';
 import clsx from 'clsx';
 import { BRAND } from '../lib/brand';
@@ -486,6 +486,21 @@ export default function AppShell({
     scheduleWindowStateSync();
   }, [scheduleWindowStateSync]);
 
+  const handleOpenRepository = useCallback(() => {
+    try {
+      BrowserOpenURL(BRAND.repositoryUrl);
+    } catch {
+      window.open(BRAND.repositoryUrl, '_blank', 'noopener,noreferrer');
+    }
+  }, []);
+
+  const handleLogoKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      handleOpenRepository();
+    }
+  }, [handleOpenRepository]);
+
   const handleTabChange = (tab: ActiveTab) => {
     if (tab === activeTab) return;
     onTabChange(tab);
@@ -528,19 +543,34 @@ export default function AppShell({
       )}
 
       <aside className="flex w-16 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground shadow-[1px_0_0_rgba(15,23,42,0.04)] dark:shadow-[1px_0_0_rgba(255,255,255,0.04)]">
-        <div className="flex h-[72px] items-center justify-center px-2" style={DRAG_STYLE}>
-          <img
-            src="/brand/wordmark-light.png"
-            alt={BRAND.name}
-            draggable={false}
-            className="h-auto w-[38px] object-contain dark:hidden"
-          />
-          <img
-            src="/brand/wordmark-dark.png"
-            alt={BRAND.name}
-            draggable={false}
-            className="hidden h-auto w-[38px] object-contain dark:block"
-          />
+        <div className="flex h-[76px] items-center justify-center px-2" style={DRAG_STYLE}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div
+                aria-label={`打开 ${BRAND.name} GitHub 仓库`}
+                role="link"
+                tabIndex={0}
+                onClick={handleOpenRepository}
+                onKeyDown={handleLogoKeyDown}
+                className="group flex cursor-pointer items-center justify-center outline-none"
+                style={NO_DRAG_STYLE}
+              >
+                <img
+                  src="/brand/wordmark-light.png"
+                  alt={BRAND.name}
+                  draggable={false}
+                  className="h-auto w-[46px] object-contain transition-transform duration-200 group-hover:scale-[1.03] dark:hidden"
+                />
+                <img
+                  src="/brand/wordmark-dark.png"
+                  alt={BRAND.name}
+                  draggable={false}
+                  className="hidden h-auto w-[46px] object-contain transition-transform duration-200 group-hover:scale-[1.03] dark:block"
+                />
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="right">打开 GitHub 仓库</TooltipContent>
+          </Tooltip>
         </div>
 
         <nav className="flex flex-1 flex-col items-center gap-1 px-2" role="tablist" style={NO_DRAG_STYLE}>
@@ -676,7 +706,7 @@ export default function AppShell({
                   duration: 0.2,
                   ease: [0.22, 1, 0.36, 1],
                 }}
-                className="w-full min-w-0 overflow-hidden will-change-transform"
+                className="w-full min-w-0 px-1 pb-2 will-change-transform"
               >
                 {contentMap[activeTab]}
               </motion.div>

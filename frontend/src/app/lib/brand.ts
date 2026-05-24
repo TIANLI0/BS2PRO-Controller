@@ -1,7 +1,7 @@
 export const BRAND = {
   name: 'THRM',
   legacyName: 'BS2PRO Controller',
-  description: 'THRM 压风控制器桌面端',
+  description: '面向飞智笔记本压风散热器系列设备的第三方驱动与控制工具',
   repositoryUrl: 'https://github.com/TIANLI0/BS2PRO-Controller',
   latestReleaseUrl: 'https://github.com/TIANLI0/BS2PRO-Controller/releases/latest',
   latestReleaseApiUrl: 'https://api.github.com/repos/TIANLI0/BS2PRO-Controller/releases/latest',
