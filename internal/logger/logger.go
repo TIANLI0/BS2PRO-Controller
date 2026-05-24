@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TIANLI0/BS2PRO-Controller/internal/appmeta"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -120,45 +119,7 @@ func NewCustomLogger(debugMode bool, installDir string) (*CustomLogger, error) {
 }
 
 func defaultLogDir(installDir string) string {
-	candidates := make([]string, 0, 2)
-	if installDir != "" {
-		candidates = append(candidates, filepath.Join(installDir, "logs"))
-	}
-	if configDir, err := os.UserConfigDir(); err == nil && configDir != "" {
-		candidates = append(candidates, filepath.Join(configDir, appmeta.AppName, "logs"))
-	}
-
-	for _, candidate := range candidates {
-		if canWriteLogDir(candidate) {
-			return candidate
-		}
-	}
-
-	if len(candidates) > 0 {
-		return candidates[0]
-	}
-
-	return "logs"
-}
-
-func canWriteLogDir(logDir string) bool {
-	if logDir == "" {
-		return false
-	}
-
-	if err := os.MkdirAll(logDir, 0755); err != nil {
-		return false
-	}
-
-	probe, err := os.CreateTemp(logDir, ".log-write-check-")
-	if err != nil {
-		return false
-	}
-
-	probePath := probe.Name()
-	_ = probe.Close()
-	_ = os.Remove(probePath)
-	return true
+	return filepath.Join(installDir, "logs")
 }
 
 // Info 记录信息日志
