@@ -88,7 +88,7 @@ const MetricHeader = memo(function MetricHeader({
   label: string;
 }) {
   return (
-    <div className="mb-3 flex items-center justify-center">
+    <div className="mb-4 flex items-center justify-center">
       <div className="flex min-w-0 max-w-full items-center justify-center gap-1.5 text-xs font-semibold text-muted-foreground">
         <span className="shrink-0">{icon}</span>
         <span className="shrink-0">{label}</span>
@@ -138,13 +138,15 @@ const HardwareIdentitySummary = memo(function HardwareIdentitySummary({
 const CpuTempDisplay = memo(function CpuTempDisplay({ temp }: { temp: number | undefined }) {
   const status = getTempStatus(temp || 0);
   return (
-    <div className="flex flex-col items-center">
-      <div className="flex items-baseline gap-0.5">
-        <AnimatedTemperatureValue temp={temp} colorClass={status.color} />
-        <span className="text-xs text-muted-foreground">°C</span>
+    <div className="flex h-full w-full max-w-[20rem] flex-1 flex-col items-center justify-center text-center">
+      <div className="flex flex-col items-center justify-center">
+        <div className="flex items-baseline gap-0.5">
+          <AnimatedTemperatureValue temp={temp} colorClass={status.color} />
+          <span className="text-xs text-muted-foreground">°C</span>
+        </div>
+        <span className="mt-1.5 text-[11px] text-muted-foreground">{status.label}</span>
       </div>
-      <span className="mt-1 text-[11px] text-muted-foreground">{status.label}</span>
-      <div className="mt-2.5 h-1 w-full overflow-hidden rounded-full bg-muted">
+      <div className="mt-6 h-1 w-full overflow-hidden rounded-full bg-muted">
         <div
           className={clsx('h-full rounded-full transition-all duration-500', status.bg)}
           style={{ width: `${Math.min(100, ((temp || 0) / 100) * 100)}%` }}
@@ -157,13 +159,15 @@ const CpuTempDisplay = memo(function CpuTempDisplay({ temp }: { temp: number | u
 const GpuTempDisplay = memo(function GpuTempDisplay({ temp }: { temp: number | undefined }) {
   const status = getTempStatus(temp || 0);
   return (
-    <div className="flex flex-col items-center">
-      <div className="flex items-baseline gap-0.5">
-        <AnimatedTemperatureValue temp={temp} colorClass={status.color} />
-        <span className="text-xs text-muted-foreground">°C</span>
+    <div className="flex h-full w-full max-w-[20rem] flex-1 flex-col items-center justify-center text-center">
+      <div className="flex flex-col items-center justify-center">
+        <div className="flex items-baseline gap-0.5">
+          <AnimatedTemperatureValue temp={temp} colorClass={status.color} />
+          <span className="text-xs text-muted-foreground">°C</span>
+        </div>
+        <span className="mt-1.5 text-[11px] text-muted-foreground">{status.label}</span>
       </div>
-      <span className="mt-1 text-[11px] text-muted-foreground">{status.label}</span>
-      <div className="mt-2.5 h-1 w-full overflow-hidden rounded-full bg-muted">
+      <div className="mt-6 h-1 w-full overflow-hidden rounded-full bg-muted">
         <div
           className={clsx('h-full rounded-full transition-all duration-500', status.bg)}
           style={{ width: `${Math.min(100, ((temp || 0) / 100) * 100)}%` }}
@@ -187,15 +191,17 @@ const FanRpmDisplay = memo(function FanRpmDisplay({
   const pct = Math.min(100, ((currentRpm || 0) / 4000) * 100);
 
   return (
-    <div className="flex flex-col items-center">
-      <div className="flex items-baseline gap-0.5">
-        <AnimatedRpmValue rpm={currentRpm} />
-        <span className="text-xs text-muted-foreground">RPM</span>
+    <div className="flex h-full w-full max-w-[20rem] flex-1 flex-col items-center justify-center text-center">
+      <div className="flex flex-col items-center justify-center">
+        <div className="flex items-baseline gap-0.5">
+          <AnimatedRpmValue rpm={currentRpm} />
+          <span className="text-xs text-muted-foreground">RPM</span>
+        </div>
+        <span className="mt-1.5 text-[11px] text-muted-foreground">
+          {isBs1 ? (setGear || '--') : `目标 ${targetRpm ?? '--'} · ${setGear || '--'}`}
+        </span>
       </div>
-      <span className="mt-1 text-[11px] text-muted-foreground">
-        {isBs1 ? (setGear || '--') : `目标 ${targetRpm ?? '--'} · ${setGear || '--'}`}
-      </span>
-      <div className="mt-2.5 h-1 w-full overflow-hidden rounded-full bg-muted">
+      <div className="mt-6 h-1 w-full overflow-hidden rounded-full bg-muted">
         <div className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${pct}%` }} />
       </div>
     </div>
@@ -609,10 +615,10 @@ export default function DeviceStatus({
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: 'easeOut' }}
-          className="grid grid-cols-1 items-stretch gap-2.5 md:grid-cols-3"
+          className="grid grid-cols-1 items-stretch gap-3 md:grid-cols-3"
         >
           {/* CPU */}
-          <div className="flex h-full flex-col rounded-xl border border-border bg-card p-4 shadow-sm shadow-black/5 transition-shadow hover:shadow-md hover:shadow-primary/10">
+          <div className="flex h-full min-h-[168px] flex-col items-center rounded-xl border border-border bg-card px-5 py-5 shadow-sm shadow-black/5 transition-shadow hover:shadow-md hover:shadow-primary/10 md:min-h-[184px]">
             <MetricHeader
               icon={<Cpu className="h-4 w-4" />}
               label="CPU"
@@ -621,7 +627,7 @@ export default function DeviceStatus({
           </div>
 
           {/* GPU */}
-          <div className="flex h-full flex-col rounded-xl border border-border bg-card p-4 shadow-sm shadow-black/5 transition-shadow hover:shadow-md hover:shadow-primary/10">
+          <div className="flex h-full min-h-[168px] flex-col items-center rounded-xl border border-border bg-card px-5 py-5 shadow-sm shadow-black/5 transition-shadow hover:shadow-md hover:shadow-primary/10 md:min-h-[184px]">
             <MetricHeader
               icon={<Gpu className="h-4 w-4" />}
               label="GPU"
@@ -630,7 +636,7 @@ export default function DeviceStatus({
           </div>
 
           {/* Fan */}
-          <div className="flex h-full flex-col rounded-xl border border-border bg-card p-4 shadow-sm shadow-black/5 transition-shadow hover:shadow-md hover:shadow-primary/10">
+          <div className="flex h-full min-h-[168px] flex-col items-center rounded-xl border border-border bg-card px-5 py-5 shadow-sm shadow-black/5 transition-shadow hover:shadow-md hover:shadow-primary/10 md:min-h-[184px]">
             <MetricHeader
               icon={(
                 <SpinningFanIcon duration={fanSpinDuration} className="h-4 w-4" />
