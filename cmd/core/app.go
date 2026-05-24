@@ -89,10 +89,7 @@ const (
 )
 
 func systemResumeDetectionThreshold(expectedInterval time.Duration) time.Duration {
-	threshold := max(expectedInterval*6, systemResumeDetectionFloor)
-	if threshold > systemResumeDetectionCeiling {
-		threshold = systemResumeDetectionCeiling
-	}
+	threshold := min(max(expectedInterval*6, systemResumeDetectionFloor), systemResumeDetectionCeiling)
 	return threshold
 }
 
@@ -956,20 +953,30 @@ func (a *CoreApp) dataResponse(data any) ipc.Response {
 	return ipc.Response{Success: true, Data: dataBytes}
 }
 
+func didDeviceSwitchToManualMode(previousMode, currentMode string) bool {
+	if currentMode != "挡位工作模式" {
+		return false
+	}
+	if previousMode == "" {
+		return false
+	}
+	return previousMode != currentMode
+}
+
 // onFanDataUpdate 风扇数据更新回调
 func (a *CoreApp) onFanDataUpdate(fanData *types.FanData) {
 	a.mutex.Lock()
 	cfg := a.configManager.Get()
+	deviceSwitchedToManual := didDeviceSwitchToManualMode(a.lastDeviceMode, fanData.WorkMode)
 
 	// 检查工作模式变化
 	// 如果开启了"断连保持配置模式"，则忽略设备状态变化，避免误判
-	if fanData.WorkMode == "挡位工作模式" &&
+	if deviceSwitchedToManual &&
 		cfg.AutoControl &&
-		a.lastDeviceMode == "自动模式(实时转速)" &&
 		!a.userSetAutoControl &&
 		!cfg.IgnoreDeviceOnReconnect {
 
-		a.logInfo("检测到设备从自动模式切换到挡位工作模式，自动关闭智能变频")
+		a.logInfo("检测到设备切换到挡位工作模式，自动关闭智能变频")
 		cfg.AutoControl = false
 
 		a.configManager.Set(cfg)
@@ -979,9 +986,8 @@ func (a *CoreApp) onFanDataUpdate(fanData *types.FanData) {
 		if a.ipcServer != nil {
 			a.ipcServer.BroadcastEvent(ipc.EventConfigUpdate, cfg)
 		}
-	} else if fanData.WorkMode == "挡位工作模式" &&
+	} else if deviceSwitchedToManual &&
 		cfg.AutoControl &&
-		a.lastDeviceMode == "自动模式(实时转速)" &&
 		!a.userSetAutoControl &&
 		cfg.IgnoreDeviceOnReconnect {
 		a.logInfo("检测到设备模式变化，但已开启断连保持配置模式，保持APP配置不变")
@@ -2125,6 +2131,10 @@ func (a *CoreApp) startTemperatureMonitoring() {
 				}
 
 				lastControlTemp = controlTemp
+			}
+
+			if !cfg.AutoControl {
+				lastTargetRPM = -1
 			}
 		}
 	}
