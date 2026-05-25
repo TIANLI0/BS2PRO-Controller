@@ -50,7 +50,7 @@ const FAQ_ITEMS = [
   },
   {
     question: '当前支持哪些设备？',
-    answer: '目前支持的设备型号包括飞智 BS1、BS2、BS2PRO 与 BS3PRO。',
+    answer: '目前支持的设备型号包括飞智 BS1、BS2、BS2PRO、BS3 与 BS3PRO。',
   },
   {
     question: '蓝牙扫描不到设备时应如何处理？',

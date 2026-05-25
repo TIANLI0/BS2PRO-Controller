@@ -142,7 +142,7 @@ func main() {
 
 	// 目标设备的厂商ID和候选产品ID
 	vendorID := uint16(0x37D7)
-	productIDs := []uint16{0x1004, 0x1002}
+	productIDs := []uint16{0x1004, 0x1003, 0x1002}
 	var device *hid.Device
 	var connectedProductID uint16
 
@@ -157,7 +157,7 @@ func main() {
 	}
 
 	if device == nil {
-		fmt.Println("未找到可连接的 BS2PRO/BS3PRO 设备")
+		fmt.Println("未找到可连接的 BS2PRO/BS3/BS3PRO 设备")
 		return
 	}
 	defer func() {

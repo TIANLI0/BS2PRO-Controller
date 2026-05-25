@@ -19,9 +19,28 @@ const (
 	ProductIDBS2PRO = 0x1002
 	// ProductIDBS2 BS2 产品ID
 	ProductIDBS2 = 0x1001
+	// ProductIDBS3 BS3 产品ID
+	ProductIDBS3 = 0x1003
 	// ProductIDBS3PRO BS3PRO 产品ID
 	ProductIDBS3PRO = 0x1004
 )
+
+var supportedHIDProductIDs = []uint16{ProductIDBS2PRO, ProductIDBS3, ProductIDBS3PRO, ProductIDBS2}
+
+func modelNameForProductID(productID uint16) string {
+	switch productID {
+	case ProductIDBS2:
+		return "BS2"
+	case ProductIDBS2PRO:
+		return "BS2PRO"
+	case ProductIDBS3:
+		return "BS3"
+	case ProductIDBS3PRO:
+		return "BS3PRO"
+	default:
+		return "Unknown"
+	}
+}
 
 // Manager 设备管理器
 type Manager struct {
@@ -66,7 +85,7 @@ func (m *Manager) Exit() error {
 	return hid.Exit()
 }
 
-// Connect 连接设备（先尝试 HID BS2/BS2PRO/BS3PRO，再尝试 BLE BS1）
+// Connect 连接设备（先尝试 HID BS2/BS2PRO/BS3/BS3PRO，再尝试 BLE BS1）
 func (m *Manager) Connect() (bool, map[string]string) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -75,13 +94,12 @@ func (m *Manager) Connect() (bool, map[string]string) {
 		return true, nil
 	}
 
-	// 先尝试 HID 连接 (BS2/BS2PRO/BS3PRO)
-	productIDs := []uint16{ProductIDBS2PRO, ProductIDBS3PRO, ProductIDBS2}
+	// 先尝试 HID 连接 (BS2/BS2PRO/BS3/BS3PRO)
 	var device *hid.Device
 	var err error
 
 	var connectedProductID uint16
-	for _, productID := range productIDs {
+	for _, productID := range supportedHIDProductIDs {
 		m.logInfo("正在连接设备 - 厂商ID: 0x%04X, 产品ID: 0x%04X", VendorID, productID)
 
 		device, err = hid.OpenFirst(VendorID, productID)
@@ -95,19 +113,13 @@ func (m *Manager) Connect() (bool, map[string]string) {
 	}
 
 	if err == nil && device != nil {
-		// HID 连接成功 (BS2/BS2PRO/BS3PRO)
+		// HID 连接成功 (BS2/BS2PRO/BS3/BS3PRO)
 		m.device = device
 		m.isConnected = true
 		m.productID = connectedProductID
 		m.deviceType = types.DeviceTypeHID
 
-		modelName := "BS2PRO"
-		switch connectedProductID {
-		case ProductIDBS2:
-			modelName = "BS2"
-		case ProductIDBS3PRO:
-			modelName = "BS3PRO"
-		}
+		modelName := modelNameForProductID(connectedProductID)
 
 		// 获取设备信息
 		deviceInfo, infoErr := device.GetDeviceInfo()
@@ -222,17 +234,7 @@ func (m *Manager) GetModelName() string {
 	if m.deviceType == types.DeviceTypeBLE {
 		return "BS1"
 	}
-	productID := m.productID
-	if productID == ProductIDBS2 {
-		return "BS2"
-	}
-	if productID == ProductIDBS2PRO {
-		return "BS2PRO"
-	}
-	if productID == ProductIDBS3PRO {
-		return "BS3PRO"
-	}
-	return "Unknown"
+	return modelNameForProductID(m.productID)
 }
 
 // GetDeviceType 获取当前连接设备的类型
