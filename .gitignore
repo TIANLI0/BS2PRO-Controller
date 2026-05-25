@@ -5,4 +5,5 @@ __pycache__/
 *.exe
 bridge/TempBridge/obj
 bridge/TempBridge/bin
+temp/LibreHardwareMonitor/
 *.syso

@@ -2,16 +2,17 @@
 
 ## 概述
 
-由于Go语言无法直接调用C#库，我们创建了一个C#桥接程序 `TempBridge.exe`，通过 NuGet 引用 `LibreHardwareMonitorLib` 获取准确的CPU和GPU温度数据。
+由于Go语言无法直接调用C#库，我们创建了一个C#桥接程序 `TempBridge.exe`。默认构建链会先同步 https://github.com/LibreHardwareMonitor/LibreHardwareMonitor 的最新 `master` 提交，再用仓库里的 `LibreHardwareMonitorLib` 源码构建 TempBridge。
 
-当前桥接程序使用 `LibreHardwareMonitorLib >= 0.9.6`，该版本基于 `PawnIO` 能力，不再打包 `WinRing0` 资源。
+如果本地没有上游源码目录，`TempBridge.csproj` 仍然保留 `LibreHardwareMonitorLib 0.9.6` 的 NuGet 兜底引用；但 `build_bridge.bat` 默认不会走这个兜底，而是先同步 GitHub 最新 commit。
 
 ## 构建说明
 
 ### 前提条件
 
 - 安装 [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
-- 可访问 NuGet 源（`dotnet restore` 会自动拉取 `LibreHardwareMonitorLib`）
+- 安装 Git（`build_bridge.bat` 会自动同步 LibreHardwareMonitor 最新提交）
+- 可访问 GitHub 和 NuGet 源
 
 ### Windows 构建
 
@@ -19,6 +20,13 @@
 # 在项目根目录运行
 build_bridge.bat
 ```
+
+脚本行为：
+
+1. 将上游仓库同步到 `temp/LibreHardwareMonitor`
+2. 读取该仓库当前 HEAD commit
+3. 通过 `LibreHardwareMonitorLib.csproj` 源码引用构建 `TempBridge`
+4. 下载 `PawnIO_setup.exe`
 
 ### Linux/Mac 构建（交叉编译）
 
@@ -32,14 +40,14 @@ chmod +x build_bridge.sh
 
 ```bash
 cd bridge/TempBridge
-dotnet restore
-dotnet publish TempBridge.csproj -c Release --self-contained false -o ../../build/bin/bridge
+dotnet restore TempBridge.csproj /p:UseLibreHardwareMonitorProjectReference=true /p:LibreHardwareMonitorRepoRoot=../../temp/LibreHardwareMonitor
+dotnet publish TempBridge.csproj -c Release --self-contained false -o ../../build/bin/bridge /p:UseLibreHardwareMonitorProjectReference=true /p:LibreHardwareMonitorRepoRoot=../../temp/LibreHardwareMonitor
 ```
 
 ## 工作原理
 
 1. Go程序调用 `TempBridge.exe`
-2. 桥接程序通过 NuGet 引入的 `LibreHardwareMonitorLib` 读取硬件温度
+2. 桥接程序通过 LibreHardwareMonitor 源码构建出的 `LibreHardwareMonitorLib` 读取硬件温度
 3. 桥接程序以JSON格式输出温度数据
 4. Go程序解析JSON数据并使用
 
