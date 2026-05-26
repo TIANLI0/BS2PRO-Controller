@@ -145,6 +145,7 @@ func applyMissingSmartControlDefaults(cfg *types.AppConfig, rawConfig map[string
 	rawSmartControl, ok := rawConfig["smartControl"]
 	if !ok {
 		cfg.SmartControl.FilterTransientSpike = defaults.FilterTransientSpike
+		cfg.SmartControl.LearningBias = defaults.LearningBias
 		return
 	}
 
@@ -155,6 +156,9 @@ func applyMissingSmartControlDefaults(cfg *types.AppConfig, rawConfig map[string
 
 	if _, ok := smartControlConfig["filterTransientSpike"]; !ok {
 		cfg.SmartControl.FilterTransientSpike = defaults.FilterTransientSpike
+	}
+	if _, ok := smartControlConfig["learningBias"]; !ok {
+		cfg.SmartControl.LearningBias = defaults.LearningBias
 	}
 }
 

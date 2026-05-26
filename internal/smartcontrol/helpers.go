@@ -59,6 +59,36 @@ func constrainOffsetsToCurveBounds(offsets []int, curve []types.FanCurvePoint, m
 	return normalized, updated
 }
 
+func constrainOffsetsToLearningBias(offsets []int, learningBias string) ([]int, bool) {
+	if len(offsets) == 0 {
+		return offsets, false
+	}
+
+	bias := types.NormalizeLearningBias(learningBias)
+	if bias == types.LearningBiasBalanced {
+		return offsets, false
+	}
+
+	updated := false
+	normalized := make([]int, len(offsets))
+	copy(normalized, offsets)
+	for i, offset := range normalized {
+		switch bias {
+		case types.LearningBiasCooling:
+			if offset < 0 {
+				normalized[i] = 0
+				updated = true
+			}
+		case types.LearningBiasQuiet:
+			if offset > 0 {
+				normalized[i] = 0
+				updated = true
+			}
+		}
+	}
+	return normalized, updated
+}
+
 func intSlicesEqual(a, b []int) bool {
 	if len(a) != len(b) {
 		return false

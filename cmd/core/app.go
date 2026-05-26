@@ -677,6 +677,12 @@ func (a *CoreApp) handleIPCRequest(req ipc.Request) ipc.Response {
 		curve := a.configManager.Get().FanCurve
 		return a.dataResponse(curve)
 
+	case ipc.ReqResetLearnedOffsets:
+		if err := a.ResetLearnedOffsets(); err != nil {
+			return a.errorResponse(err.Error())
+		}
+		return a.dataResponse(map[string]bool{"ok": true})
+
 	case ipc.ReqGetFanCurveProfiles:
 		return a.dataResponse(a.GetFanCurveProfiles())
 
@@ -1329,6 +1335,23 @@ func (a *CoreApp) SetFanCurve(curve []types.FanCurvePoint) error {
 	return a.configManager.Update(cfg)
 }
 
+// ResetLearnedOffsets 清空学习到的曲线偏移。
+func (a *CoreApp) ResetLearnedOffsets() error {
+	a.mutex.Lock()
+	defer a.mutex.Unlock()
+
+	cfg := a.configManager.Get()
+	cfg.SmartControl = smartcontrol.ResetLearnedState(cfg.SmartControl, cfg.FanCurve)
+	if err := a.configManager.Update(cfg); err != nil {
+		return err
+	}
+	if a.ipcServer != nil {
+		a.ipcServer.BroadcastEvent(ipc.EventConfigUpdate, cfg)
+	}
+	a.logInfo("已重置学习偏移")
+	return nil
+}
+
 // SetAutoControl 设置智能变频
 func (a *CoreApp) SetAutoControl(enabled bool) error {
 	a.mutex.Lock()
@@ -1943,9 +1966,11 @@ func (a *CoreApp) startTemperatureMonitoring() {
 	cfg := a.configManager.Get()
 	updateInterval := time.Duration(cfg.TempUpdateRate) * time.Second
 
-	// 温度采样缓冲区
+	// 温度采样使用 EMA 平滑。
 	sampleCount := max(cfg.TempSampleCount, 1)
-	tempSamples := make([]int, 0, sampleCount)
+	tempEMA := 0
+	tempEMAReady := false
+
 	rawTempHistory := make([]int, 0, 6)
 	recentAvgTemps := make([]int, 0, 24)
 	recentControlTemps := make([]int, 0, 24)
@@ -1959,11 +1984,13 @@ func (a *CoreApp) startTemperatureMonitoring() {
 	if initialTemp.ControlTemp > 0 {
 		rawTempHistory = append(rawTempHistory, initialTemp.ControlTemp)
 	}
-	lastControlTemp := initialTemp.ControlTemp
 	lastTargetRPM := -1
 	learningDirty := false
 	lastLearningSave := time.Now()
 	lastMonitorTick := time.Now()
+
+	// 每个曲线点对应一个稳态采样桶。
+	steadyObserver := smartcontrol.NewStableObserver(len(cfg.FanCurve))
 
 	for a.monitoringTemp.Load() {
 		select {
@@ -2012,11 +2039,15 @@ func (a *CoreApp) startTemperatureMonitoring() {
 			}
 
 			if cfg.AutoControl && temp.ControlTemp > 0 {
-				// 更新采样配置
+				// 采样窗口变化时重置 EMA，避免阶跃。
 				newSampleCount := max(cfg.TempSampleCount, 1)
 				if newSampleCount != sampleCount {
 					sampleCount = newSampleCount
-					tempSamples = make([]int, 0, sampleCount)
+					tempEMAReady = false
+				}
+
+				if steadyObserver == nil || len(cfg.FanCurve) != steadyObserver.CurveLen() {
+					steadyObserver = smartcontrol.NewStableObserver(len(cfg.FanCurve))
 				}
 
 				sampleTemp := temp.ControlTemp
@@ -2029,23 +2060,18 @@ func (a *CoreApp) startTemperatureMonitoring() {
 					rawTempHistory = rawTempHistory[len(rawTempHistory)-6:]
 				}
 
-				// 添加新采样。孤立跳点会先被替换为最近稳定基线，避免污染采样窗口。
-				tempSamples = append(tempSamples, sampleTemp)
-				if len(tempSamples) > sampleCount {
-					tempSamples = tempSamples[len(tempSamples)-sampleCount:]
+				if !tempEMAReady {
+					tempEMA = sampleTemp
+					tempEMAReady = true
+				} else {
+					n := sampleCount
+					tempEMA = (2*sampleTemp + (n-1)*tempEMA) / (n + 1)
 				}
+				avgTemp := tempEMA
 
-				// 计算平均温度
-				avgTemp := 0
-				for _, t := range tempSamples {
-					avgTemp += t
-				}
-				avgTemp = avgTemp / len(tempSamples)
-
-				maxHistory := max(8, smartCfg.LearnWindow+smartCfg.LearnDelay+4)
 				recentAvgTemps = append(recentAvgTemps, avgTemp)
-				if len(recentAvgTemps) > maxHistory {
-					recentAvgTemps = recentAvgTemps[len(recentAvgTemps)-maxHistory:]
+				if len(recentAvgTemps) > 24 {
+					recentAvgTemps = recentAvgTemps[len(recentAvgTemps)-24:]
 				}
 
 				controlTemp := avgTemp
@@ -2055,18 +2081,18 @@ func (a *CoreApp) startTemperatureMonitoring() {
 				}
 				spikeSuppressed := sampleSpikeSuppressed || controlSpikeSuppressed
 				recentControlTemps = append(recentControlTemps, controlTemp)
-				if len(recentControlTemps) > maxHistory {
-					recentControlTemps = recentControlTemps[len(recentControlTemps)-maxHistory:]
+				if len(recentControlTemps) > 24 {
+					recentControlTemps = recentControlTemps[len(recentControlTemps)-24:]
 				}
 
 				curveMinRPM, curveMaxRPM := smartcontrol.GetCurveRPMBounds(cfg.FanCurve)
 
 				baseRPM := temperature.CalculateTargetRPM(controlTemp, cfg.FanCurve)
-				targetRPM := baseRPM
 				prevTargetRPM := lastTargetRPM
 
-				if cfg.DebugMode && smartCfg.Enabled {
-					targetRPM = smartcontrol.CalculateTargetRPM(controlTemp, lastControlTemp, cfg.FanCurve, smartCfg)
+				targetRPM := smartcontrol.CalculateTargetRPM(controlTemp, cfg.FanCurve, smartCfg)
+				if targetRPM <= 0 {
+					targetRPM = baseRPM
 				}
 
 				if targetRPM > 0 {
@@ -2090,30 +2116,27 @@ func (a *CoreApp) startTemperatureMonitoring() {
 					lastTargetRPM = targetRPM
 				}
 
-				if cfg.DebugMode && smartCfg.Enabled && !spikeSuppressed {
-					updatedHeatOffsets, updatedCoolOffsets, updatedRateHeat, updatedRateCool, changed := smartcontrol.LearnCurveOffsets(
-						controlTemp,
-						lastControlTemp,
-						targetRPM,
-						prevTargetRPM,
-						recentControlTemps,
-						cfg.FanCurve,
-						smartCfg,
-					)
-					if changed {
-						smartCfg.LearnedOffsetsHeat = updatedHeatOffsets
-						smartCfg.LearnedOffsetsCool = updatedCoolOffsets
-						smartCfg.LearnedRateHeat = updatedRateHeat
-						smartCfg.LearnedRateCool = updatedRateCool
-						smartCfg.LearnedOffsets = smartcontrol.BlendOffsets(updatedHeatOffsets, updatedCoolOffsets)
-						cfg.SmartControl = smartCfg
-						a.configManager.Set(cfg)
-						learningDirty = true
+				if smartCfg.Learning && !spikeSuppressed {
+					bucketIdx, steadyMean, ready := steadyObserver.Observe(controlTemp, cfg.FanCurve)
+					if ready && bucketIdx >= 0 {
+						newOffsets, changed := smartcontrol.LearnSteadyOffset(
+							bucketIdx,
+							steadyMean,
+							cfg.FanCurve,
+							smartCfg.LearnedOffsets,
+							smartCfg,
+						)
+						if changed {
+							smartCfg.LearnedOffsets = newOffsets
+							cfg.SmartControl = smartCfg
+							a.configManager.Set(cfg)
+							learningDirty = true
+						}
 					}
 
 					if learningDirty && time.Since(lastLearningSave) >= 25*time.Second {
 						if err := a.configManager.Save(); err != nil {
-							a.logError("保存学习曲线失败: %v", err)
+							a.logError("保存学习偏移失败: %v", err)
 						} else {
 							lastLearningSave = time.Now()
 							learningDirty = false
@@ -2122,13 +2145,13 @@ func (a *CoreApp) startTemperatureMonitoring() {
 							}
 						}
 					}
+				} else if !smartCfg.Learning {
+					steadyObserver.Reset()
 				}
 
 				if baseRPM > 0 {
 					a.logDebug("智能控温: 最高=%d°C 基准=%s 当前=%d°C 平均=%d°C 控制温度=%d°C 基础=%dRPM 目标=%dRPM", temp.MaxTemp, temp.ControlSource, temp.ControlTemp, avgTemp, controlTemp, baseRPM, targetRPM)
 				}
-
-				lastControlTemp = controlTemp
 			}
 
 			if !cfg.AutoControl {

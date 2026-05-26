@@ -2,15 +2,10 @@ package smartcontrol
 
 import "github.com/TIANLI0/BS2PRO-Controller/internal/types"
 
-// NormalizeConfig 归一化智能控温配置
-func NormalizeConfig(cfg types.SmartControlConfig, curve []types.FanCurvePoint, debugMode bool) (types.SmartControlConfig, bool) {
+// NormalizeConfig 归一化智能控温配置。
+func NormalizeConfig(cfg types.SmartControlConfig, curve []types.FanCurvePoint, _ bool) (types.SmartControlConfig, bool) {
 	defaults := types.GetDefaultSmartControlConfig(curve)
 	changed := false
-
-	if cfg.Learning != debugMode {
-		cfg.Learning = debugMode
-		changed = true
-	}
 
 	if cfg.TargetTemp < 45 || cfg.TargetTemp > 90 {
 		cfg.TargetTemp = defaults.TargetTemp
@@ -38,6 +33,10 @@ func NormalizeConfig(cfg types.SmartControlConfig, curve []types.FanCurvePoint, 
 	}
 	if cfg.LearnRate < 1 || cfg.LearnRate > 10 {
 		cfg.LearnRate = defaults.LearnRate
+		changed = true
+	}
+	if normalizedBias := types.NormalizeLearningBias(cfg.LearningBias); normalizedBias != cfg.LearningBias {
+		cfg.LearningBias = normalizedBias
 		changed = true
 	}
 	if cfg.LearnWindow < 3 || cfg.LearnWindow > 24 {
@@ -70,48 +69,44 @@ func NormalizeConfig(cfg types.SmartControlConfig, curve []types.FanCurvePoint, 
 	}
 
 	if len(cfg.LearnedOffsets) != len(curve) {
-		newOffsets := make([]int, len(curve))
-		copy(newOffsets, cfg.LearnedOffsets)
-		cfg.LearnedOffsets = newOffsets
+		next := make([]int, len(curve))
+		copy(next, cfg.LearnedOffsets)
+		cfg.LearnedOffsets = next
+		changed = true
+	}
+	if sanitized, updated := constrainOffsetsToCurveBounds(cfg.LearnedOffsets, curve, cfg.MaxLearnOffset); updated {
+		cfg.LearnedOffsets = sanitized
+		changed = true
+	}
+	if sanitized, updated := constrainOffsetsToLearningBias(cfg.LearnedOffsets, cfg.LearningBias); updated {
+		cfg.LearnedOffsets = sanitized
 		changed = true
 	}
 
 	if len(cfg.LearnedOffsetsHeat) != len(curve) {
-		newHeatOffsets := make([]int, len(curve))
-		if len(cfg.LearnedOffsetsHeat) > 0 {
-			copy(newHeatOffsets, cfg.LearnedOffsetsHeat)
-		} else {
-			copy(newHeatOffsets, cfg.LearnedOffsets)
-		}
-		cfg.LearnedOffsetsHeat = newHeatOffsets
+		next := make([]int, len(curve))
+		copy(next, cfg.LearnedOffsetsHeat)
+		cfg.LearnedOffsetsHeat = next
 		changed = true
 	}
-	if sanitized, updated := constrainOffsetsToCurveBounds(cfg.LearnedOffsetsHeat, curve, cfg.MaxLearnOffset); updated {
-		cfg.LearnedOffsetsHeat = sanitized
-		changed = true
-	}
-
 	if len(cfg.LearnedOffsetsCool) != len(curve) {
-		newCoolOffsets := make([]int, len(curve))
-		if len(cfg.LearnedOffsetsCool) > 0 {
-			copy(newCoolOffsets, cfg.LearnedOffsetsCool)
-		} else {
-			copy(newCoolOffsets, cfg.LearnedOffsets)
-		}
-		cfg.LearnedOffsetsCool = newCoolOffsets
-		changed = true
-	}
-	if sanitized, updated := constrainOffsetsToCurveBounds(cfg.LearnedOffsetsCool, curve, cfg.MaxLearnOffset); updated {
-		cfg.LearnedOffsetsCool = sanitized
+		next := make([]int, len(curve))
+		copy(next, cfg.LearnedOffsetsCool)
+		cfg.LearnedOffsetsCool = next
 		changed = true
 	}
 
-	if normalized, updated := normalizeRateBiases(cfg.LearnedRateHeat, cfg.MaxLearnOffset); updated {
-		cfg.LearnedRateHeat = normalized
+	rateLen := rateBucketMax - rateBucketMin + 1
+	if len(cfg.LearnedRateHeat) != rateLen {
+		next := make([]int, rateLen)
+		copy(next, cfg.LearnedRateHeat)
+		cfg.LearnedRateHeat = next
 		changed = true
 	}
-	if normalized, updated := normalizeRateBiases(cfg.LearnedRateCool, cfg.MaxLearnOffset); updated {
-		cfg.LearnedRateCool = normalized
+	if len(cfg.LearnedRateCool) != rateLen {
+		next := make([]int, rateLen)
+		copy(next, cfg.LearnedRateCool)
+		cfg.LearnedRateCool = next
 		changed = true
 	}
 
@@ -120,38 +115,25 @@ func NormalizeConfig(cfg types.SmartControlConfig, curve []types.FanCurvePoint, 
 		changed = true
 	}
 
-	blended := BlendOffsets(cfg.LearnedOffsetsHeat, cfg.LearnedOffsetsCool)
-	if sanitized, updated := constrainOffsetsToCurveBounds(blended, curve, cfg.MaxLearnOffset); updated {
-		blended = sanitized
-		changed = true
-	}
-	if !intSlicesEqual(blended, cfg.LearnedOffsets) {
-		cfg.LearnedOffsets = blended
-		changed = true
-	}
-
 	return cfg, changed
 }
 
-// BlendOffsets 将升温/降温偏移融合为兼容视图
+// BlendOffsets 保留旧接口所需的 Heat/Cool 融合行为。
 func BlendOffsets(heatOffsets, coolOffsets []int) []int {
 	if len(heatOffsets) == 0 && len(coolOffsets) == 0 {
 		return nil
 	}
-
 	size := max(len(coolOffsets), len(heatOffsets))
-	blended := make([]int, size)
+	out := make([]int, size)
 	for i := range size {
-		heat := 0
+		h, c := 0, 0
 		if i < len(heatOffsets) {
-			heat = heatOffsets[i]
+			h = heatOffsets[i]
 		}
-		cool := 0
 		if i < len(coolOffsets) {
-			cool = coolOffsets[i]
+			c = coolOffsets[i]
 		}
-		blended[i] = (heat + cool) / 2
+		out[i] = (h + c) / 2
 	}
-
-	return blended
+	return out
 }

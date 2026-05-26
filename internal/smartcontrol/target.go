@@ -5,99 +5,45 @@ import (
 	"github.com/TIANLI0/BS2PRO-Controller/internal/types"
 )
 
-// CalculateTargetRPM 计算智能目标转速
-func CalculateTargetRPM(avgTemp, lastAvgTemp int, curve []types.FanCurvePoint, cfg types.SmartControlConfig) int {
-	effectiveCurve := make([]types.FanCurvePoint, len(curve))
-	activeOffsets := selectOffsetsForTrend(avgTemp-lastAvgTemp, cfg)
-	leftMinRPM, rightMaxRPM := GetCurveRPMBounds(curve)
-	for i, point := range curve {
-		offset := 0
-		if i < len(activeOffsets) {
-			offset = activeOffsets[i]
-		} else if i < len(cfg.LearnedOffsets) {
-			offset = cfg.LearnedOffsets[i]
-		}
-		offset = clampOffsetForPoint(offset, point.RPM, leftMinRPM, rightMaxRPM, cfg.MaxLearnOffset)
-		effectiveCurve[i] = types.FanCurvePoint{
-			Temperature: point.Temperature,
-			RPM:         clampInt(point.RPM+offset, leftMinRPM, rightMaxRPM),
-		}
-	}
-	enforceNonDecreasingRPM(effectiveCurve)
-
-	targetRPM := temperature.CalculateTargetRPM(avgTemp, effectiveCurve)
-	if targetRPM <= 0 {
-		return 0
-	}
-
-	tempError := avgTemp - cfg.TargetTemp
-	if absInt(tempError) > cfg.Hysteresis {
-		gain := 12 + cfg.Aggressiveness*4
-		targetRPM += tempError * gain
-	}
-
-	tempDelta := avgTemp - lastAvgTemp
-	targetRPM += sampleRateBias(tempDelta, cfg)
-
-	if tempDelta > 0 {
-		preheatBand := cfg.Hysteresis + 4 + cfg.TrendGain/2
-		distanceToTarget := cfg.TargetTemp - avgTemp
-		if distanceToTarget >= 0 && distanceToTarget <= preheatBand {
-			preemptiveBoost := (preheatBand - distanceToTarget) * (4 + cfg.Aggressiveness + cfg.TrendGain)
-			targetRPM += preemptiveBoost
-		}
-		targetRPM += tempDelta * (8 + cfg.Aggressiveness*2 + cfg.TrendGain*3)
-	}
-	if tempDelta < 0 {
-		targetRPM += tempDelta * (1 + cfg.TrendGain/3)
-	}
-
-	if avgTemp >= cfg.TargetTemp+15 {
-		targetRPM += 320 + cfg.OverheatWeight*15
-	}
-
+// CalculateTargetRPM 以基础曲线加学习偏移计算目标转速。
+func CalculateTargetRPM(currentTemp int, curve []types.FanCurvePoint, cfg types.SmartControlConfig) int {
 	if len(curve) == 0 {
-		return clampInt(targetRPM, 0, 4000)
-	}
-	return clampInt(targetRPM, leftMinRPM, rightMaxRPM)
-}
-
-func selectOffsetsForTrend(tempDelta int, cfg types.SmartControlConfig) []int {
-	if tempDelta > 0 && len(cfg.LearnedOffsetsHeat) > 0 {
-		return cfg.LearnedOffsetsHeat
-	}
-	if tempDelta < 0 && len(cfg.LearnedOffsetsCool) > 0 {
-		return cfg.LearnedOffsetsCool
-	}
-	if len(cfg.LearnedOffsetsHeat) > 0 && len(cfg.LearnedOffsetsCool) > 0 {
-		return BlendOffsets(cfg.LearnedOffsetsHeat, cfg.LearnedOffsetsCool)
-	}
-	return cfg.LearnedOffsets
-}
-
-func selectRateBiasesForTrend(tempDelta int, cfg types.SmartControlConfig) []int {
-	if tempDelta > 0 && len(cfg.LearnedRateHeat) > 0 {
-		return cfg.LearnedRateHeat
-	}
-	if tempDelta < 0 && len(cfg.LearnedRateCool) > 0 {
-		return cfg.LearnedRateCool
-	}
-	if len(cfg.LearnedRateHeat) > 0 && len(cfg.LearnedRateCool) > 0 {
-		blended := make([]int, rateBucketCount())
-		for i := range blended {
-			blended[i] = (cfg.LearnedRateHeat[i] + cfg.LearnedRateCool[i]) / 2
-		}
-		return blended
-	}
-	return nil
-}
-
-func sampleRateBias(tempDelta int, cfg types.SmartControlConfig) int {
-	rateBiases := selectRateBiasesForTrend(tempDelta, cfg)
-	if len(rateBiases) != rateBucketCount() {
 		return 0
 	}
-	return rateBiases[rateBucketIndex(tempDelta)]
+
+	offsets := cfg.LearnedOffsets
+	if !cfg.Learning {
+		offsets = nil
+	} else if biased, updated := constrainOffsetsToLearningBias(offsets, cfg.LearningBias); updated {
+		offsets = biased
+	}
+	effectiveCurve := buildEffectiveCurve(curve, offsets, effectiveOffsetCap(cfg))
+	rpm := temperature.CalculateTargetRPM(currentTemp, effectiveCurve)
+	if rpm <= 0 {
+		return 0
+	}
+
+	leftMin, rightMax := GetCurveRPMBounds(effectiveCurve)
+	return clampInt(rpm, leftMin, rightMax)
+}
+
+// buildEffectiveCurve 把基础曲线与学习偏移合成有效曲线。
+func buildEffectiveCurve(curve []types.FanCurvePoint, offsets []int, cap int) []types.FanCurvePoint {
+	out := make([]types.FanCurvePoint, len(curve))
+	leftMin, rightMax := GetCurveRPMBounds(curve)
+	for i, p := range curve {
+		off := 0
+		if i < len(offsets) {
+			off = offsets[i]
+		}
+		off = clampOffsetForPoint(off, p.RPM, leftMin, rightMax, cap)
+		out[i] = types.FanCurvePoint{
+			Temperature: p.Temperature,
+			RPM:         clampInt(p.RPM+off, leftMin, rightMax),
+		}
+	}
+	enforceNonDecreasingRPM(out)
+	return out
 }
 
 // ApplyRampLimit 应用升降速限幅

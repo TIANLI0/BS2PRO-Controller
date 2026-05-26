@@ -7,6 +7,7 @@ import {
   GetConfig,
   UpdateConfig,
   SetFanCurve,
+  ResetLearnedOffsets,
   GetFanCurve,
   SetAutoControl,
   GetAppVersion,
@@ -69,6 +70,11 @@ class ApiService {
   // 风扇曲线
   async setFanCurve(curve: types.FanCurvePoint[]): Promise<void> {
     return await SetFanCurve(curve);
+  }
+
+  // 清空学习到的曲线偏移；后端清零所有 LearnedOffsets。
+  async resetLearnedOffsets(): Promise<void> {
+    return await ResetLearnedOffsets();
   }
 
   async getFanCurve(): Promise<types.FanCurvePoint[]> {

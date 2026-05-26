@@ -52,6 +52,8 @@ export function QuitAll():Promise<void>;
 
 export function QuitApp():Promise<void>;
 
+export function ResetLearnedOffsets():Promise<void>;
+
 export function RestartPawnIO():Promise<types.BridgeTemperatureData>;
 
 export function SaveFanCurveProfile(arg1:string,arg2:string,arg3:Array<types.FanCurvePoint>,arg4:boolean):Promise<types.FanCurveProfile>;

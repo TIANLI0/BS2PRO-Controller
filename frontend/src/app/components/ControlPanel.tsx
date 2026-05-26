@@ -13,8 +13,6 @@ import {
   Cpu,
   Gpu,
   Bug,
-  Eye,
-  EyeOff,
   TriangleAlert,
   CheckCircle2,
   ChevronDown,
@@ -128,12 +126,15 @@ const SMART_START_STOP_OPTIONS = [
   { value: 'delayed', label: '延时', description: '延时响应，避免频繁启停' },
 ];
 
+// 温度平滑度（EMA 系数）选项。
+// 数字越大平滑越强、对突发温度反应越慢；越小越灵敏但可能跟着抖。
+// 后端 α = 2/(N+1)：1→即时，5→约 5 周期窗口，10→约 10 周期窗口。
 const SAMPLE_COUNT_OPTIONS = [
-  { value: 1, label: '1次 (即时)' },
-  { value: 2, label: '2次 (2s)' },
-  { value: 3, label: '3次 (3s)' },
-  { value: 5, label: '5次 (5s)' },
-  { value: 10, label: '10次 (10s)' },
+  { value: 1, label: '1 · 即时跟随' },
+  { value: 2, label: '2 · 弱平滑' },
+  { value: 3, label: '3 · 默认' },
+  { value: 5, label: '5 · 较强平滑' },
+  { value: 10, label: '10 · 强平滑(慢响应)' },
 ];
 
 const TEMP_SOURCE_OPTIONS = [
@@ -511,14 +512,6 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
     } catch { /* noop */ }
   }, [config, onConfigChange]);
 
-  const toggleGuiMonitoring = useCallback(async () => {
-    try {
-      const newCfg = types.AppConfig.createFrom({ ...config, guiMonitoring: !config.guiMonitoring });
-      await apiService.updateConfig(newCfg);
-      onConfigChange(newCfg);
-    } catch { /* noop */ }
-  }, [config, onConfigChange]);
-
   const fetchDebugInfo = useCallback(async () => {
     setDebugInfoLoading(true);
     try { setDebugInfo(await apiService.getDebugInfo()); } catch { /* noop */ } finally { setDebugInfoLoading(false); }
@@ -586,6 +579,24 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
       onConfigChange(newCfg);
     } catch { /* noop */ } finally {
       setLoading('transientSpikeFilter', false);
+    }
+  }, [config, onConfigChange]);
+
+  const handleLearningToggle = useCallback(async (enabled: boolean) => {
+    setLoading('learning', true);
+    try {
+      const nextSmartControl = types.SmartControlConfig.createFrom({
+        ...(config.smartControl || {}),
+        learning: enabled,
+      });
+      const newCfg = types.AppConfig.createFrom({
+        ...config,
+        smartControl: nextSmartControl,
+      });
+      await apiService.updateConfig(newCfg);
+      onConfigChange(newCfg);
+    } catch { /* noop */ } finally {
+      setLoading('learning', false);
     }
   }, [config, onConfigChange]);
 
@@ -989,8 +1000,8 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
               >
                 <SettingRow
                   icon={<BarChart3 className="h-4 w-4" />}
-                  title="采样时间"
-                  description="降低频繁调整带来的轴噪，不知道默认即可"
+                  title="温度平滑度"
+                  description="EMA 指数加权：值越大越平滑（更稳）、越小响应越快（更跟手），不确定保持默认"
                 >
                   <div className="w-32">
                     <Select
@@ -1123,9 +1134,24 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
           </SettingRow>
 
           <SettingRow
+            icon={<Sparkles className={clsx('h-4 w-4', (config.smartControl as any)?.learning ? 'text-amber-500' : 'text-muted-foreground')} />}
+            title="自适应学习"
+            description="长时间运行后，自动微调每个温度点的目标转速，使实际温度更贴近曲线设定值。学到的偏移随时可一键重置。"
+          >
+            <ToggleSwitch
+              enabled={!!(config.smartControl as any)?.learning}
+              onChange={handleLearningToggle}
+              loading={loadingStates.learning}
+              size="sm"
+              color="purple"
+              srLabel="切换自适应学习"
+            />
+          </SettingRow>
+
+          <SettingRow
             icon={<BarChart3 className="h-4 w-4" />}
             title="温度历史记录"
-            description="开启后由核心服务保留最近 CPU/GPU 温度曲线；关闭后仅在 GUI 打开期间绘制临时曲线。"
+            description="开启后由核心服务保留最近 1 小时 CPU/GPU 温度曲线；关闭后仅在 GUI 打开期间绘制临时曲线。"
           >
             <ToggleSwitch
               enabled={temperatureHistoryEnabled}
@@ -1467,24 +1493,13 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
                   <ToggleSwitch enabled={config.debugMode} onChange={toggleDebugMode} size="sm" color="purple" />
                 </div>
 
-                <div className="flex items-center justify-between rounded-xl bg-muted/50 px-3 py-2.5">
-                  <div className="flex items-center gap-2">
-                    {config.guiMonitoring ? <Eye className="h-4 w-4 text-muted-foreground" /> : <EyeOff className="h-4 w-4 text-muted-foreground" />}
-                    <div>
-                      <div className="text-sm font-medium">GUI 监控</div>
-                      <div className="text-[11px] text-muted-foreground">监控 GUI 响应</div>
-                    </div>
-                  </div>
-                  <ToggleSwitch enabled={config.guiMonitoring} onChange={toggleGuiMonitoring} size="sm" color="purple" />
-                </div>
-
                 <Button variant="secondary" size="sm" onClick={fetchDebugInfo} loading={debugInfoLoading} className="w-full">
                   刷新调试信息
                 </Button>
 
                 {debugInfo && (
-                  <ScrollArea className="max-h-48 rounded-xl border border-border bg-background">
-                    <pre className="p-3 text-xs text-foreground/90">{JSON.stringify(debugInfo, null, 2)}</pre>
+                  <ScrollArea className="max-h-72 rounded-xl border border-border bg-background">
+                    <pre className="whitespace-pre-wrap break-all p-3 text-xs text-foreground/90">{JSON.stringify(debugInfo, null, 2)}</pre>
                   </ScrollArea>
                 )}
               </div>

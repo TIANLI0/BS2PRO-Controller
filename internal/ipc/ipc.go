@@ -50,6 +50,7 @@ const (
 	ReqDeleteFanCurveProfile    RequestType = "DeleteFanCurveProfile"
 	ReqExportFanCurveProfiles   RequestType = "ExportFanCurveProfiles"
 	ReqImportFanCurveProfiles   RequestType = "ImportFanCurveProfiles"
+	ReqResetLearnedOffsets      RequestType = "ResetLearnedOffsets"
 
 	// 控制相关
 	ReqSetAutoControl    RequestType = "SetAutoControl"

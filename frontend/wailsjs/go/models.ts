@@ -55,6 +55,7 @@ export namespace types {
 	export class SmartControlConfig {
 	    enabled: boolean;
 	    learning: boolean;
+	    learningBias: string;
 	    filterTransientSpike: boolean;
 	    targetTemp: number;
 	    aggressiveness: number;
@@ -84,6 +85,7 @@ export namespace types {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.enabled = source["enabled"];
 	        this.learning = source["learning"];
+	        this.learningBias = source["learningBias"];
 	        this.filterTransientSpike = source["filterTransientSpike"];
 	        this.targetTemp = source["targetTemp"];
 	        this.aggressiveness = source["aggressiveness"];

@@ -251,6 +251,18 @@ func (a *App) SetFanCurve(curve []FanCurvePoint) error {
 	return nil
 }
 
+// ResetLearnedOffsets 清空学习到的曲线偏移
+func (a *App) ResetLearnedOffsets() error {
+	resp, err := a.sendRequest(ipc.ReqResetLearnedOffsets, nil)
+	if err != nil {
+		return err
+	}
+	if !resp.Success {
+		return fmt.Errorf("%s", resp.Error)
+	}
+	return nil
+}
+
 // GetFanCurve 获取风扇曲线
 func (a *App) GetFanCurve() []FanCurvePoint {
 	resp, err := a.sendRequest(ipc.ReqGetFanCurve, nil)
