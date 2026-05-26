@@ -781,6 +781,29 @@ Function RestoreUserData
     ${EndIf}
 FunctionEnd
 
+Function CleanupLegacyShortcuts
+    DetailPrint "正在清理旧版快捷方式..."
+
+    Delete "$SMPROGRAMS\BS2PRO-Controller.lnk"
+    Delete "$SMPROGRAMS\BS2PRO-controller.lnk"
+    Delete "$SMPROGRAMS\BS2PRO.lnk"
+    Delete "$SMPROGRAMS\BS2Pro Controller.lnk"
+    Delete "$SMPROGRAMS\BS2PRO Core.lnk"
+    Delete "$SMPROGRAMS\BS2PRO-Core.lnk"
+
+    Delete "$DESKTOP\BS2PRO-Controller.lnk"
+    Delete "$DESKTOP\BS2PRO-controller.lnk"
+    Delete "$DESKTOP\BS2PRO.lnk"
+    Delete "$DESKTOP\BS2Pro Controller.lnk"
+    Delete "$DESKTOP\BS2PRO Core.lnk"
+    Delete "$DESKTOP\BS2PRO-Core.lnk"
+
+    Delete "$SMSTARTUP\BS2PRO-Controller.lnk"
+    Delete "$SMSTARTUP\BS2PRO-controller.lnk"
+    Delete "$SMSTARTUP\BS2PRO-Core.lnk"
+    Delete "$SMSTARTUP\BS2PRO Core.lnk"
+FunctionEnd
+
 Section "主程序 (必需)" SEC_MAIN
     SectionIn RO  # Read-only, cannot be deselected
     !insertmacro wails.setShellContext
@@ -867,6 +890,9 @@ Section "主程序 (必需)" SEC_MAIN
     
     # Restore user data if this was an upgrade
     Call RestoreUserData
+
+    # Remove legacy shortcuts left by BS2PRO upgrades before creating the new ones
+    Call CleanupLegacyShortcuts
 
     # Create shortcuts
     DetailPrint "正在创建快捷方式..."
@@ -1144,8 +1170,10 @@ Section "uninstall"
 
     # Remove shortcuts
     DetailPrint "正在移除快捷方式..."
+    Call CleanupLegacyShortcuts
     Delete "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk"
     Delete "$DESKTOP\${INFO_PRODUCTNAME}.lnk"
+    Delete "$SMSTARTUP\THRM.lnk"
 
     !insertmacro wails.unassociateFiles
     !insertmacro wails.unassociateCustomProtocols
