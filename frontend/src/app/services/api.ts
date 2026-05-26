@@ -206,6 +206,10 @@ class ApiService {
     return await (window as any).go?.main?.App?.RestartPawnIO();
   }
 
+  async reinstallPawnIO(): Promise<any> {
+    return await (window as any).go?.main?.App?.ReinstallPawnIO();
+  }
+
   // 事件监听
   onDeviceConnected(callback: (data: DeviceInfo) => void): () => void {
     return EventsOn('device-connected', callback);

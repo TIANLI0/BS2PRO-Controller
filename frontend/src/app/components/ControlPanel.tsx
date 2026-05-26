@@ -22,6 +22,7 @@ import {
   Spline,
   Sparkles,
   X,
+  RotateCw,
 } from 'lucide-react';
 import { apiService } from '../services/api';
 import { types } from '../../../wailsjs/go/models';
@@ -144,9 +145,10 @@ const TEMP_SOURCE_OPTIONS = [
 ];
 
 const THEME_MODE_OPTIONS = [
-  { value: 'system', label: '跟随系统' },
   { value: 'light', label: '浅色' },
   { value: 'dark', label: '深色' },
+  { value: 'thrm', label: 'THRM' },
+  { value: 'system', label: '跟随系统' },
 ];
 
 const LIGHT_MODE_OPTIONS = [
@@ -517,6 +519,28 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
     try { setDebugInfo(await apiService.getDebugInfo()); } catch { /* noop */ } finally { setDebugInfoLoading(false); }
   }, []);
 
+  const handleReinstallPawnIO = useCallback(async () => {
+    setLoading('pawnIOReinstall', true);
+    try {
+      const result = await apiService.reinstallPawnIO();
+      toast.success('PawnIO 安装程序已执行');
+      if (result?.warning) {
+        toast.warning(result.warning);
+      }
+      if (result?.uninstallWarning) {
+        toast.warning(`PawnIO 卸载步骤返回提示：${result.uninstallWarning}`);
+      }
+      if (result?.bridgeWarning) {
+        toast.warning(`温度监控重新初始化失败：${result.bridgeWarning}`);
+      }
+      await fetchDebugInfo();
+    } catch (error) {
+      toast.error(`重新安装 PawnIO 失败：${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setLoading('pawnIOReinstall', false);
+    }
+  }, [fetchDebugInfo]);
+
   const handleSampleCountChange = useCallback(async (count: number) => {
     try {
       const newCfg = types.AppConfig.createFrom({ ...config, tempSampleCount: count });
@@ -769,7 +793,7 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
   }, [lightStripConfig, config, onConfigChange, requiredColorCount]);
 
   const handleThemeModeChange = useCallback(async (mode: string) => {
-    const nextMode = mode === 'light' || mode === 'dark' ? mode : 'system';
+    const nextMode = mode === 'light' || mode === 'dark' || mode === 'thrm' ? mode : 'system';
     try {
       const newCfg = types.AppConfig.createFrom({
         ...config,
@@ -1496,6 +1520,24 @@ export default function ControlPanel({ config, onConfigChange, isConnected, fanD
                 <Button variant="secondary" size="sm" onClick={fetchDebugInfo} loading={debugInfoLoading} className="w-full">
                   刷新调试信息
                 </Button>
+
+                <div className="rounded-xl border border-border/70 bg-background px-3 py-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-foreground">PawnIO 驱动</div>
+                      <div className="text-[11px] leading-relaxed text-muted-foreground">温度读取异常？尝试重新安装 PawnIO 驱动。</div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleReinstallPawnIO}
+                      loading={loadingStates.pawnIOReinstall}
+                      icon={<RotateCw className="h-3.5 w-3.5" />}
+                    >
+                      重新安装 PawnIO
+                    </Button>
+                  </div>
+                </div>
 
                 {debugInfo && (
                   <ScrollArea className="max-h-72 rounded-xl border border-border bg-background">

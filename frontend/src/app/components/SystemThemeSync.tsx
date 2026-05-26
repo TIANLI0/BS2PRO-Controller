@@ -3,10 +3,10 @@
 import { useEffect } from 'react';
 import { useAppStore } from '../store/app-store';
 
-type ThemeMode = 'system' | 'light' | 'dark';
+type ThemeMode = 'system' | 'light' | 'dark' | 'thrm';
 
 function normalizeThemeMode(mode: unknown): ThemeMode {
-  if (mode === 'light' || mode === 'dark') return mode;
+  if (mode === 'light' || mode === 'dark' || mode === 'thrm') return mode;
   return 'system';
 }
 
@@ -14,6 +14,7 @@ function applyTheme(mode: ThemeMode) {
   const media = window.matchMedia('(prefers-color-scheme: dark)');
   const isDark = mode === 'dark' || (mode === 'system' && media.matches);
   document.documentElement.classList.toggle('dark', isDark);
+  document.documentElement.classList.toggle('theme-thrm', mode === 'thrm');
 }
 
 export default function SystemThemeSync() {
@@ -28,6 +29,7 @@ export default function SystemThemeSync() {
         return;
       }
       document.documentElement.classList.toggle('dark', event.matches);
+      document.documentElement.classList.remove('theme-thrm');
     };
 
     media.addEventListener('change', handleChange);

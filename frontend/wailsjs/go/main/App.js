@@ -102,6 +102,10 @@ export function QuitApp() {
   return window['go']['main']['App']['QuitApp']();
 }
 
+export function ReinstallPawnIO() {
+  return window['go']['main']['App']['ReinstallPawnIO']();
+}
+
 export function ResetLearnedOffsets() {
   return window['go']['main']['App']['ResetLearnedOffsets']();
 }

@@ -150,6 +150,38 @@
   --sidebar-ring: #ff4b26;
 }
 
+html.theme-thrm {
+  --background: #f7fbff;
+  --foreground: #13233e;
+  --card: #fbfdff;
+  --card-foreground: #13233e;
+  --muted: #edf6ff;
+  --muted-foreground: #647894;
+  --border: #d9e9ff;
+  --input: #c9ddfb;
+  --ring: #2f74ff;
+  --primary: #2f74ff;
+  --primary-foreground: #ffffff;
+  --scrollbar-track: color-mix(in srgb, #edf6ff 88%, transparent);
+  --chart-grid: #dfeeff;
+  --chart-axis: #cfe2fb;
+  --chart-tick: #6f82a0;
+  --chart-primary: #2f74ff;
+  --chart-primary-active: #1d5fe6;
+  --chart-primary-glow: rgba(47, 116, 255, 0.34);
+  --chart-temperature-indicator: #ef4444;
+  --secondary: #edf6ff;
+  --accent: #e7f2ff;
+  --sidebar: #f8fbff;
+  --sidebar-foreground: #1b355d;
+  --sidebar-primary: #2f74ff;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #eaf4ff;
+  --sidebar-accent-foreground: #13233e;
+  --sidebar-border: #d8e9ff;
+  --sidebar-ring: #2f74ff;
+}
+
 html,
 body {
   height: 100%;
@@ -357,4 +389,337 @@ textarea,
 
 .cn-toast-info {
   border-color: color-mix(in srgb, #3b82f6 40%, var(--border)) !important;
+}
+
+.theme-thrm .glacier-shell {
+  background:
+    radial-gradient(circle at 78% 10%, rgba(150, 207, 255, 0.28), transparent 28rem),
+    radial-gradient(circle at 16% 92%, rgba(47, 116, 255, 0.12), transparent 24rem),
+    linear-gradient(135deg, #fbfdff 0%, #f5faff 44%, #edf6ff 100%);
+  isolation: isolate;
+}
+
+.theme-thrm .glacier-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(47, 116, 255, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(47, 116, 255, 0.055) 1px, transparent 1px),
+    linear-gradient(135deg, transparent 0 72%, rgba(47, 116, 255, 0.08) 72% 73%, transparent 73%);
+  background-size: 28px 28px, 28px 28px, 180px 180px;
+  mask-image: linear-gradient(to bottom, transparent 0%, black 10%, black 88%, transparent 100%);
+}
+
+.theme-thrm .glacier-sidebar,
+.theme-thrm .glacier-shell > section {
+  position: relative;
+  z-index: 1;
+}
+
+.theme-thrm .glacier-titlebar {
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  background: color-mix(in srgb, var(--background) 80%, transparent);
+  backdrop-filter: blur(24px) saturate(118%);
+}
+
+.theme-thrm .glacier-shell .bg-card {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--card) 96%, white) 0%, color-mix(in srgb, var(--card) 88%, #e8f4ff) 100%);
+}
+
+.theme-thrm .glacier-shell .border-border,
+.theme-thrm .glacier-shell .border-border\/70,
+.theme-thrm .glacier-shell .border-border\/80 {
+  border-color: color-mix(in srgb, var(--border) 82%, rgba(47, 116, 255, 0.28));
+}
+
+.theme-thrm .glacier-shell .shadow-sm {
+  box-shadow:
+    0 16px 34px -28px rgba(47, 116, 255, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.theme-thrm .glacier-sidebar {
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(235, 246, 255, 0.94)),
+    repeating-linear-gradient(135deg, transparent 0 12px, rgba(47, 116, 255, 0.08) 12px 14px);
+  box-shadow: inset -1px 0 0 rgba(47, 116, 255, 0.12);
+}
+
+.theme-thrm .glacier-sidebar::after {
+  content: "AUX";
+  position: absolute;
+  bottom: 5.5rem;
+  left: 50%;
+  transform: translateX(-50%) rotate(90deg);
+  color: color-mix(in srgb, var(--primary) 48%, transparent);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+}
+
+.theme-thrm .glacier-hero-card {
+  min-height: 104px;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.96), rgba(247, 251, 255, 0.9) 46%, rgba(231, 243, 255, 0.62)),
+    linear-gradient(135deg, rgba(47, 116, 255, 0.08), transparent 48%);
+}
+
+.theme-thrm .glacier-hero-content {
+  padding-right: clamp(220px, 28vw, 340px);
+}
+
+.theme-thrm .glacier-hero-actions {
+  position: relative;
+  z-index: 2;
+  padding: 0.35rem 0.45rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--card) 72%, transparent);
+  backdrop-filter: blur(14px) saturate(116%);
+}
+
+.theme-thrm .glacier-hero-art {
+  top: 1.25rem;
+  right: clamp(5.75rem, 9vw, 8.5rem);
+  bottom: -1.35rem;
+  width: clamp(230px, 27vw, 360px);
+  border-left: 1px solid color-mix(in srgb, var(--primary) 16%, transparent);
+  mask-image:
+    linear-gradient(to right, transparent 0%, black 28%, black 82%, transparent 100%),
+    linear-gradient(to bottom, transparent 0%, black 22%, black 100%);
+  mask-composite: intersect;
+}
+
+.theme-thrm .glacier-hero-art-label {
+  right: clamp(1.25rem, 2.8vw, 2.25rem);
+  width: clamp(240px, 28vw, 370px);
+  text-align: center;
+}
+
+.theme-thrm .glacier-hero-card::before,
+.theme-thrm .glacier-hero-card::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+
+.theme-thrm .glacier-hero-card::before {
+  inset: 0.7rem 1.2rem auto auto;
+  width: min(38%, 360px);
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(47, 116, 255, 0.38), transparent);
+}
+
+.theme-thrm .glacier-hero-card::after {
+  right: 1.2rem;
+  bottom: 0.75rem;
+  width: 82px;
+  height: 9px;
+  background: repeating-linear-gradient(135deg, rgba(47, 116, 255, 0.32) 0 5px, transparent 5px 10px);
+  opacity: 0.7;
+}
+
+.theme-thrm .glacier-shell .glacier-metric-card,
+.theme-thrm .glacier-shell .glacier-control-card,
+.theme-thrm .glacier-shell .glacier-chart-card {
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96) 0%, rgba(248, 252, 255, 0.9) 42%, rgba(229, 243, 255, 0.68) 100%),
+    radial-gradient(circle at 18% 0%, rgba(124, 199, 255, 0.28), transparent 44%);
+}
+
+.theme-thrm .glacier-shell .glacier-metric-card::before,
+.theme-thrm .glacier-shell .glacier-control-card::before,
+.theme-thrm .glacier-shell .glacier-chart-card::before {
+  content: "";
+  position: absolute;
+  inset: 0.7rem;
+  pointer-events: none;
+  border-radius: 0.65rem;
+  background:
+    linear-gradient(90deg, rgba(47, 116, 255, 0.42) 0 34px, transparent 34px calc(100% - 34px), rgba(47, 116, 255, 0.22) calc(100% - 34px) 100%) top / 100% 1px no-repeat,
+    linear-gradient(90deg, rgba(47, 116, 255, 0.18), transparent 36%, transparent 64%, rgba(47, 116, 255, 0.18)) bottom / 100% 1px no-repeat,
+    linear-gradient(rgba(47, 116, 255, 0.42) 0 22px, transparent 22px calc(100% - 22px), rgba(47, 116, 255, 0.2) calc(100% - 22px) 100%) left / 1px 100% no-repeat,
+    linear-gradient(rgba(47, 116, 255, 0.2) 0 22px, transparent 22px calc(100% - 22px), rgba(47, 116, 255, 0.34) calc(100% - 22px) 100%) right / 1px 100% no-repeat;
+  opacity: 0.72;
+}
+
+.theme-thrm .glacier-shell .glacier-metric-card::after {
+  content: "";
+  position: absolute;
+  right: 1.15rem;
+  bottom: 0.8rem;
+  width: 58px;
+  height: 7px;
+  pointer-events: none;
+  background: repeating-linear-gradient(135deg, rgba(47, 116, 255, 0.28) 0 4px, transparent 4px 8px);
+  opacity: 0.72;
+}
+
+.theme-thrm .glacier-metric-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.theme-thrm .glacier-metric-card {
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.theme-thrm .glacier-metric-card svg path:first-child {
+  stroke: rgba(47, 116, 255, 0.08);
+}
+
+.theme-thrm .glacier-metric-card svg path:last-child {
+  filter: drop-shadow(0 0 8px rgba(47, 116, 255, 0.32));
+}
+
+.theme-thrm .glacier-metric-card:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--primary) 34%, var(--border));
+}
+
+.theme-thrm .glacier-control-card {
+  padding: 0.85rem;
+}
+
+.theme-thrm .glacier-control-card::after {
+  content: "AUX STATUS / SYNC";
+  position: absolute;
+  right: 1.15rem;
+  top: 0.85rem;
+  pointer-events: none;
+  color: color-mix(in srgb, var(--primary) 28%, transparent);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+}
+
+.theme-thrm .glacier-stat-tile {
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(239, 248, 255, 0.62)),
+    linear-gradient(135deg, rgba(47, 116, 255, 0.09), transparent 48%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.74),
+    0 10px 22px -24px rgba(47, 116, 255, 0.42);
+}
+
+.theme-thrm .glacier-stat-tile::before {
+  content: "";
+  position: absolute;
+  top: 0.55rem;
+  right: 0.6rem;
+  width: 28px;
+  height: 1px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(47, 116, 255, 0.5));
+}
+
+.theme-thrm .glacier-chart-card {
+  min-height: 0;
+}
+
+.theme-thrm .glacier-chart-card::after {
+  content: "DATA LOG";
+  position: absolute;
+  right: 1rem;
+  bottom: 0.7rem;
+  pointer-events: none;
+  color: color-mix(in srgb, var(--primary) 22%, transparent);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+}
+
+.theme-thrm .glacier-chart-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.theme-thrm .glacier-chart-canvas {
+  position: relative;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  background:
+    linear-gradient(rgba(47, 116, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(47, 116, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(230, 243, 255, 0.2));
+  background-size: 24px 24px, 24px 24px, 100% 100%;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.56);
+}
+
+.theme-thrm .glacier-chart-canvas::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(47, 116, 255, 0.1), transparent);
+  transform: translateX(-55%);
+  animation: glacier-scan 5.8s ease-in-out infinite;
+}
+
+@keyframes glacier-scan {
+  0%,
+  58% {
+    transform: translateX(-65%);
+    opacity: 0;
+  }
+  68% {
+    opacity: 0.65;
+  }
+  100% {
+    transform: translateX(65%);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-thrm .glacier-chart-canvas::before {
+    animation: none;
+    opacity: 0;
+  }
+
+  .theme-thrm .glacier-metric-card:hover {
+    transform: none;
+  }
+}
+
+.theme-thrm-only {
+  display: none !important;
+}
+
+.theme-thrm .theme-thrm-only {
+  display: block !important;
+}
+
+@media (max-width: 767px) {
+  .theme-thrm .theme-thrm-only {
+    display: none !important;
+  }
+}
+
+@media (max-width: 1023px) {
+  .theme-thrm .glacier-hero-content {
+    padding-right: 0;
+  }
+
+  .theme-thrm .glacier-hero-art,
+  .theme-thrm .glacier-hero-art-label {
+    display: none !important;
+  }
+}
+
+.theme-thrm .glacier-shell button,
+.theme-thrm .glacier-shell input,
+.theme-thrm .glacier-shell [role="tab"] {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.42);
 }

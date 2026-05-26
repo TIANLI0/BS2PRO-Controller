@@ -52,6 +52,8 @@ export function QuitAll():Promise<void>;
 
 export function QuitApp():Promise<void>;
 
+export function ReinstallPawnIO():Promise<Record<string, any>>;
+
 export function ResetLearnedOffsets():Promise<void>;
 
 export function RestartPawnIO():Promise<types.BridgeTemperatureData>;

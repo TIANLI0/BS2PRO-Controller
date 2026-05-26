@@ -160,7 +160,7 @@ function TitleBar({
 }) {
   return (
     <div
-      className="absolute left-16 right-0 top-0 z-50 flex h-10 items-center justify-between bg-background"
+      className="glacier-titlebar absolute left-16 right-0 top-0 z-50 flex h-10 items-center justify-between bg-background"
       style={DRAG_STYLE}
       onDoubleClick={onToggleMaximise}
     >
@@ -527,7 +527,7 @@ export default function AppShell({
   }, [activeTab]);
 
   return (
-    <div className="relative flex h-dvh w-full overflow-hidden bg-background text-foreground">
+    <div className="glacier-shell relative flex h-dvh w-full overflow-hidden bg-background text-foreground">
       {isWindowsChrome && (
         <TitleBar
           minimizeLabel="最小化"
@@ -542,7 +542,7 @@ export default function AppShell({
         />
       )}
 
-      <aside className="flex w-16 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground shadow-[1px_0_0_rgba(15,23,42,0.04)] dark:shadow-[1px_0_0_rgba(255,255,255,0.04)]">
+      <aside className="glacier-sidebar flex w-16 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground shadow-[1px_0_0_rgba(15,23,42,0.04)] dark:shadow-[1px_0_0_rgba(255,255,255,0.04)]">
         <div className="flex h-[76px] items-center justify-center px-2" style={DRAG_STYLE}>
           <Tooltip>
             <TooltipTrigger asChild>
