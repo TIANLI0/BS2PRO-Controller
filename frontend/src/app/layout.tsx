@@ -1,14 +1,22 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist_Mono, Manrope, Noto_Sans_SC } from "next/font/google";
 import "./globals.css";
 import SystemThemeSync from "./components/SystemThemeSync";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { BRAND } from "./lib/brand";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const uiSans = Manrope({
+  variable: "--font-ui-sans",
   subsets: ["latin"],
+  display: "swap",
+});
+
+const uiCjk = Noto_Sans_SC({
+  variable: "--font-ui-cjk",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
 });
 
 const geistMono = Geist_Mono({
@@ -29,7 +37,7 @@ export default function RootLayout({
   return (
     <html lang="zh-CN" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable}`}
+        className={`${uiSans.variable} ${uiCjk.variable} ${geistMono.variable}`}
       >
         <SystemThemeSync />
         <TooltipProvider delayDuration={180}>
