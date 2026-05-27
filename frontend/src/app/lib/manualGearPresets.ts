@@ -1,3 +1,5 @@
+import { i18n } from './i18n';
+
 export interface ManualGearPresetLevel {
   level: string;
   rpm: number;
@@ -10,6 +12,19 @@ export interface ManualGearPreset {
   bgClass: string;
   levels: ManualGearPresetLevel[];
 }
+
+const MANUAL_GEAR_LABEL_KEYS: Record<string, string> = {
+  '静音': 'manualGear.gears.quiet',
+  '标准': 'manualGear.gears.standard',
+  '强劲': 'manualGear.gears.strong',
+  '超频': 'manualGear.gears.overclock',
+};
+
+const MANUAL_LEVEL_LABEL_KEYS: Record<string, string> = {
+  '低': 'manualGear.levels.low',
+  '中': 'manualGear.levels.medium',
+  '高': 'manualGear.levels.high',
+};
 
 export const MANUAL_GEAR_PRESETS: ManualGearPreset[] = [
   {
@@ -94,6 +109,16 @@ export const getManualGearHighLevelRpm = (gear?: string | null): number | undefi
   if (!gear) return undefined;
   const preset = MANUAL_GEAR_PRESETS.find((item) => item.gear === gear);
   return preset?.levels.find((level) => level.level === '高')?.rpm;
+};
+
+export const getManualGearLabel = (gear?: string | null): string => {
+  if (!gear) return '';
+  return i18n.t(MANUAL_GEAR_LABEL_KEYS[gear] || gear);
+};
+
+export const getManualLevelLabel = (level?: string | null): string => {
+  if (!level) return '';
+  return i18n.t(MANUAL_LEVEL_LABEL_KEYS[level] || level);
 };
 
 const MAX_GEAR_CODE_TO_RPM: Record<number, number> = {

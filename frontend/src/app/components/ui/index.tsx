@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { RadioGroup as ShadcnRadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { i18n } from '../../lib/i18n';
 
 interface ToggleSwitchProps {
   enabled: boolean;
@@ -56,7 +57,7 @@ export const ToggleSwitch = forwardRef<HTMLButtonElement, ToggleSwitchProps>(
           checked={enabled}
           onCheckedChange={onChange}
           disabled={isDisabled}
-          aria-label={srLabel || label || 'Toggle'}
+          aria-label={srLabel || label || i18n.t('ui.toggle.defaultAriaLabel')}
           className={clsx('self-center', toggleColorClasses[color], toggleSizeClasses[size], loading && 'animate-pulse')}
         />
       </div>
@@ -95,7 +96,7 @@ export function Select<T extends string | number>({
   onChange,
   options,
   disabled = false,
-  placeholder = '请选择',
+  placeholder = i18n.t('ui.select.placeholder'),
   label,
   size = 'md',
   className,

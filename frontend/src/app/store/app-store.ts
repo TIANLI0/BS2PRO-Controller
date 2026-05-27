@@ -10,9 +10,10 @@ import {
   SESSION_HISTORY_RETENTION_MS,
 } from '../lib/temperature-history';
 import type { TemperatureHistoryPoint } from '../lib/temperature-history';
+import { i18n } from '../lib/i18n';
 import { toast } from 'sonner';
 
-const getBridgeWarningMessage = () => 'CPU/GPU 温度读取失败，可尝试重新初始化温度监控；若 CPU 仍为空，请安装/更新 PawnIO 或关闭其它硬件监控工具。';
+const getBridgeWarningMessage = () => i18n.t('store.bridgeWarning.default');
 
 type ActiveTab = 'status' | 'curve' | 'control' | 'about';
 export type CurveFocusTarget = 'curve-editor' | 'history-details';
@@ -120,7 +121,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       get().handleTemperaturePayload(deviceStatus.temperature || null);
     } catch (error) {
       console.error('初始化失败:', error);
-      set({ error: '应用初始化失败' });
+      set({ error: i18n.t('store.errors.initializeApp') });
     } finally {
       set({ isLoading: false });
     }
@@ -134,7 +135,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       }
     } catch (error) {
       console.error('连接失败:', error);
-      set({ error: '设备连接失败' });
+      set({ error: i18n.t('store.errors.connectDevice') });
     }
   },
 
@@ -153,7 +154,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       set({ config, error: null });
     } catch (error) {
       console.error('配置更新失败:', error);
-      set({ error: '配置保存失败' });
+      set({ error: i18n.t('store.errors.saveConfig') });
     }
   },
 
@@ -212,9 +213,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
         if (!message) return;
         const ok = payload?.success !== false;
         if (ok) {
-          toast.success('功能变动', { description: message, duration: 2600 });
+          toast.success(i18n.t('store.hotkey.successTitle'), { description: message, duration: 2600 });
         } else {
-          toast.error('操作失败', { description: message, duration: 3200 });
+          toast.error(i18n.t('store.hotkey.failureTitle'), { description: message, duration: 3200 });
         }
       })
     );
@@ -224,14 +225,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
         const mode = typeof payload?.mode === 'string' ? payload.mode : '';
         if (!mode) return;
         const modeLabel: Record<string, string> = {
-          Quiet: '安静模式',
-          Balance: '均衡模式',
-          Performance: '野兽模式',
-          Extreme: '超能模式',
-          GodMode: '自定义模式',
+          Quiet: i18n.t('store.legionModes.Quiet'),
+          Balance: i18n.t('store.legionModes.Balance'),
+          Performance: i18n.t('store.legionModes.Performance'),
+          Extreme: i18n.t('store.legionModes.Extreme'),
+          GodMode: i18n.t('store.legionModes.GodMode'),
         };
-        toast.success('拯救者性能模式变化', {
-          description: `当前模式：${modeLabel[mode] || mode}`,
+        toast.success(i18n.t('store.legionFnQ.modeChangedTitle'), {
+          description: i18n.t('store.legionFnQ.modeDescription', { mode: modeLabel[mode] || mode }),
           duration: 2600,
         });
       })

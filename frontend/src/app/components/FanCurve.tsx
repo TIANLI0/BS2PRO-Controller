@@ -21,10 +21,12 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { Input } from '@/components/ui/input';
 import { apiService } from '../services/api';
 import { useTemperatureHistory } from '../hooks/useTemperatureHistory';
+import { useLocale } from '../lib/i18n';
 import { type HistorySeriesKey } from '../lib/temperature-history';
 import type { CurveFocusTarget } from '../store/app-store';
 import { types } from '../../../wailsjs/go/models';
-import { MANUAL_GEAR_PRESETS, BS1_MANUAL_GEAR_PRESETS } from '../lib/manualGearPresets';
+import { BS1_MANUAL_GEAR_PRESETS, getManualGearLabel, getManualLevelLabel, MANUAL_GEAR_PRESETS } from '../lib/manualGearPresets';
+import { useTranslation } from 'react-i18next';
 import FanCurveProfileSelect from './FanCurveProfileSelect';
 import { toast } from 'sonner';
 import { ToggleSwitch, Button, Badge, Select, Slider, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/index';
@@ -38,10 +40,14 @@ const DEFAULT_CURVE_LENGTH = ((FAN_CURVE_MAX_TEMP - FAN_CURVE_MIN_TEMP) / FAN_CU
 type CurveProfile = { id: string; name: string; curve: types.FanCurvePoint[] };
 
 const LEARNING_BIAS_OPTIONS = [
-  { value: 'balanced', label: '均衡', description: '允许学习曲线在基础曲线上下微调。' },
-  { value: 'cooling', label: '散热优先', description: '只允许学习增加转速，避免待机温度被学高。' },
-  { value: 'quiet', label: '静音优先', description: '只允许学习降低转速，避免自动把风扇拉高。' },
+  { value: 'balanced', labelKey: 'fanCurve.learning.biasOptions.balanced.label', descriptionKey: 'fanCurve.learning.biasOptions.balanced.description' },
+  { value: 'cooling', labelKey: 'fanCurve.learning.biasOptions.cooling.label', descriptionKey: 'fanCurve.learning.biasOptions.cooling.description' },
+  { value: 'quiet', labelKey: 'fanCurve.learning.biasOptions.quiet.label', descriptionKey: 'fanCurve.learning.biasOptions.quiet.description' },
 ];
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
 
 function normalizeLearningBias(value: unknown): string {
   return LEARNING_BIAS_OPTIONS.some((option) => option.value === value) ? String(value) : 'balanced';
@@ -116,16 +122,16 @@ interface FanCurveProps {
   onFocusHandled: () => void;
 }
 
-function formatHistoryTime(timestamp: number) {
-  return new Date(timestamp).toLocaleTimeString('zh-CN', {
+function formatHistoryTime(timestamp: number, locale: string) {
+  return new Date(timestamp).toLocaleTimeString(locale, {
     hour12: false,
     hour: '2-digit',
     minute: '2-digit',
   });
 }
 
-function formatHistoryDateTime(timestamp: number) {
-  return new Date(timestamp).toLocaleTimeString('zh-CN', {
+function formatHistoryDateTime(timestamp: number, locale: string) {
+  return new Date(timestamp).toLocaleTimeString(locale, {
     hour12: false,
     hour: '2-digit',
     minute: '2-digit',
@@ -133,18 +139,24 @@ function formatHistoryDateTime(timestamp: number) {
   });
 }
 
-function formatHistoryDuration(startTimestamp: number, endTimestamp: number) {
+function formatHistoryDuration(
+  startTimestamp: number,
+  endTimestamp: number,
+  t: (key: string, options?: Record<string, unknown>) => string,
+) {
   const durationMs = Math.max(0, endTimestamp - startTimestamp);
   if (durationMs < 60_000) {
-    return '< 1 分钟';
+    return t('fanCurve.history.duration.ltOneMinute');
   }
   const totalMinutes = Math.round(durationMs / 60_000);
   if (totalMinutes < 60) {
-    return `${totalMinutes} 分钟`;
+    return t('fanCurve.history.duration.minutes', { count: totalMinutes });
   }
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
-  return minutes > 0 ? `${hours} 小时 ${minutes} 分钟` : `${hours} 小时`;
+  return minutes > 0
+    ? t('fanCurve.history.duration.hoursAndMinutes', { hours, minutes })
+    : t('fanCurve.history.duration.hours', { hours });
 }
 
 /* ── Temperature indicator overlay (memo, doesn't re-render chart) ── */
@@ -158,6 +170,7 @@ const TemperatureIndicator = memo(function TemperatureIndicator({
   chartRef: React.RefObject<HTMLDivElement | null>;
   temperatureRange: { min: number; max: number };
 }) {
+  const { t } = useTranslation();
   const [position, setPosition] = useState<{ x: number; top: number; height: number } | null>(null);
 
   useEffect(() => {
@@ -185,7 +198,7 @@ const TemperatureIndicator = memo(function TemperatureIndicator({
     <svg className="absolute inset-0 pointer-events-none overflow-visible" style={{ width: '100%', height: '100%' }}>
       <line x1={position.x} y1={position.top} x2={position.x} y2={position.top + position.height} stroke="var(--chart-temperature-indicator)" strokeWidth={2} strokeDasharray="5 5" />
       <rect x={position.x - 45} y={position.top - 22} width={90} height={20} rx={4} fill="var(--chart-temperature-indicator)" />
-      <text x={position.x} y={position.top - 8} textAnchor="middle" fill="white" fontSize={11} fontWeight={500}>当前 {temperature}°C</text>
+      <text x={position.x} y={position.top - 8} textAnchor="middle" fill="white" fontSize={11} fontWeight={500}>{t('fanCurve.chart.currentTemperature', { temperature })}</text>
     </svg>
   );
 });
@@ -193,12 +206,14 @@ const TemperatureIndicator = memo(function TemperatureIndicator({
 /* ── Tooltip label helper ── */
 
 const ConfigTooltipLabel = memo(function ConfigTooltipLabel({ label, description }: { label: string; description: string }) {
+  const { t } = useTranslation();
+
   return (
     <span className="inline-flex items-center gap-1">
       <span>{label}</span>
       <Tooltip>
         <TooltipTrigger asChild>
-          <button type="button" className="inline-flex cursor-pointer items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground" aria-label={`${label}说明`}>
+          <button type="button" className="inline-flex cursor-pointer items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground" aria-label={t('fanCurve.chart.tooltipDescriptionAria', { label })}>
             <Info className="h-3.5 w-3.5" />
           </button>
         </TooltipTrigger>
@@ -241,6 +256,8 @@ const DraggablePoint = memo(function DraggablePoint({
    ═══════════════════════════════════════════════════════════ */
 
 const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, temperature, deviceModel, focusTarget, onFocusHandled }: FanCurveProps) {
+  const { t } = useTranslation();
+  const { locale } = useLocale();
   const [localCurve, setLocalCurve] = useState<types.FanCurvePoint[]>([]);
   const [curveProfiles, setCurveProfiles] = useState<CurveProfile[]>([]);
   const [activeProfileId, setActiveProfileId] = useState('');
@@ -368,8 +385,17 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
     };
   }, [config.fanCurve, config.smartControl, localCurve.length]);
 
+  const learningBiasOptions = useMemo(
+    () => LEARNING_BIAS_OPTIONS.map((option) => ({
+      value: option.value,
+      label: t(option.labelKey),
+      description: t(option.descriptionKey),
+    })),
+    [t, locale],
+  );
+
   const currentLearningBias = normalizeLearningBias((smartControl as any).learningBias);
-  const currentLearningBiasOption = LEARNING_BIAS_OPTIONS.find((option) => option.value === currentLearningBias) ?? LEARNING_BIAS_OPTIONS[0];
+  const currentLearningBiasOption = learningBiasOptions.find((option) => option.value === currentLearningBias) ?? learningBiasOptions[0];
 
   useEffect(() => {
     if (!focusTarget) {
@@ -431,8 +457,8 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
     return {
       sampleCount: temperatureHistory.length,
       latest,
-      latestLabel: latest ? formatHistoryDateTime(latest.timestamp) : '--',
-      durationLabel: first && latest ? formatHistoryDuration(first.timestamp, latest.timestamp) : '--',
+      latestLabel: latest ? formatHistoryDateTime(latest.timestamp, locale) : '--',
+      durationLabel: first && latest ? formatHistoryDuration(first.timestamp, latest.timestamp, t) : '--',
       cpuPeak: cpuValues.length > 0 ? Math.max(...cpuValues) : 0,
       cpuAverage: average(cpuValues),
       gpuPeak: gpuValues.length > 0 ? Math.max(...gpuValues) : 0,
@@ -440,14 +466,14 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
       fanPeak: fanValues.length > 0 ? Math.max(...fanValues) : 0,
       fanAverage: average(fanValues),
     };
-  }, [temperatureHistory]);
+  }, [locale, t, temperatureHistory]);
   const historyChartData = useMemo(() => detailHistoryPoints.map((point) => ({ ...point })), [detailHistoryPoints]);
 
   const historySeriesMeta = useMemo(() => ([
-    { key: 'cpu' as const, label: 'CPU', color: '#2f6df6' },
-    { key: 'gpu' as const, label: 'GPU', color: '#f97316' },
-    { key: 'fan' as const, label: '风扇 RPM', color: '#10b981' },
-  ]), []);
+    { key: 'cpu' as const, label: t('fanCurve.history.series.cpu'), color: '#2f6df6' },
+    { key: 'gpu' as const, label: t('fanCurve.history.series.gpu'), color: '#f97316' },
+    { key: 'fan' as const, label: t('fanCurve.history.series.fan'), color: '#10b981' },
+  ]), [t, locale]);
 
   const toggleHistorySeries = useCallback((series: HistorySeriesKey) => {
     setHistorySeriesVisibility((prev) => ({
@@ -596,19 +622,19 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
     try {
       setIsSaving(true);
       const profileID = activeProfileId || (((config as any).activeFanCurveProfileId || '') as string);
-      const profileName = activeProfile?.name || '当前曲线';
+      const profileName = activeProfile?.name || t('fanCurve.profiles.currentCurveName');
       await apiService.saveFanCurveProfile(profileID, profileName, localCurve, true);
       await loadCurveProfiles();
       await syncConfigFromBackend();
       setHasUnsavedChanges(false);
       return true;
     } catch (e) {
-      toast.error(`保存曲线失败: ${e}`);
+      toast.error(t('fanCurve.toast.saveCurveFailed', { error: getErrorMessage(e) }));
       return false;
     } finally {
       setIsSaving(false);
     }
-  }, [activeProfile?.name, activeProfileId, config, isSaving, loadCurveProfiles, localCurve, syncConfigFromBackend]);
+  }, [activeProfile?.name, activeProfileId, config, isSaving, loadCurveProfiles, localCurve, syncConfigFromBackend, t]);
 
   const saveCurve = useCallback(async () => {
     await persistCurrentCurve();
@@ -647,16 +673,16 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
       await apiService.setActiveFanCurveProfile(id);
       await loadCurveProfiles();
       await syncConfigFromBackend();
-      toast.success('温控曲线已切换');
+      toast.success(t('fanCurve.toast.profileSwitched'));
     } catch (e) {
-      toast.error(`切换失败: ${e}`);
+      toast.error(t('fanCurve.toast.switchFailed', { error: getErrorMessage(e) }));
     } finally {
       setProfileOpLoading(false);
     }
-  }, [loadCurveProfiles, syncConfigFromBackend]);
+  }, [loadCurveProfiles, syncConfigFromBackend, t]);
 
   const saveCurrentProfileName = useCallback(async () => {
-    const fallbackName = activeProfile?.name || '当前曲线';
+    const fallbackName = activeProfile?.name || t('fanCurve.profiles.currentCurveName');
     const safeName = getSafeProfileName(profileNameInput, fallbackName);
     try {
       setProfileOpLoading(true);
@@ -664,32 +690,33 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
       await apiService.saveFanCurveProfile(activeProfileId, safeName, profileCurve, false);
       await loadCurveProfiles();
       await syncConfigFromBackend();
-      toast.success('方案命名已更新');
+      toast.success(t('fanCurve.toast.profileRenamed'));
     } catch (e) {
-      toast.error(`更新命名失败: ${e}`);
+      toast.error(t('fanCurve.toast.renameFailed', { error: getErrorMessage(e) }));
     } finally {
       setProfileOpLoading(false);
     }
-  }, [activeProfile?.curve, activeProfile?.name, activeProfileId, getSafeProfileName, loadCurveProfiles, localCurve, profileNameInput, syncConfigFromBackend]);
+  }, [activeProfile?.curve, activeProfile?.name, activeProfileId, getSafeProfileName, loadCurveProfiles, localCurve, profileNameInput, syncConfigFromBackend, t]);
 
   const createNewProfile = useCallback(async () => {
     const rawName = (profileNameInput || '').trim();
     const activeName = (activeProfile?.name || '').trim();
     const shouldUseDefaultNewName = !rawName || rawName === activeName;
-    const safeName = shouldUseDefaultNewName ? '新曲线' : getSafeProfileName(rawName, '新曲线');
+    const newProfileName = t('fanCurve.profiles.newCurveName');
+    const safeName = shouldUseDefaultNewName ? newProfileName : getSafeProfileName(rawName, newProfileName);
     try {
       setProfileOpLoading(true);
       await apiService.saveFanCurveProfile('', safeName, localCurve, true);
       await loadCurveProfiles();
       await syncConfigFromBackend();
       setProfileNameInput('');
-      toast.success('已另存为新方案');
+      toast.success(t('fanCurve.toast.profileSavedAsNew'));
     } catch (e) {
-      toast.error(`另存失败: ${e}`);
+      toast.error(t('fanCurve.toast.saveAsFailed', { error: getErrorMessage(e) }));
     } finally {
       setProfileOpLoading(false);
     }
-  }, [activeProfile?.name, getSafeProfileName, loadCurveProfiles, localCurve, profileNameInput, syncConfigFromBackend]);
+  }, [activeProfile?.name, getSafeProfileName, loadCurveProfiles, localCurve, profileNameInput, syncConfigFromBackend, t]);
 
   const removeActiveProfile = useCallback(async () => {
     if (!activeProfileId) return;
@@ -698,13 +725,13 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
       await apiService.deleteFanCurveProfile(activeProfileId);
       await loadCurveProfiles();
       await syncConfigFromBackend();
-      toast.success('已删除曲线方案');
+      toast.success(t('fanCurve.toast.profileDeleted'));
     } catch (e) {
-      toast.error(`删除失败: ${e}`);
+      toast.error(t('fanCurve.toast.deleteFailed', { error: getErrorMessage(e) }));
     } finally {
       setProfileOpLoading(false);
     }
-  }, [activeProfileId, loadCurveProfiles, syncConfigFromBackend]);
+  }, [activeProfileId, loadCurveProfiles, syncConfigFromBackend, t]);
 
   const exportProfiles = useCallback(async () => {
     try {
@@ -719,19 +746,19 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
       setExportCode(code);
       if (navigator?.clipboard?.writeText) {
         await navigator.clipboard.writeText(code);
-        toast.success('导出字符串已复制');
+        toast.success(t('fanCurve.toast.exportCopied'));
       } else {
-        toast.success('导出字符串已生成');
+        toast.success(t('fanCurve.toast.exportGenerated'));
       }
     } catch (e) {
-      toast.error(`导出失败: ${e}`);
+      toast.error(t('fanCurve.toast.exportFailed', { error: getErrorMessage(e) }));
     }
-  }, [hasUnsavedChanges, loadCurveProfiles, persistCurrentCurve]);
+  }, [hasUnsavedChanges, loadCurveProfiles, persistCurrentCurve, t]);
 
   const importProfiles = useCallback(async () => {
     const code = importCode.trim();
     if (!code) {
-      toast.error('请先粘贴导入字符串');
+      toast.error(t('fanCurve.toast.importMissingCode'));
       return;
     }
     try {
@@ -740,13 +767,13 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
       await loadCurveProfiles();
       await syncConfigFromBackend();
       setImportCode('');
-      toast.success('曲线方案导入成功');
+      toast.success(t('fanCurve.toast.importSucceeded'));
     } catch (e) {
-      toast.error(`导入失败: ${e}`);
+      toast.error(t('fanCurve.toast.importFailed', { error: getErrorMessage(e) }));
     } finally {
       setProfileOpLoading(false);
     }
-  }, [importCode, loadCurveProfiles, syncConfigFromBackend]);
+  }, [importCode, loadCurveProfiles, syncConfigFromBackend, t]);
 
   const resetCurve = useCallback(() => {
     const d: types.FanCurvePoint[] = [
@@ -775,11 +802,11 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
       await apiService.updateConfig(nextConfig);
       onConfigChange(nextConfig);
     } catch (err) {
-      toast.error('保存学习设置失败', { description: err instanceof Error ? err.message : String(err) });
+      toast.error(t('fanCurve.toast.saveLearningFailed'), { description: getErrorMessage(err) });
     } finally {
       setLearningConfigLoading(false);
     }
-  }, [config, onConfigChange, smartControl]);
+  }, [config, onConfigChange, smartControl, t]);
 
   const handleLearningToggle = useCallback((enabled: boolean) => {
     void updateSmartControlConfig({ learning: enabled });
@@ -794,13 +821,13 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
     try {
       await apiService.resetLearnedOffsets();
       await syncConfigFromBackend();
-      toast.success('已重置学习偏移', { description: '风扇曲线将完全按用户设定执行', duration: 2400 });
+      toast.success(t('fanCurve.toast.learningReset'), { description: t('fanCurve.toast.learningResetDescription'), duration: 2400 });
     } catch (err) {
-      toast.error('重置失败', { description: err instanceof Error ? err.message : String(err) });
+      toast.error(t('fanCurve.toast.resetFailed'), { description: getErrorMessage(err) });
     } finally {
       setLearningResetLoading(false);
     }
-  }, [syncConfigFromBackend]);
+  }, [syncConfigFromBackend, t]);
 
   /* ── Manual gear ── */
 
@@ -881,9 +908,9 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <Spline className="h-4 w-4 text-primary" />
-              <h2 className="text-base font-semibold text-foreground">风扇曲线</h2>
-              {hasUnsavedChanges && <Badge variant="warning">未保存</Badge>}
-              {isInteracting && <Badge variant="info">编辑中</Badge>}
+              <h2 className="text-base font-semibold text-foreground">{t('fanCurve.title')}</h2>
+              {hasUnsavedChanges && <Badge variant="warning">{t('fanCurve.badges.unsaved')}</Badge>}
+              {isInteracting && <Badge variant="info">{t('fanCurve.badges.editing')}</Badge>}
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -893,7 +920,7 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
                 onChange={switchProfile}
                 loading={profileOpLoading}
               />
-              <ToggleSwitch enabled={config.autoControl} onChange={handleAutoControlChange} label="智能变频" size="sm" color="blue" />
+              <ToggleSwitch enabled={config.autoControl} onChange={handleAutoControlChange} label={t('fanCurve.actions.smartControl')} size="sm" color="blue" />
             </div>
           </div>
         </motion.div>
@@ -904,8 +931,8 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
               <div className="rounded-2xl border border-border/70 bg-card p-4 space-y-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">手动挡位</span>
-                  <span className="text-xs text-muted-foreground">{isBs1 ? '4 控制点滑块' : '12 控制点滑块'}</span>
+                  <span className="text-sm font-medium">{t('fanCurve.manualGear.title')}</span>
+                  <span className="text-xs text-muted-foreground">{isBs1 ? t('fanCurve.manualGear.bs1SliderHint') : t('fanCurve.manualGear.defaultSliderHint')}</span>
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -925,7 +952,7 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
                           isActiveGear ? `${preset.borderClass} ${preset.bgClass}` : 'border-border/70 bg-background/40 hover:bg-muted/35',
                         )}
                       >
-                        <div className={clsx('text-lg font-bold', isActiveGear ? preset.colorClass : 'text-foreground')}>{preset.gear}</div>
+                        <div className={clsx('text-lg font-bold', isActiveGear ? preset.colorClass : 'text-foreground')}>{getManualGearLabel(preset.gear)}</div>
                         {!isBs1 && <div className={clsx('mt-1 text-base font-semibold', preset.colorClass)}>{activeLevel.rpm}RPM</div>}
                       </button>
                     );
@@ -945,7 +972,7 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
                             type="button"
                             onClick={() => handleManualPointSelect(index)}
                             className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center"
-                            title={`${point.gear} ${point.level} · ${point.rpm} RPM`}
+                            title={t('fanCurve.manualGear.pointTooltip', { gear: getManualGearLabel(point.gear), level: getManualLevelLabel(point.level), rpm: point.rpm })}
                           >
                             <span
                               className={clsx(
@@ -963,7 +990,7 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
                   <div className="flex items-start justify-between px-2 text-[11px]">
                     {manualPoints.map((point) => (
                       <span key={`${point.key}-label`} className={clsx('w-6 text-center truncate', point.colorClass)}>
-                        {point.levelIndex + 1}档
+                        {t('fanCurve.manualGear.pointIndex', { index: point.levelIndex + 1 })}
                       </span>
                     ))}
                   </div>
@@ -983,14 +1010,14 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-                  <XAxis dataKey="temperature" type="number" domain={[temperatureRange.min, temperatureRange.max]} ticks={temperatureRange.ticks} tickLine={false} axisLine={{ stroke: 'var(--chart-axis)' }} tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} label={{ value: '温度 (°C)', position: 'insideBottom', offset: -10, fill: 'var(--chart-tick)', fontSize: 12 }} />
-                  <YAxis type="number" domain={[rpmRange.min, rpmRange.max]} ticks={rpmRange.ticks} tickLine={false} axisLine={{ stroke: 'var(--chart-axis)' }} tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} label={{ value: '转速 (RPM)', angle: -90, position: 'insideLeft', fill: 'var(--chart-tick)', fontSize: 12 }} />
+                  <XAxis dataKey="temperature" type="number" domain={[temperatureRange.min, temperatureRange.max]} ticks={temperatureRange.ticks} tickLine={false} axisLine={{ stroke: 'var(--chart-axis)' }} tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} label={{ value: t('fanCurve.chart.axes.temperature'), position: 'insideBottom', offset: -10, fill: 'var(--chart-tick)', fontSize: 12 }} />
+                  <YAxis type="number" domain={[rpmRange.min, rpmRange.max]} ticks={rpmRange.ticks} tickLine={false} axisLine={{ stroke: 'var(--chart-axis)' }} tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} label={{ value: t('fanCurve.chart.axes.rpm'), angle: -90, position: 'insideLeft', fill: 'var(--chart-tick)', fontSize: 12 }} />
                   <RechartsTooltip
                     formatter={(value, name) => {
                       const numericValue = Number(value ?? 0);
-                      return name === 'coupledRpm' ? [`${numericValue} RPM`, '学习曲线'] : [`${numericValue} RPM`, '基础曲线'];
+                      return name === 'coupledRpm' ? [`${numericValue} RPM`, t('fanCurve.chart.series.learned')] : [`${numericValue} RPM`, t('fanCurve.chart.series.base')];
                     }}
-                    labelFormatter={(v) => `温度: ${v}°C`}
+                    labelFormatter={(v) => t('fanCurve.chart.temperatureLabel', { temperature: v })}
                     contentStyle={{ backgroundColor: 'var(--chart-tooltip-bg)', border: '1px solid', borderColor: 'var(--chart-tooltip-border)', borderRadius: '8px', boxShadow: 'var(--chart-tooltip-shadow)', padding: '8px 12px', color: 'var(--chart-tooltip-text)' }}
                     labelStyle={{ color: 'var(--chart-tooltip-text)', fontWeight: 600 }}
                     itemStyle={{ color: 'var(--chart-tooltip-text)' }}
@@ -1012,10 +1039,10 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
               </div>
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <div className="text-sm font-medium text-foreground">自适应学习</div>
-                  {!smartControl.learning && <Badge variant="info">已暂停</Badge>}
+                  <div className="text-sm font-medium text-foreground">{t('fanCurve.learning.title')}</div>
+                  {!smartControl.learning && <Badge variant="info">{t('fanCurve.learning.paused')}</Badge>}
                 </div>
-                <div className="text-xs leading-relaxed text-muted-foreground">长时间运行后，自动微调每个温度点的目标转速，使实际温度更贴近曲线设定值。学到的偏移随时可一键重置。</div>
+                <div className="text-xs leading-relaxed text-muted-foreground">{t('fanCurve.learning.description')}</div>
               </div>
             </div>
             <ToggleSwitch
@@ -1024,20 +1051,20 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
               loading={learningConfigLoading}
               size="sm"
               color="purple"
-              srLabel="切换自适应学习"
+              srLabel={t('fanCurve.learning.toggleAria')}
             />
           </div>
 
           <div className="mt-3 flex flex-col gap-3 rounded-xl border border-border/70 bg-background/45 p-3">
             <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <div className="min-w-0">
-                <div className="text-xs font-medium text-muted-foreground">学习倾向</div>
+                <div className="text-xs font-medium text-muted-foreground">{t('fanCurve.learning.biasTitle')}</div>
                 <div className="mt-1 text-xs leading-relaxed text-muted-foreground">{currentLearningBiasOption.description}</div>
               </div>
               <Select
                 value={currentLearningBias}
                 onChange={handleLearningBiasChange}
-                options={LEARNING_BIAS_OPTIONS}
+                options={learningBiasOptions}
                 disabled={learningConfigLoading}
                 size="sm"
                 className="w-full md:w-44"
@@ -1046,8 +1073,8 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
 
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div className="min-w-0">
-                <div className="text-xs font-medium text-muted-foreground">学习偏移</div>
-                <div className="mt-1 text-xs leading-relaxed text-muted-foreground">当前学习曲线相对基础曲线的主要 RPM 修正点。</div>
+                <div className="text-xs font-medium text-muted-foreground">{t('fanCurve.learning.offsetTitle')}</div>
+                <div className="mt-1 text-xs leading-relaxed text-muted-foreground">{t('fanCurve.learning.offsetDescription')}</div>
               </div>
               <Button
                 variant="secondary"
@@ -1057,7 +1084,7 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
                 disabled={!hasLearnedOffsets}
                 icon={<Sparkles className="h-3.5 w-3.5" />}
               >
-                重置学习
+                {t('fanCurve.learning.reset')}
               </Button>
             </div>
 
@@ -1073,7 +1100,7 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
                 ))}
               </div>
             ) : (
-              <div className="rounded-lg border border-dashed border-border/70 bg-card/55 px-3 py-2 text-xs text-muted-foreground">暂无学习偏移</div>
+              <div className="rounded-lg border border-dashed border-border/70 bg-card/55 px-3 py-2 text-xs text-muted-foreground">{t('fanCurve.learning.noOffsets')}</div>
             )}
           </div>
         </section>
@@ -1081,12 +1108,12 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
         {/* ── Tips + Actions ── */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap gap-2">
-            <span className="rounded-full border border-border/70 bg-background/60 px-3 py-1 text-[11px] text-muted-foreground backdrop-blur-lg">拖拽蓝色圆点调整转速</span>
-            {showCoupledCurve && <span className="rounded-full border border-border/70 bg-background/60 px-3 py-1 text-[11px] text-muted-foreground backdrop-blur-lg">实线: 基础 · 虚线: 学习</span>}
+            <span className="rounded-full border border-border/70 bg-background/60 px-3 py-1 text-[11px] text-muted-foreground backdrop-blur-lg">{t('fanCurve.hints.dragPoint')}</span>
+            {showCoupledCurve && <span className="rounded-full border border-border/70 bg-background/60 px-3 py-1 text-[11px] text-muted-foreground backdrop-blur-lg">{t('fanCurve.hints.curveLegend')}</span>}
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="secondary" size="sm" onClick={resetCurve} icon={<RotateCw className="h-3.5 w-3.5" />}>重置</Button>
-            <Button variant="primary" size="sm" onClick={saveCurve} disabled={!hasUnsavedChanges} loading={isSaving} icon={<Check className="h-3.5 w-3.5" />}>保存</Button>
+            <Button variant="secondary" size="sm" onClick={resetCurve} icon={<RotateCw className="h-3.5 w-3.5" />}>{t('fanCurve.actions.reset')}</Button>
+            <Button variant="primary" size="sm" onClick={saveCurve} disabled={!hasUnsavedChanges} loading={isSaving} icon={<Check className="h-3.5 w-3.5" />}>{t('common.actions.save')}</Button>
           </div>
         </div>
 
@@ -1095,8 +1122,8 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
             <div className="flex items-center gap-2">
               <History className="h-4 w-4 text-primary" />
               <div>
-                <div className="text-sm font-medium text-foreground">温度与风扇历史详情</div>
-                <div className="text-xs text-muted-foreground">曲线页保留最近 1 小时历史概览，便于对照当前曲线与温度走势。</div>
+                <div className="text-sm font-medium text-foreground">{t('fanCurve.history.detailsTitle')}</div>
+                <div className="text-xs text-muted-foreground">{t('fanCurve.history.detailsDescription')}</div>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -1104,7 +1131,7 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
                 enabled={temperatureHistoryEnabled}
                 onChange={setTemperatureHistoryEnabled}
                 loading={temperatureHistorySaving}
-                label={temperatureHistorySaving ? '保存中' : '后台记录'}
+                label={temperatureHistorySaving ? t('fanCurve.history.saving') : t('fanCurve.history.backgroundRecording')}
                 size="sm"
                 color="blue"
               />
@@ -1113,15 +1140,15 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
 
           {temperatureHistory.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border/70 bg-background/35 px-4 py-8 text-center text-sm text-muted-foreground">
-              {temperatureHistoryEnabled ? '后台记录已开启，等待更多温度与风扇样本。' : '后台记录当前已关闭，可在本页开启。'}
+              {temperatureHistoryEnabled ? t('fanCurve.history.emptyEnabled') : t('fanCurve.history.emptyDisabled')}
             </div>
           ) : (
             <>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                 {[
-                  ['CPU 峰值', historySummary.cpuPeak ? `${historySummary.cpuPeak}°C` : '--', historySummary.cpuAverage ? `平均 ${historySummary.cpuAverage}°C` : '暂无 CPU 温度'],
-                  ['GPU 峰值', historySummary.gpuPeak ? `${historySummary.gpuPeak}°C` : '--', historySummary.gpuAverage ? `平均 ${historySummary.gpuAverage}°C` : '暂无 GPU 温度'],
-                  ['风扇峰值', historySummary.fanPeak ? `${historySummary.fanPeak} RPM` : '--', historySummary.fanAverage ? `平均 ${historySummary.fanAverage} RPM` : '暂无风扇数据'],
+                  [t('fanCurve.history.summary.cpuPeak'), historySummary.cpuPeak ? `${historySummary.cpuPeak}°C` : '--', historySummary.cpuAverage ? t('fanCurve.history.summary.averageTemperature', { value: historySummary.cpuAverage }) : t('fanCurve.history.summary.noCpuTemperature')],
+                  [t('fanCurve.history.summary.gpuPeak'), historySummary.gpuPeak ? `${historySummary.gpuPeak}°C` : '--', historySummary.gpuAverage ? t('fanCurve.history.summary.averageTemperature', { value: historySummary.gpuAverage }) : t('fanCurve.history.summary.noGpuTemperature')],
+                  [t('fanCurve.history.summary.fanPeak'), historySummary.fanPeak ? `${historySummary.fanPeak} RPM` : '--', historySummary.fanAverage ? t('fanCurve.history.summary.averageFan', { value: historySummary.fanAverage }) : t('fanCurve.history.summary.noFanData')],
                 ].map(([label, value, hint]) => (
                   <div key={label} className="rounded-xl border border-border/70 bg-background/35 p-3">
                     <div className="text-[11px] text-muted-foreground">{label}</div>
@@ -1133,7 +1160,7 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
 
               <div className="rounded-xl border border-border/70 bg-background/35 p-3 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="text-xs font-medium text-muted-foreground">最近趋势</div>
+                  <div className="text-xs font-medium text-muted-foreground">{t('fanCurve.history.recentTrend')}</div>
                   <div className="flex flex-wrap items-center gap-2">
                     {historySeriesMeta.map((series) => (
                       <button
@@ -1155,7 +1182,7 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
                 </div>
 
                 {historyChartData.length < 2 ? (
-                  <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">已记录 1 条样本，等待更多数据后展示趋势图。</div>
+                  <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">{t('fanCurve.history.waitingMoreSamples')}</div>
                 ) : (
                   <div className="h-72">
                     <ResponsiveContainer width="100%" height="100%">
@@ -1165,7 +1192,7 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
                           dataKey="timestamp"
                           type="number"
                           domain={['dataMin', 'dataMax']}
-                          tickFormatter={(value) => formatHistoryTime(Number(value))}
+                          tickFormatter={(value) => formatHistoryTime(Number(value), locale)}
                           tickLine={false}
                           minTickGap={24}
                           axisLine={{ stroke: 'var(--chart-axis)' }}
@@ -1191,13 +1218,13 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
                           width={52}
                         />
                         <RechartsTooltip
-                          labelFormatter={(value) => formatHistoryDateTime(Number(value))}
+                          labelFormatter={(value) => formatHistoryDateTime(Number(value), locale)}
                           formatter={(value, name) => {
                             const numericValue = Number(value ?? 0);
                             if (name === 'fanRpm') {
-                              return [`${numericValue} RPM`, '风扇 RPM'];
+                              return [`${numericValue} RPM`, t('fanCurve.history.series.fan')];
                             }
-                            return [`${numericValue} °C`, name === 'cpuTemp' ? 'CPU' : 'GPU'];
+                            return [`${numericValue} °C`, name === 'cpuTemp' ? t('fanCurve.history.series.cpu') : t('fanCurve.history.series.gpu')];
                           }}
                           contentStyle={{ backgroundColor: 'var(--chart-tooltip-bg)', border: '1px solid', borderColor: 'var(--chart-tooltip-border)', borderRadius: '8px', boxShadow: 'var(--chart-tooltip-shadow)', padding: '8px 12px', color: 'var(--chart-tooltip-text)' }}
                           labelStyle={{ color: 'var(--chart-tooltip-text)', fontWeight: 600 }}
@@ -1218,7 +1245,7 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
         <section className="rounded-2xl border border-border/70 bg-card p-4 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">曲线方案</span>
+              <span className="text-sm font-medium">{t('fanCurve.profiles.title')}</span>
             </div>
           </div>
 
@@ -1246,28 +1273,28 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
                 onChange={(e) => handleProfileNameInputChange(e.target.value, Boolean((e.nativeEvent as InputEvent).isComposing))}
                 onCompositionStart={handleProfileNameCompositionStart}
                 onCompositionEnd={(e) => handleProfileNameCompositionEnd(e.currentTarget.value)}
-                placeholder="当前方案命名（最多6字）"
+                placeholder={t('fanCurve.profiles.namePlaceholder')}
                 className="h-10"
               />
             </div>
-            <Button variant="secondary" size="sm" onClick={saveCurrentProfileName} loading={profileOpLoading} icon={<Check className="h-3.5 w-3.5" />}>保存命名</Button>
-            <Button variant="secondary" size="sm" onClick={createNewProfile} loading={profileOpLoading} icon={<Plus className="h-3.5 w-3.5" />}>另存为新方案</Button>
-            <Button variant="danger" size="sm" onClick={removeActiveProfile} loading={profileOpLoading} icon={<Trash2 className="h-3.5 w-3.5" />} disabled={curveProfiles.length <= 1}>删除当前方案</Button>
+            <Button variant="secondary" size="sm" onClick={saveCurrentProfileName} loading={profileOpLoading} icon={<Check className="h-3.5 w-3.5" />}>{t('fanCurve.profiles.saveName')}</Button>
+            <Button variant="secondary" size="sm" onClick={createNewProfile} loading={profileOpLoading} icon={<Plus className="h-3.5 w-3.5" />}>{t('fanCurve.profiles.saveAsNew')}</Button>
+            <Button variant="danger" size="sm" onClick={removeActiveProfile} loading={profileOpLoading} icon={<Trash2 className="h-3.5 w-3.5" />} disabled={curveProfiles.length <= 1}>{t('fanCurve.profiles.deleteCurrent')}</Button>
           </div>
         </section>
 
         <section className="rounded-2xl border border-border/70 bg-card p-4 space-y-3">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-sm font-medium">导入 / 导出曲线方案</span>
-            <span className="text-xs text-muted-foreground">可复制粘贴短字符串</span>
+            <span className="text-sm font-medium">{t('fanCurve.importExport.title')}</span>
+            <span className="text-xs text-muted-foreground">{t('fanCurve.importExport.description')}</span>
           </div>
 
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <div className="space-y-2 rounded-xl border border-border/70 bg-background/30 p-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-muted-foreground">导出</span>
+                <span className="text-xs font-medium text-muted-foreground">{t('fanCurve.importExport.exportTitle')}</span>
                 <div className="flex items-center gap-2">
-                  <Button variant="secondary" size="sm" onClick={exportProfiles} icon={<Download className="h-3.5 w-3.5" />}>生成</Button>
+                  <Button variant="secondary" size="sm" onClick={exportProfiles} icon={<Download className="h-3.5 w-3.5" />}>{t('fanCurve.importExport.generate')}</Button>
                   <Button
                     variant="outline"
                     size="sm"
@@ -1275,13 +1302,13 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
                       if (!exportCode) return;
                       if (navigator?.clipboard?.writeText) {
                         await navigator.clipboard.writeText(exportCode);
-                        toast.success('已复制导出字符串');
+                        toast.success(t('fanCurve.toast.exportCopiedAgain'));
                       }
                     }}
                     icon={<Clipboard className="h-3.5 w-3.5" />}
                     disabled={!exportCode}
                   >
-                    复制
+                    {t('common.actions.copy')}
                   </Button>
                 </div>
               </div>
@@ -1290,21 +1317,21 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
                 readOnly
                 rows={3}
                 className="w-full rounded-lg border border-border/70 bg-background px-3 py-2 text-xs leading-relaxed"
-                placeholder="点击“生成”后显示导出字符串"
+                placeholder={t('fanCurve.importExport.exportPlaceholder')}
               />
             </div>
 
             <div className="space-y-2 rounded-xl border border-border/70 bg-background/30 p-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-muted-foreground">导入</span>
-                <Button variant="secondary" size="sm" onClick={importProfiles} loading={profileOpLoading} icon={<Upload className="h-3.5 w-3.5" />}>导入</Button>
+                <span className="text-xs font-medium text-muted-foreground">{t('fanCurve.importExport.importTitle')}</span>
+                <Button variant="secondary" size="sm" onClick={importProfiles} loading={profileOpLoading} icon={<Upload className="h-3.5 w-3.5" />}>{t('common.actions.import')}</Button>
               </div>
               <textarea
                 value={importCode}
                 onChange={(e) => setImportCode(e.target.value)}
                 rows={3}
                 className="w-full rounded-lg border border-border/70 bg-background px-3 py-2 text-xs leading-relaxed"
-                placeholder="粘贴 B2C1. 开头的导入字符串"
+                placeholder={t('fanCurve.importExport.importPlaceholder')}
               />
             </div>
           </div>
@@ -1323,17 +1350,17 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
                 <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber-500/15">
                   <TriangleAlert className="h-8 w-8 text-amber-600" />
                 </div>
-                <DialogTitle className="text-lg font-bold text-foreground">注意</DialogTitle>
+                <DialogTitle className="text-lg font-bold text-foreground">{t('fanCurve.warning.title')}</DialogTitle>
                 <DialogDescription asChild>
                   <div className="mt-1 rounded-xl border border-amber-300/40 bg-amber-500/10 p-4 text-left text-sm leading-relaxed text-foreground">
-                    低于1000转非飞智官方设计最低转速标准，由此引发的任何问题需要由用户自行承担！
+                    {t('fanCurve.warning.body')}
                   </div>
                 </DialogDescription>
               </DialogHeader>
 
               <DialogFooter className="mt-6">
                 <Button variant="secondary" size="sm" onClick={() => setShowLowRpmWarning(false)}>
-                  我已知悉
+                  {t('fanCurve.warning.confirm')}
                 </Button>
               </DialogFooter>
             </div>

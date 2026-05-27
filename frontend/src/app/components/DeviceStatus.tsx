@@ -22,7 +22,8 @@ import { types } from '../../../wailsjs/go/models';
 import { apiService } from '../services/api';
 import { useTemperatureHistory } from '../hooks/useTemperatureHistory';
 import { type TemperatureHistoryPoint } from '../lib/temperature-history';
-import { getReportedMaxRpm } from '../lib/manualGearPresets';
+import { getManualGearLabel, getReportedMaxRpm } from '../lib/manualGearPresets';
+import { useTranslation } from 'react-i18next';
 import { ToggleSwitch, Button } from './ui/index';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import clsx from 'clsx';
@@ -50,10 +51,10 @@ interface BridgeRuntimeStatus {
 }
 
 const getTempStatus = (temp: number) => {
-  if (temp > 85) return { color: 'text-red-500', bg: 'bg-red-500', label: '过热' };
-  if (temp > 75) return { color: 'text-orange-500', bg: 'bg-orange-500', label: '偏高' };
-  if (temp > 60) return { color: 'text-primary', bg: 'bg-primary', label: '正常' };
-  return { color: 'text-primary', bg: 'bg-primary', label: '良好' };
+  if (temp > 85) return { color: 'text-red-500', bg: 'bg-red-500', labelKey: 'deviceStatus.tempStatus.overheat' };
+  if (temp > 75) return { color: 'text-orange-500', bg: 'bg-orange-500', labelKey: 'deviceStatus.tempStatus.high' };
+  if (temp > 60) return { color: 'text-primary', bg: 'bg-primary', labelKey: 'deviceStatus.tempStatus.normal' };
+  return { color: 'text-primary', bg: 'bg-primary', labelKey: 'deviceStatus.tempStatus.good' };
 };
 
 const getFanSpinDuration = (rpm?: number) => {
@@ -62,6 +63,20 @@ const getFanSpinDuration = (rpm?: number) => {
   if (rpm >= 3200) return 0.7;
   if (rpm >= 2200) return 1;
   return 1.35;
+};
+
+const getTranslatedWorkMode = (
+  workMode: string | null | undefined,
+  t: (key: string) => string,
+) => {
+  switch (workMode) {
+    case '挡位工作模式':
+      return t('controlPanel.overview.workModes.manual');
+    case '自动模式(实时转速)':
+      return t('controlPanel.overview.workModes.auto');
+    default:
+      return workMode || '--';
+  }
 };
 
 const AnimatedTemperatureValue = memo(function AnimatedTemperatureValue({ temp, colorClass }: { temp: number | undefined; colorClass: string }) {
@@ -203,6 +218,8 @@ const TempGaugeDisplay = memo(function TempGaugeDisplay({
   /** 后端首次推送有效温度后置为 true；之前显示占位避免误读 0 °C */
   ready: boolean;
 }) {
+  const { t } = useTranslation();
+
   // 未就绪 → 占位：灰色弧、"--"、"读取中…"，不进入正常状态色
   if (!ready) {
     return (
@@ -214,7 +231,7 @@ const TempGaugeDisplay = memo(function TempGaugeDisplay({
           </div>
           <span className="mt-1 inline-flex items-center gap-1 text-[11px] leading-none text-muted-foreground">
             <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground/60" />
-            读取中…
+            {t('deviceStatus.tempGauge.loading')}
           </span>
         </SemiGauge>
       </div>
@@ -231,7 +248,7 @@ const TempGaugeDisplay = memo(function TempGaugeDisplay({
           <AnimatedTemperatureValue temp={temp} colorClass={status.color} />
           <span className="text-xs font-medium text-muted-foreground">°C</span>
         </div>
-        <span className="mt-1 text-[11px] leading-none text-muted-foreground">{status.label}</span>
+        <span className="mt-1 text-[11px] leading-none text-muted-foreground">{t(status.labelKey)}</span>
       </SemiGauge>
     </div>
   );
@@ -250,11 +267,12 @@ const FanRpmDisplay = memo(function FanRpmDisplay({
   isBs1?: boolean;
   maxRpm: number;
 }) {
+  const { t } = useTranslation();
   const safeMax = maxRpm > 0 ? maxRpm : 4000;
   const ratio = Math.min(1, (currentRpm || 0) / safeMax);
   const subLabel = isBs1
-    ? (setGear || '--')
-    : `目标 ${targetRpm ?? '--'} · ${setGear || '--'}`;
+    ? (getManualGearLabel(setGear) || '--')
+    : t('deviceStatus.fan.targetSummary', { target: targetRpm ?? '--', gear: getManualGearLabel(setGear) || '--' });
 
   return (
     <div className="flex h-full w-full max-w-[20rem] flex-1 flex-col items-center justify-end">
@@ -280,6 +298,7 @@ const MiniFanCurveChart = memo(function MiniFanCurveChart({
   currentTemp: number | undefined;
   onOpen?: () => void;
 }) {
+  const { t } = useTranslation();
 
   const geometry = useMemo(() => {
     const points = Array.isArray(curve)
@@ -334,12 +353,12 @@ const MiniFanCurveChart = memo(function MiniFanCurveChart({
     >
       <div className="mb-2 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-xs font-semibold text-foreground">风扇转速曲线</div>
+          <div className="text-xs font-semibold text-foreground">{t('deviceStatus.chart.fanCurve')}</div>
           <div className="text-[11px] text-muted-foreground">RPM</div>
         </div>
         {onOpen && (
           <span className="inline-flex items-center gap-1 text-[11px] font-medium text-primary opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100">
-            曲线页
+            {t('deviceStatus.chart.openCurve')}
             <ArrowUpRight className="h-3 w-3" />
           </span>
         )}
@@ -379,7 +398,8 @@ const TemperatureHistoryPanel = memo(function TemperatureHistoryPanel({
   source: 'core' | 'session';
   onOpen?: () => void;
 }) {
-  const sourceLabel = source === 'core' ? '后台记录' : '本次打开';
+  const { t } = useTranslation();
+  const sourceLabel = source === 'core' ? t('deviceStatus.history.source.core') : t('deviceStatus.history.source.session');
   const chart = useMemo(() => {
     const width = 520;
     const height = 168;
@@ -466,11 +486,11 @@ const TemperatureHistoryPanel = memo(function TemperatureHistoryPanel({
     >
       <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
-          <div className="text-xs font-semibold text-foreground">温度与风扇历史</div>
+          <div className="text-xs font-semibold text-foreground">{t('deviceStatus.history.title')}</div>
           <span className="rounded-full border border-border/70 bg-background/70 px-2 py-0.5 text-[10px] text-muted-foreground">{sourceLabel}</span>
           {onOpen && (
             <span className="inline-flex items-center gap-1 text-[11px] font-medium text-primary opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100">
-              详情
+              {t('deviceStatus.history.details')}
               <ArrowUpRight className="h-3 w-3" />
             </span>
           )}
@@ -480,11 +500,11 @@ const TemperatureHistoryPanel = memo(function TemperatureHistoryPanel({
       <div className="glacier-chart-canvas flex min-h-[163px] flex-1 overflow-hidden rounded-lg bg-muted/25 p-2.5">
         {points.length === 0 ? (
           <div className="flex h-full w-full items-center justify-center text-center text-[11px] leading-relaxed text-muted-foreground">
-            {enabled ? '等待温度数据' : '后台记录已关闭，当前展示本次打开后的临时历史。'}
+            {enabled ? t('deviceStatus.history.waiting') : t('deviceStatus.history.disabled')}
           </div>
         ) : points.length < 2 ? (
           <div className="flex h-full w-full items-center justify-center text-center text-[11px] leading-relaxed text-muted-foreground">
-            {source === 'core' ? '已记录 1 条后台样本，等待更多数据。' : '已记录 1 条会话样本，等待更多数据。'}
+            {source === 'core' ? t('deviceStatus.history.singleSampleCore') : t('deviceStatus.history.singleSampleSession')}
           </div>
         ) : (
           <div className="h-full w-full overflow-hidden">
@@ -523,6 +543,7 @@ export default function DeviceStatus({
       onOpenCurveEditor,
       onOpenHistoryDetails,
 }: DeviceStatusProps) {
+  const { t } = useTranslation();
   const [bridgeWarningReady, setBridgeWarningReady] = useState(false);
   const [activeCurveProfileName, setActiveCurveProfileName] = useState('');
   const [bridgeStatus, setBridgeStatus] = useState<BridgeRuntimeStatus | null>(null);
@@ -609,15 +630,15 @@ export default function DeviceStatus({
   const isProModel = isBs2ProModel || isBs3ProModel;
   const isBs2Model = deviceModel === 'BS2' || normalizedProductId === '0X1001';
   const isBs1Model = deviceModel === 'BS1';
-  const deviceModelName = isBs1Model ? 'BS1' : isBs3ProModel ? 'BS3 PRO' : isBs3Model ? 'BS3' : isBs2ProModel ? 'BS2 PRO' : isBs2Model ? 'BS2' : '未知设备';
+  const deviceModelName = isBs1Model ? 'BS1' : isBs3ProModel ? 'BS3 PRO' : isBs3Model ? 'BS3' : isBs2ProModel ? 'BS2 PRO' : isBs2Model ? 'BS2' : t('deviceStatus.device.unknown');
   const deviceImageSrc = isBs1Model ? '/bs2.png' : isBs2Model ? '/bs2.png' : '/bs2pro.png';
-  const modeTitle = config.autoControl ? '智能控制' : config.customSpeedEnabled ? '固定转速' : '手动策略';
+  const modeTitle = config.autoControl ? t('deviceStatus.mode.smartControl') : config.customSpeedEnabled ? t('deviceStatus.mode.fixedSpeed') : t('deviceStatus.mode.manualStrategy');
   const modeDesc = config.autoControl
-    ? '根据实时温度自动调节转速'
+    ? t('deviceStatus.mode.smartDescription')
     : config.customSpeedEnabled
-      ? `当前固定为 ${config.customSpeedRPM || fanData?.currentRpm || '--'} RPM`
-      : '可在设置页调整模式与参数';
-  const modeDisplayTitle = activeCurveProfileName ? `${modeTitle}（${activeCurveProfileName}）` : modeTitle;
+      ? t('deviceStatus.mode.fixedDescription', { rpm: config.customSpeedRPM || fanData?.currentRpm || '--' })
+      : t('deviceStatus.mode.manualDescription');
+  const modeDisplayTitle = activeCurveProfileName ? t('deviceStatus.mode.withProfile', { mode: modeTitle, profile: activeCurveProfileName }) : modeTitle;
   const fanSpinDuration = getFanSpinDuration(fanData?.currentRpm);
   const maxRpmInfo = useMemo(() => getReportedMaxRpm(fanData?.gearSettings, fanData?.maxGear), [fanData?.gearSettings, fanData?.maxGear]);
   const maxGearHighLevelRpm = maxRpmInfo.rpm;
@@ -627,33 +648,33 @@ export default function DeviceStatus({
   const cpuReady = tempPushed && (temperature?.cpuTemp ?? 0) > 0;
   const gpuReady = tempPushed && (temperature?.gpuTemp ?? 0) > 0;
   const bridgeStateLabel = bridgeStatus?.state === 'running_owned'
-    ? '独占运行'
+    ? t('deviceStatus.bridgeState.runningOwned')
     : bridgeStatus?.state === 'attached'
-      ? '附着共享实例'
+      ? t('deviceStatus.bridgeState.attached')
       : bridgeStatus?.state === 'starting'
-        ? '启动中'
+        ? t('deviceStatus.bridgeState.starting')
         : bridgeStatus?.state === 'degraded'
-          ? '降级'
+          ? t('deviceStatus.bridgeState.degraded')
           : bridgeStatus?.state === 'failed'
-            ? '失败'
+            ? t('deviceStatus.bridgeState.failed')
             : bridgeStatus?.state === 'stopping'
-              ? '停止中'
+              ? t('deviceStatus.bridgeState.stopping')
               : bridgeStatus?.state === 'stopped'
-                ? '已停止'
+                ? t('deviceStatus.bridgeState.stopped')
                 : bridgeStatus?.state === 'not_started'
-                  ? '未启动'
+                  ? t('deviceStatus.bridgeState.notStarted')
                   : '';
   const maxRpmHint = isBs1Model
-    ? 'BS1 最高可达超频挡 3000 RPM。'
+    ? t('deviceStatus.maxRpmHint.bs1')
     : maxGearHighLevelRpm === 4000
-      ? '当前已解锁超频上限，最高可达 4000 RPM。'
+      ? t('deviceStatus.maxRpmHint.max4000')
       : maxGearHighLevelRpm === 3300
-        ? '当前最高为强劲档，最高可达 3300 RPM，使用PD 27W充电头以解锁上限。'
+        ? t('deviceStatus.maxRpmHint.max3300')
         : maxGearHighLevelRpm === 2760
-          ? '当前最高为标准档，最高可达 2760 RPM，使用PD 27W充电头以解锁上限。'
+          ? t('deviceStatus.maxRpmHint.max2760')
           : maxRpmInfo.codeHex
-            ? `设备上报了未映射的最高挡位编码：${maxRpmInfo.codeHex}`
-            : '等待设备上报最高转速能力。';
+            ? t('deviceStatus.maxRpmHint.unknownCode', { code: maxRpmInfo.codeHex })
+            : t('deviceStatus.maxRpmHint.waiting');
   const maxTempStatus = getTempStatus(temperature?.maxTemp || 0);
 
   return (
@@ -680,7 +701,7 @@ export default function DeviceStatus({
             >
               <img
                 src={deviceImageSrc}
-                alt={`${deviceModelName} device`}
+                alt={t('deviceStatus.device.imageAlt', { model: deviceModelName })}
                 className="h-full w-full object-contain"
                 draggable={false}
               />
@@ -696,7 +717,7 @@ export default function DeviceStatus({
                       : 'bg-red-500/10 text-red-500',
                   )}
                 >
-                  {isConnected ? '已连接' : '离线'}
+                  {isConnected ? t('deviceStatus.connectStatus.connected') : t('deviceStatus.connectStatus.offline')}
                 </span>
               </div>
               {isConnected && (
@@ -706,10 +727,10 @@ export default function DeviceStatus({
                   ) : (
                     <Settings className="h-3 w-3" />
                   )}
-                  <span>{modeTitle} · {modeDesc}</span>
+                  <span>{t('deviceStatus.hero.modeLine', { mode: modeTitle, description: modeDesc })}</span>
                 </div>
               )}
-              {!isConnected && <p className="mt-1 text-xs text-muted-foreground">等待蓝牙连接…</p>}
+              {!isConnected && <p className="mt-1 text-xs text-muted-foreground">{t('deviceStatus.hero.waitingBluetooth')}</p>}
             </div>
           </div>
 
@@ -718,7 +739,7 @@ export default function DeviceStatus({
               <ToggleSwitch
                 enabled={config.autoControl}
                 onChange={handleAutoControlChange}
-                label="智能变频"
+                label={t('deviceStatus.actions.smartControl')}
                 size="md"
                 color="blue"
               />
@@ -728,7 +749,7 @@ export default function DeviceStatus({
               size="sm"
               onClick={isConnected ? onDisconnect : onConnect}
             >
-              {isConnected ? '断开' : '连接'}
+              {isConnected ? t('deviceStatus.actions.disconnect') : t('deviceStatus.actions.connect')}
             </Button>
           </div>
         </div>
@@ -746,7 +767,7 @@ export default function DeviceStatus({
           <div className="glacier-metric-card flex h-full min-h-[155px] flex-col items-center rounded-xl border border-border bg-card px-5 py-3 shadow-sm shadow-black/5 transition-shadow hover:shadow-md hover:shadow-primary/10 md:min-h-[171px]">
             <MetricHeader
               icon={<Cpu className="h-4 w-4" />}
-              label="CPU 温度"
+              label={t('deviceStatus.metrics.cpuTemperature')}
             />
             <TempGaugeDisplay temp={temperature?.cpuTemp} ready={cpuReady} />
           </div>
@@ -755,7 +776,7 @@ export default function DeviceStatus({
           <div className="glacier-metric-card flex h-full min-h-[155px] flex-col items-center rounded-xl border border-border bg-card px-5 py-3 shadow-sm shadow-black/5 transition-shadow hover:shadow-md hover:shadow-primary/10 md:min-h-[171px]">
             <MetricHeader
               icon={<Gpu className="h-4 w-4" />}
-              label="GPU 温度"
+              label={t('deviceStatus.metrics.gpuTemperature')}
             />
             <TempGaugeDisplay temp={temperature?.gpuTemp} ready={gpuReady} />
           </div>
@@ -766,7 +787,7 @@ export default function DeviceStatus({
               icon={(
                 <SpinningFanIcon duration={fanSpinDuration} className="h-4 w-4" />
               )}
-              label="风扇转速"
+              label={t('deviceStatus.metrics.fanRpm')}
             />
             <FanRpmDisplay
               currentRpm={fanData?.currentRpm}
@@ -787,10 +808,10 @@ export default function DeviceStatus({
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-muted">
             <Bluetooth className="h-7 w-7 text-muted-foreground" />
           </div>
-          <h3 className="mb-1.5 text-lg font-semibold">设备未连接</h3>
-          <p className="mb-5 text-base text-muted-foreground">请将散热器通过蓝牙连接到电脑</p>
+          <h3 className="mb-1.5 text-lg font-semibold">{t('deviceStatus.disconnected.title')}</h3>
+          <p className="mb-5 text-base text-muted-foreground">{t('deviceStatus.disconnected.description')}</p>
           <Button onClick={onConnect} size="md" icon={<RotateCw className="h-4 w-4" />}>
-            连接设备
+            {t('deviceStatus.actions.connectDevice')}
           </Button>
         </motion.div>
       )}
@@ -806,17 +827,17 @@ export default function DeviceStatus({
             <div className="flex items-start gap-2 text-amber-800 dark:text-amber-200">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
               <div className="flex-1">
-                <p>{temperature?.bridgeMessage || '温度桥接程序读取失败，可重新初始化温度监控后重试。'}</p>
+                <p>{temperature?.bridgeMessage || t('deviceStatus.bridgeWarning.default')}</p>
                 {bridgeStatus && (
                   <div className="mt-2 space-y-1 text-xs text-amber-700/90 dark:text-amber-200/80">
                     {bridgeStateLabel && (
                       <p>
-                        桥接状态：{bridgeStateLabel}
-                        {typeof bridgeStatus.ownsProcess === 'boolean' ? ` · ${bridgeStatus.ownsProcess ? '当前实例已接管进程' : '当前实例复用共享进程'}` : ''}
+                        {t('deviceStatus.bridgeWarning.stateLine', { state: bridgeStateLabel })}
+                        {typeof bridgeStatus.ownsProcess === 'boolean' ? ` · ${bridgeStatus.ownsProcess ? t('deviceStatus.bridgeWarning.ownsProcess') : t('deviceStatus.bridgeWarning.sharedProcess')}` : ''}
                       </p>
                     )}
-                    {bridgeStatus.pipeName && <p>命名管道：{bridgeStatus.pipeName}</p>}
-                    {bridgeStatus.lastError && bridgeStatus.lastError !== temperature?.bridgeMessage && <p>诊断信息：{bridgeStatus.lastError}</p>}
+                    {bridgeStatus.pipeName && <p>{t('deviceStatus.bridgeWarning.pipeLine', { pipe: bridgeStatus.pipeName })}</p>}
+                    {bridgeStatus.lastError && bridgeStatus.lastError !== temperature?.bridgeMessage && <p>{t('deviceStatus.bridgeWarning.diagnosticsLine', { message: bridgeStatus.lastError })}</p>}
                   </div>
                 )}
                 <button
@@ -828,7 +849,7 @@ export default function DeviceStatus({
                   className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-100 px-3 py-1.5 text-xs font-medium text-amber-900 transition-colors hover:bg-amber-200 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-200 dark:hover:bg-amber-800/60"
                 >
                   <RotateCw className="h-3 w-3" />
-                  重新初始化温度监控
+                  {t('deviceStatus.bridgeWarning.reinitialize')}
                 </button>
               </div>
             </div>
@@ -848,7 +869,7 @@ export default function DeviceStatus({
             <div className="flex items-center gap-2">
               <Gauge className="h-4 w-4 text-muted-foreground" />
               <h3 className="text-xs font-semibold text-muted-foreground">
-                控制与保护
+                {t('deviceStatus.controlProtection')}
               </h3>
             </div>
             <HardwareIdentitySummary cpuModel={temperature?.cpuModel} gpuModel={temperature?.gpuModel} />
@@ -858,7 +879,7 @@ export default function DeviceStatus({
             <div className="glacier-stat-tile rounded-xl border border-border bg-background/55 p-3">
               <div className="mb-1 flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Sparkles className="h-3.5 w-3.5" />
-                控制模式
+                {t('deviceStatus.stats.controlMode')}
               </div>
               <div className={clsx('text-sm font-semibold', config.autoControl ? 'text-primary' : 'text-amber-600 dark:text-amber-400')}>
                 {modeDisplayTitle}
@@ -869,14 +890,14 @@ export default function DeviceStatus({
               <div className="mb-1 flex items-center justify-between gap-2 text-xs text-muted-foreground">
                 <div className="flex items-center gap-1.5">
                   <Power className="h-3.5 w-3.5" />
-                  最高转速
+                  {t('deviceStatus.stats.maxRpm')}
                 </div>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
                       type="button"
                       className="inline-flex h-4 w-4 items-center justify-center rounded text-muted-foreground/80 opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
-                      aria-label="最高转速提示"
+                      aria-label={t('deviceStatus.stats.maxRpmHintAria')}
                     >
                       <CircleHelp className="h-3.5 w-3.5" />
                     </button>
@@ -894,18 +915,18 @@ export default function DeviceStatus({
             <div className="glacier-stat-tile rounded-xl border border-border bg-background/55 p-3">
               <div className="mb-1 flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Fan className="h-3.5 w-3.5" />
-                工作模式
+                {t('deviceStatus.stats.workMode')}
               </div>
-              <div className="text-sm font-semibold">{fanData?.workMode || '--'}</div>
+              <div className="text-sm font-semibold">{getTranslatedWorkMode(fanData?.workMode, t)}</div>
             </div>
 
             <div className="glacier-stat-tile rounded-xl border border-border bg-background/55 p-3">
               <div className="mb-1 flex items-center gap-1.5 text-xs text-muted-foreground">
                 <ShieldCheck className="h-3.5 w-3.5" />
-                温度状态
+                {t('deviceStatus.stats.tempStatus')}
               </div>
               <div className={clsx('text-sm font-semibold tabular-nums', maxTempStatus.color)}>
-                {maxTempStatus.label}
+                {t(maxTempStatus.labelKey)}
               </div>
             </div>
           </div>

@@ -22,16 +22,17 @@ import {
 import { BrowserOpenURL, Environment, Quit, WindowIsMaximised, WindowMinimise, WindowToggleMaximise } from '../../../wailsjs/runtime/runtime';
 import { types } from '../../../wailsjs/go/models';
 import clsx from 'clsx';
+import { useTranslation } from 'react-i18next';
 import { BRAND } from '../lib/brand';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 const MAIN_TAB_ITEMS = [
-  { id: 'status', title: '状态', icon: LayoutGrid },
-  { id: 'curve', title: '曲线', icon: LineChart },
-  { id: 'control', title: '设置', icon: Settings2 },
+  { id: 'status', titleKey: 'appShell.tabs.status', icon: LayoutGrid },
+  { id: 'curve', titleKey: 'appShell.tabs.curve', icon: LineChart },
+  { id: 'control', titleKey: 'appShell.tabs.control', icon: Settings2 },
 ] as const;
 
-const ABOUT_TAB = { id: 'about', title: '关于', icon: Info } as const;
+const ABOUT_TAB = { id: 'about', titleKey: 'appShell.tabs.about', icon: Info } as const;
 const WINDOWS_TITLEBAR_HEIGHT = 40;
 const WINDOWS_SCROLLBAR_TOP_OFFSET = WINDOWS_TITLEBAR_HEIGHT + 8;
 
@@ -193,6 +194,7 @@ function StatusBadges({
   autoControl: boolean;
   compact?: boolean;
 }) {
+  const { t } = useTranslation();
   const fanSpinDuration = getFanSpinDuration(fanData?.currentRpm);
   const baseClass = compact
     ? 'inline-flex h-6 items-center gap-1.5 rounded-full border px-2.5 text-[11px] font-medium'
@@ -215,7 +217,7 @@ function StatusBadges({
         )}
       >
         {isConnected ? <BluetoothConnected className="h-3.5 w-3.5" /> : <BluetoothOff className="h-3.5 w-3.5" />}
-        {isConnected ? '已连接' : '离线'}
+        {isConnected ? t('appShell.status.connected') : t('appShell.status.offline')}
       </span>
 
       <span
@@ -225,7 +227,7 @@ function StatusBadges({
         )}
       >
         <Sparkles className="h-3.5 w-3.5" />
-        {autoControl ? '智能变频' : '手动模式'}
+        {autoControl ? t('appShell.status.smartControl') : t('appShell.status.manualMode')}
       </span>
 
       {isConnected && (
@@ -430,6 +432,7 @@ export default function AppShell({
   controlContent,
   aboutContent,
 }: AppShellProps) {
+  const { t } = useTranslation();
   const [isWindowsChrome, setIsWindowsChrome] = useState(false);
   const [isMaximised, setIsMaximised] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -530,10 +533,10 @@ export default function AppShell({
     <div className="glacier-shell relative flex h-dvh w-full overflow-hidden bg-background text-foreground">
       {isWindowsChrome && (
         <TitleBar
-          minimizeLabel="最小化"
-          maximizeLabel="最大化"
-          restoreLabel="还原"
-          closeLabel="关闭"
+          minimizeLabel={t('appShell.titleBar.minimize')}
+          maximizeLabel={t('appShell.titleBar.maximize')}
+          restoreLabel={t('appShell.titleBar.restore')}
+          closeLabel={t('appShell.titleBar.close')}
           isMaximised={isMaximised}
           leftSlot={<StatusBadges isConnected={isConnected} fanData={fanData} temperature={temperature} autoControl={autoControl} compact />}
           onMinimise={() => WindowMinimise()}
@@ -547,7 +550,7 @@ export default function AppShell({
           <Tooltip>
             <TooltipTrigger asChild>
               <div
-                aria-label={`打开 ${BRAND.name} GitHub 仓库`}
+                aria-label={t('appShell.repository.openAria', { name: BRAND.name })}
                 role="link"
                 tabIndex={0}
                 onClick={handleOpenRepository}
@@ -569,7 +572,7 @@ export default function AppShell({
                 />
               </div>
             </TooltipTrigger>
-            <TooltipContent side="right">打开 GitHub 仓库</TooltipContent>
+            <TooltipContent side="right">{t('appShell.repository.openTooltip')}</TooltipContent>
           </Tooltip>
         </div>
 
@@ -577,12 +580,13 @@ export default function AppShell({
           {MAIN_TAB_ITEMS.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
+            const tabTitle = t(tab.titleKey);
             return (
               <Tooltip key={tab.id}>
                 <TooltipTrigger asChild>
                   <button
                     role="tab"
-                    aria-label={tab.title}
+                    aria-label={tabTitle}
                     aria-selected={isActive}
                     onClick={() => handleTabChange(tab.id)}
                     className={clsx(
@@ -600,7 +604,7 @@ export default function AppShell({
                     <Icon className="relative z-10 h-4.5 w-4.5" />
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="right">{tab.title}</TooltipContent>
+                <TooltipContent side="right">{tabTitle}</TooltipContent>
               </Tooltip>
             );
           })}
@@ -611,7 +615,7 @@ export default function AppShell({
             <TooltipTrigger asChild>
               <button
                 type="button"
-                aria-label={ABOUT_TAB.title}
+                aria-label={t(ABOUT_TAB.titleKey)}
                 aria-selected={activeTab === ABOUT_TAB.id}
                 onClick={() => handleTabChange(ABOUT_TAB.id)}
                 className={clsx(
@@ -627,7 +631,7 @@ export default function AppShell({
                 <ABOUT_TAB.icon className="relative z-10 h-4.5 w-4.5" />
               </button>
             </TooltipTrigger>
-            <TooltipContent side="right">{ABOUT_TAB.title}</TooltipContent>
+            <TooltipContent side="right">{t(ABOUT_TAB.titleKey)}</TooltipContent>
           </Tooltip>
         </div>
       </aside>
@@ -680,7 +684,7 @@ export default function AppShell({
                     <p className="flex-1 text-sm leading-relaxed">{bridgeWarning}</p>
                     <button
                       type="button"
-                      aria-label="关闭告警"
+                      aria-label={t('appShell.bridgeWarning.closeAria')}
                       onClick={onDismissBridgeWarning}
                       className="cursor-pointer rounded p-0.5 transition hover:bg-amber-200/60 dark:hover:bg-amber-800/40"
                     >

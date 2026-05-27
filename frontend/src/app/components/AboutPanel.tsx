@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from 'react-dom';
 import { BrowserOpenURL } from '../../../wailsjs/runtime/runtime';
 import { Heart, Mail, MessageCircleMore, RefreshCw, Rocket, Sparkles } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { BRAND } from '../lib/brand';
 import { apiService } from '../services/api';
 import { Badge, Button, ScrollArea } from './ui/index';
@@ -32,35 +33,10 @@ function isLatestVersion(currentVersion: string, latestVersion: string) {
   return true;
 }
 
-const SUPPORT_METHODS = [
-  {
-    label: '支付宝',
-    image: '/support/alipay.jpg',
-  },
-  {
-    label: '微信',
-    image: '/support/wechat.png',
-  },
-] as const;
-
-const FAQ_ITEMS = [
-  {
-    question: '为什么 CPU 温度会显示为 0℃？',
-    answer: '当 CPU 温度显示为 0℃ 时，通常表示 PawnIO 通讯未能正常建立。建议重新安装 PawnIO 相关组件，并在安装完成后重启计算机，再重新启动 THRM 进行确认。',
-  },
-  {
-    question: '当前支持哪些设备？',
-    answer: '目前支持的设备型号包括飞智 BS1、BS2、BS2PRO、BS3 与 BS3PRO。',
-  },
-  {
-    question: '蓝牙扫描不到设备时应如何处理？',
-    answer: '若蓝牙扫描列表中未发现设备，建议长按散热器按键以重置蓝牙广播状态；如仍无法恢复，建议联系官方客服进一步协助处理。',
-  },
-] as const;
-
 const ABOUT_CARD_CLASS = 'min-w-0 rounded-3xl border border-border/70 bg-card p-5';
 
 export default function AboutPanel() {
+  const { t } = useTranslation();
   const [appVersion, setAppVersion] = useState('');
   const [latestReleaseTag, setLatestReleaseTag] = useState('');
   const [latestReleaseUrl, setLatestReleaseUrl] = useState(BRAND.latestReleaseUrl);
@@ -73,6 +49,25 @@ export default function AboutPanel() {
   const sponsorRef = useRef<HTMLDivElement | null>(null);
   const sponsorPopupRef = useRef<HTMLDivElement | null>(null);
   const sponsorHoverTimerRef = useRef<number | null>(null);
+
+  const supportMethods = useMemo(
+    () => [
+      {
+        label: t('aboutPanel.sponsor.methods.alipay'),
+        image: '/support/alipay.jpg',
+      },
+      {
+        label: t('aboutPanel.sponsor.methods.wechat'),
+        image: '/support/wechat.png',
+      },
+    ],
+    [t],
+  );
+
+  const faqItems = useMemo(
+    () => t('aboutPanel.faq.items', { returnObjects: true }) as Array<{ question: string; answer: string }>,
+    [t],
+  );
 
   const checkLatestRelease = useCallback(async () => {
     setReleaseLoading(true);
@@ -92,11 +87,11 @@ export default function AboutPanel() {
       setLatestReleaseTag('');
       setLatestReleaseUrl(BRAND.latestReleaseUrl);
       setLatestReleaseBody('');
-      setReleaseError('检查更新失败，请稍后重试');
+      setReleaseError(t('aboutPanel.version.checkFailed'));
     } finally {
       setReleaseLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     let disposed = false;
@@ -241,23 +236,23 @@ export default function AboutPanel() {
       <section className="rounded-[28px] border border-border bg-card">
         <div className="flex items-center gap-2 border-b border-border/60 px-5 py-4">
           <Rocket className="h-4 w-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold text-foreground">关于 THRM</h3>
+          <h3 className="text-sm font-semibold text-foreground">{t('aboutPanel.title', { name: BRAND.name })}</h3>
         </div>
 
         <div className="grid gap-4 p-5 lg:grid-cols-[minmax(0,1fr)_300px]">
           <div className={`${ABOUT_CARD_CLASS} flex h-full flex-col`}>
             <div className="flex flex-1 flex-col justify-between gap-5">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-                <img src="/brand/appicon.png" alt={`${BRAND.name} 标志`} className="h-20 w-20 shrink-0 object-contain" draggable={false} />
+                <img src="/brand/appicon.png" alt={t('aboutPanel.images.logoAlt', { name: BRAND.name })} className="h-20 w-20 shrink-0 object-contain" draggable={false} />
 
                 <div className="min-w-0 flex-1">
                   <div>
-                    <img src="/brand/wordmark-light.png" alt={`${BRAND.name} 字标`} className="h-auto w-[220px] object-contain dark:hidden" draggable={false} />
-                    <img src="/brand/wordmark-dark.png" alt={`${BRAND.name} 字标`} className="hidden h-auto w-[220px] object-contain dark:block" draggable={false} />
+                    <img src="/brand/wordmark-light.png" alt={t('aboutPanel.images.wordmarkAlt', { name: BRAND.name })} className="h-auto w-[220px] object-contain dark:hidden" draggable={false} />
+                    <img src="/brand/wordmark-dark.png" alt={t('aboutPanel.images.wordmarkAlt', { name: BRAND.name })} className="hidden h-auto w-[220px] object-contain dark:block" draggable={false} />
                   </div>
 
                   <p className="mt-4 max-w-[36rem] text-sm leading-relaxed text-muted-foreground">
-                    {`${BRAND.name} 是一款${BRAND.description}。`}
+                    {t('aboutPanel.description', { name: BRAND.name })}
                   </p>
                 </div>
               </div>
@@ -265,12 +260,12 @@ export default function AboutPanel() {
               <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
                 <div className="flex flex-wrap gap-2">
                   <span className="inline-flex items-center rounded-full border border-border/70 bg-background px-3 py-1 text-xs text-muted-foreground">
-                    {`当前 ${appVersion ? `v${appVersion}` : '--'}`}
+                    {t('aboutPanel.version.current', { version: appVersion ? `v${appVersion}` : '--' })}
                   </span>
                   <span className="inline-flex items-center rounded-full border border-border/70 bg-background px-3 py-1 text-xs text-muted-foreground">
-                    {`最新 ${releaseLoading ? '检查中…' : latestReleaseTag || '--'}`}
+                    {t('aboutPanel.version.latest', { version: releaseLoading ? t('aboutPanel.version.checkingShort') : latestReleaseTag || '--' })}
                   </span>
-                  {hasNewVersion && <Badge variant="warning">可更新</Badge>}
+                  {hasNewVersion && <Badge variant="warning">{t('aboutPanel.version.updatable')}</Badge>}
                 </div>
 
                 <div className="mt-4 flex flex-wrap gap-2">
@@ -283,7 +278,7 @@ export default function AboutPanel() {
                     }}
                     icon={<RefreshCw className="h-3.5 w-3.5" />}
                   >
-                    {releaseLoading ? '检查中' : '检查更新'}
+                    {releaseLoading ? t('aboutPanel.version.checkingButton') : t('aboutPanel.version.checkUpdate')}
                   </Button>
                   <Button
                     variant="outline"
@@ -291,7 +286,7 @@ export default function AboutPanel() {
                     onClick={() => openUrl(latestReleaseUrl || BRAND.latestReleaseUrl)}
                     icon={<Rocket className="h-3.5 w-3.5" />}
                   >
-                    打开发布页
+                    {t('aboutPanel.version.openReleasePage')}
                   </Button>
                   <div
                     ref={sponsorRef}
@@ -311,7 +306,7 @@ export default function AboutPanel() {
                         setIsSponsorPinned((value) => !value);
                       }}
                     >
-                      赞助
+                      {t('aboutPanel.sponsor.button')}
                     </Button>
                   </div>
                 </div>
@@ -324,7 +319,7 @@ export default function AboutPanel() {
               <div className="mt-5 border-t border-border/60 pt-5">
                 <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                   <Sparkles className="h-4 w-4 text-primary" />
-                  <span>{`发现新版本 ${latestReleaseTag}`}</span>
+                  <span>{t('aboutPanel.version.newVersionFound', { version: latestReleaseTag })}</span>
                 </div>
 
                 <div className="mt-3 rounded-2xl border border-border/70 bg-background/70 p-3">
@@ -333,7 +328,7 @@ export default function AboutPanel() {
                       <p className="whitespace-pre-wrap text-xs leading-relaxed text-foreground/90">{latestReleaseBody}</p>
                     </ScrollArea>
                   ) : (
-                    <p className="text-xs text-muted-foreground">暂无日志内容，或本次获取失败。</p>
+                    <p className="text-xs text-muted-foreground">{t('aboutPanel.version.emptyReleaseNotes')}</p>
                   )}
                 </div>
               </div>
@@ -343,19 +338,19 @@ export default function AboutPanel() {
           <div className={ABOUT_CARD_CLASS}>
             <div className="flex items-center gap-2 text-sm font-medium text-foreground">
               <Rocket className="h-4 w-4 text-primary" />
-              <span>开发者与联系</span>
+              <span>{t('aboutPanel.contact.title')}</span>
             </div>
 
             <div className="mt-4 flex items-center gap-3 rounded-2xl border border-border/70 bg-background/70 p-3">
               <img
                 src="https://q1.qlogo.cn/g?b=qq&nk=507249007&s=640"
-                alt="Tianli 头像"
+                alt={t('aboutPanel.images.avatarAlt')}
                 className="h-14 w-14 rounded-2xl border border-border object-cover"
                 referrerPolicy="no-referrer"
               />
               <div className="min-w-0 flex-1">
                 <div className="text-base font-semibold text-foreground">Tianli</div>
-                <div className="mt-1 text-sm text-muted-foreground">一个不知名开发者</div>
+                <div className="mt-1 text-sm text-muted-foreground">{t('aboutPanel.contact.tagline')}</div>
               </div>
             </div>
 
@@ -367,7 +362,7 @@ export default function AboutPanel() {
               >
                 <span className="flex items-center gap-2 text-sm text-foreground">
                   <Mail className="h-4 w-4 text-muted-foreground" />
-                  邮箱
+                  {t('aboutPanel.contact.email')}
                 </span>
                 <span className="text-xs text-muted-foreground">wutianli@tianli0.top</span>
               </button>
@@ -379,9 +374,9 @@ export default function AboutPanel() {
               >
                 <span className="flex items-center gap-2 text-sm text-foreground">
                   <MessageCircleMore className="h-4 w-4 text-muted-foreground" />
-                  反馈群
+                  {t('aboutPanel.contact.feedbackGroup')}
                 </span>
-                <span className="text-xs text-muted-foreground">QQ 群入口</span>
+                <span className="text-xs text-muted-foreground">{t('aboutPanel.contact.feedbackGroupEntry')}</span>
               </button>
 
               <button
@@ -391,9 +386,9 @@ export default function AboutPanel() {
               >
                 <span className="flex items-center gap-2 text-sm text-foreground">
                   <Rocket className="h-4 w-4 text-muted-foreground" />
-                  开源仓库
+                  {t('aboutPanel.contact.repository')}
                 </span>
-                <span className="text-xs text-muted-foreground">GitHub</span>
+                <span className="text-xs text-muted-foreground">{t('aboutPanel.contact.repositoryPlatform')}</span>
               </button>
             </div>
           </div>
@@ -401,11 +396,11 @@ export default function AboutPanel() {
           <div className={`${ABOUT_CARD_CLASS} lg:col-span-2`}>
             <div className="flex items-center gap-2 text-sm font-medium text-foreground">
               <Sparkles className="h-4 w-4 text-primary" />
-              <span>常见问题解答</span>
+              <span>{t('aboutPanel.faq.title')}</span>
             </div>
 
             <div className="mt-4 divide-y divide-border/60 rounded-2xl border border-border/70 bg-background/70">
-              {FAQ_ITEMS.map((item) => (
+              {faqItems.map((item) => (
                 <div key={item.question} className="px-4 py-3">
                   <div className="text-sm font-medium text-foreground">{item.question}</div>
                   <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{item.answer}</p>
@@ -425,16 +420,16 @@ export default function AboutPanel() {
           style={sponsorPopupStyle ? { top: sponsorPopupStyle.top, left: sponsorPopupStyle.left } : { top: 0, left: 0, visibility: 'hidden' }}
         >
           <div className="mb-3 flex items-center justify-between px-1">
-            <div className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">赞助支持</div>
-            {isSponsorPinned && <Badge variant="info">已固定</Badge>}
+            <div className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">{t('aboutPanel.sponsor.title')}</div>
+            {isSponsorPinned && <Badge variant="info">{t('aboutPanel.sponsor.pinned')}</Badge>}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            {SUPPORT_METHODS.map((item) => (
+            {supportMethods.map((item) => (
               <div key={item.label} className="rounded-2xl border border-border/70 bg-background/80 p-3">
                 <img
                   src={item.image}
-                  alt={`${item.label} 二维码`}
+                  alt={t('aboutPanel.images.supportQrAlt', { label: item.label })}
                   className="aspect-square w-full rounded-xl object-contain"
                   draggable={false}
                 />

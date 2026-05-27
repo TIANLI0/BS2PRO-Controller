@@ -1,0 +1,650 @@
+{
+  "common": {
+    "appName": "THRM",
+    "metaDescription": "FlyDigi ノート PC クーラーシリーズ向けのサードパーティ製ドライバー兼制御ツールです。",
+    "language": "言語",
+    "languages": {
+      "zh-CN": "簡体字中国語",
+      "en-US": "英語",
+      "ja-JP": "日本語"
+    },
+    "actions": {
+      "apply": "適用",
+      "cancel": "キャンセル",
+      "close": "閉じる",
+      "copy": "コピー",
+      "delete": "削除",
+      "export": "エクスポート",
+      "import": "インポート",
+      "refresh": "更新",
+      "retry": "再試行",
+      "save": "保存"
+    }
+  },
+  "ui": {
+    "select": {
+      "placeholder": "選択してください"
+    },
+    "toggle": {
+      "defaultAriaLabel": "切り替え"
+    }
+  },
+  "fatalError": {
+    "title": "アプリの初期化に失敗しました",
+    "retry": "再試行"
+  },
+  "appShell": {
+    "tabs": {
+      "status": "状態",
+      "curve": "カーブ",
+      "control": "設定",
+      "about": "概要"
+    },
+    "status": {
+      "connected": "接続済み",
+      "offline": "オフライン",
+      "smartControl": "スマート制御",
+      "manualMode": "手動モード"
+    },
+    "titleBar": {
+      "minimize": "最小化",
+      "maximize": "最大化",
+      "restore": "元に戻す",
+      "close": "閉じる"
+    },
+    "repository": {
+      "openAria": "{{name}} の GitHub リポジトリを開く",
+      "openTooltip": "GitHub リポジトリを開く"
+    },
+    "bridgeWarning": {
+      "closeAria": "警告を閉じる"
+    }
+  },
+  "store": {
+    "bridgeWarning": {
+      "default": "CPU/GPU 温度の取得に失敗しました。温度監視を再初期化してください。CPU 温度が空のままの場合は、PawnIO をインストールまたは更新するか、他のハードウェア監視ツールを終了してください。"
+    },
+    "errors": {
+      "initializeApp": "アプリの初期化に失敗しました",
+      "connectDevice": "デバイスの接続に失敗しました",
+      "saveConfig": "設定の保存に失敗しました"
+    },
+    "hotkey": {
+      "successTitle": "機能が更新されました",
+      "failureTitle": "操作に失敗しました"
+    },
+    "legionFnQ": {
+      "modeChangedTitle": "Legion パフォーマンスモードが変更されました",
+      "modeDescription": "現在のモード: {{mode}}"
+    },
+    "legionModes": {
+      "Quiet": "静音",
+      "Balance": "バランス",
+      "Performance": "パフォーマンス",
+      "Extreme": "エクストリーム",
+      "GodMode": "カスタム"
+    }
+  },
+  "deviceStatus": {
+    "tempStatus": {
+      "overheat": "高温",
+      "high": "やや高い",
+      "normal": "正常",
+      "good": "良好"
+    },
+    "tempGauge": {
+      "loading": "読み込み中…"
+    },
+    "fan": {
+      "targetSummary": "目標 {{target}} · {{gear}}"
+    },
+    "chart": {
+      "fanCurve": "ファン回転カーブ",
+      "openCurve": "カーブページ"
+    },
+    "history": {
+      "title": "温度とファン履歴",
+      "details": "詳細",
+      "waiting": "温度データを待機中",
+      "disabled": "バックグラウンド記録はオフです。現在はこのセッションの一時履歴のみ表示しています。",
+      "singleSampleCore": "バックグラウンドサンプルを 1 件記録しました。さらにデータを待っています。",
+      "singleSampleSession": "セッションサンプルを 1 件記録しました。さらにデータを待っています。",
+      "source": {
+        "core": "バックグラウンド記録",
+        "session": "この起動"
+      }
+    },
+    "device": {
+      "unknown": "不明なデバイス",
+      "imageAlt": "{{model}} のデバイス画像"
+    },
+    "connectStatus": {
+      "connected": "接続済み",
+      "offline": "オフライン"
+    },
+    "mode": {
+      "smartControl": "スマート制御",
+      "fixedSpeed": "固定回転数",
+      "manualStrategy": "手動モード",
+      "smartDescription": "リアルタイム温度に応じてファン回転数を自動調整します",
+      "fixedDescription": "現在は {{rpm}} RPM に固定されています",
+      "manualDescription": "設定ページでモードとパラメータを調整できます",
+      "withProfile": "{{mode}}（{{profile}}）"
+    },
+    "bridgeState": {
+      "runningOwned": "専有実行中",
+      "attached": "共有インスタンスに接続済み",
+      "starting": "起動中",
+      "degraded": "縮退動作",
+      "failed": "失敗",
+      "stopping": "停止中",
+      "stopped": "停止済み",
+      "notStarted": "未起動"
+    },
+    "maxRpmHint": {
+      "bs1": "BS1 はオーバークロックモードで最大 3000 RPM まで到達できます。",
+      "max4000": "オーバークロック上限が解放されています。最高回転数は 4000 RPM です。",
+      "max3300": "現在の上限は強力モードの 3300 RPM です。PD 27W 充電器を使うと上限を解放できます。",
+      "max2760": "現在の上限は標準モードの 2760 RPM です。PD 27W 充電器を使うと上限を解放できます。",
+      "unknownCode": "デバイスから未対応の最大ギアコードが報告されました: {{code}}",
+      "waiting": "デバイスから最大 RPM 能力の報告を待っています。"
+    },
+    "hero": {
+      "modeLine": "{{mode}} · {{description}}",
+      "waitingBluetooth": "Bluetooth 接続を待っています…"
+    },
+    "actions": {
+      "smartControl": "スマート制御",
+      "disconnect": "切断",
+      "connect": "接続",
+      "connectDevice": "デバイスを接続"
+    },
+    "metrics": {
+      "cpuTemperature": "CPU 温度",
+      "gpuTemperature": "GPU 温度",
+      "fanRpm": "ファン回転数"
+    },
+    "disconnected": {
+      "title": "デバイスが接続されていません",
+      "description": "クーラーを Bluetooth でコンピューターに接続してください"
+    },
+    "bridgeWarning": {
+      "default": "温度ブリッジがデータを取得できませんでした。温度監視を再初期化してから再試行してください。",
+      "stateLine": "ブリッジ状態: {{state}}",
+      "ownsProcess": "このインスタンスがプロセスを所有しています",
+      "sharedProcess": "このインスタンスは共有プロセスを再利用しています",
+      "pipeLine": "名前付きパイプ: {{pipe}}",
+      "diagnosticsLine": "診断情報: {{message}}",
+      "reinitialize": "温度監視を再初期化"
+    },
+    "controlProtection": "制御と保護",
+    "stats": {
+      "controlMode": "制御モード",
+      "maxRpm": "最大回転数",
+      "maxRpmHintAria": "最大回転数の詳細",
+      "workMode": "動作モード",
+      "tempStatus": "温度状態"
+    }
+  },
+  "manualGear": {
+    "gears": {
+      "quiet": "静音",
+      "standard": "標準",
+      "strong": "強力",
+      "overclock": "オーバークロック"
+    },
+    "levels": {
+      "low": "低",
+      "medium": "中",
+      "high": "高"
+    }
+  },
+  "fanCurveProfileSelect": {
+    "placeholder": "カーブプロファイルを選択",
+    "empty": "カーブプロファイルがありません"
+  },
+  "aboutPanel": {
+    "title": "{{name}} について",
+    "description": "{{name}} は FlyDigi ノート PC 向け圧送クーラーシリーズ用のサードパーティ製ドライバー兼制御ツールです。",
+    "images": {
+      "logoAlt": "{{name}} のロゴ",
+      "wordmarkAlt": "{{name}} のワードマーク",
+      "avatarAlt": "Tianli のアバター",
+      "supportQrAlt": "{{label}} の QR コード"
+    },
+    "version": {
+      "current": "現在 {{version}}",
+      "latest": "最新 {{version}}",
+      "checkingShort": "確認中…",
+      "checkingButton": "確認中",
+      "checkUpdate": "更新を確認",
+      "openReleasePage": "リリースページを開く",
+      "updatable": "更新あり",
+      "checkFailed": "更新の確認に失敗しました。しばらくしてから再試行してください。",
+      "newVersionFound": "新しいバージョン {{version}} が見つかりました",
+      "emptyReleaseNotes": "リリースノートがないか、今回の取得に失敗しました。"
+    },
+    "contact": {
+      "title": "開発者と連絡先",
+      "tagline": "無名の開発者",
+      "email": "メール",
+      "feedbackGroup": "フィードバックグループ",
+      "feedbackGroupEntry": "QQ グループ入口",
+      "repository": "オープンソースリポジトリ",
+      "repositoryPlatform": "GitHub"
+    },
+    "faq": {
+      "title": "よくある質問",
+      "items": [
+        {
+          "question": "CPU 温度が 0℃ と表示されるのはなぜですか？",
+          "answer": "CPU 温度が 0℃ と表示される場合、通常は PawnIO 通信が正しく確立されていないことを意味します。PawnIO 関連コンポーネントを再インストールし、インストール後に PC を再起動してから THRM を起動して確認してください。"
+        },
+        {
+          "question": "現在対応しているデバイスは何ですか？",
+          "answer": "現在対応しているモデルは FlyDigi BS1、BS2、BS2PRO、BS3、BS3PRO です。"
+        },
+        {
+          "question": "Bluetooth スキャンでデバイスが見つからない場合はどうすればよいですか？",
+          "answer": "Bluetooth スキャン一覧にデバイスが表示されない場合は、クーラーのボタンを長押しして Bluetooth 広播状態をリセットしてください。それでも改善しない場合は、公式サポートにお問い合わせください。"
+        }
+      ]
+    },
+    "sponsor": {
+      "button": "支援",
+      "title": "プロジェクトを支援",
+      "pinned": "固定済み",
+      "methods": {
+        "alipay": "Alipay",
+        "wechat": "WeChat"
+      }
+    }
+  },
+  "fanCurve": {
+    "title": "ファンカーブ",
+    "badges": {
+      "unsaved": "未保存",
+      "editing": "編集中"
+    },
+    "actions": {
+      "smartControl": "スマート制御",
+      "reset": "リセット"
+    },
+    "chart": {
+      "currentTemperature": "現在 {{temperature}}°C",
+      "tooltipDescriptionAria": "{{label}} の説明",
+      "axes": {
+        "temperature": "温度 (°C)",
+        "rpm": "回転数 (RPM)"
+      },
+      "series": {
+        "base": "基本カーブ",
+        "learned": "学習カーブ"
+      },
+      "temperatureLabel": "温度: {{temperature}}°C"
+    },
+    "manualGear": {
+      "title": "手動ギア",
+      "bs1SliderHint": "4 制御ポイント",
+      "defaultSliderHint": "12 制御ポイント",
+      "pointTooltip": "{{gear}} {{level}} · {{rpm}} RPM",
+      "pointIndex": "{{index}}段"
+    },
+    "learning": {
+      "title": "適応学習",
+      "paused": "一時停止中",
+      "description": "長時間の動作後、各温度ポイントの目標 RPM を自動で微調整し、実際の温度を設定したカーブに近づけます。学習したオフセットはいつでもリセットできます。",
+      "toggleAria": "適応学習を切り替える",
+      "biasTitle": "学習傾向",
+      "offsetTitle": "学習オフセット",
+      "offsetDescription": "現在の学習カーブが基本カーブに対して持つ主な RPM 補正です。",
+      "reset": "学習をリセット",
+      "noOffsets": "学習オフセットはまだありません",
+      "biasOptions": {
+        "balanced": {
+          "label": "バランス",
+          "description": "基本カーブの上下方向に学習調整を許可します。"
+        },
+        "cooling": {
+          "label": "冷却優先",
+          "description": "RPM の増加のみを許可し、待機時温度が高く学習されるのを防ぎます。"
+        },
+        "quiet": {
+          "label": "静音優先",
+          "description": "RPM の低下のみを許可し、不要なファン加速を防ぎます。"
+        }
+      }
+    },
+    "hints": {
+      "dragPoint": "青いポイントをドラッグして RPM を調整",
+      "curveLegend": "実線: 基本 · 破線: 学習"
+    },
+    "history": {
+      "detailsTitle": "温度とファン履歴の詳細",
+      "detailsDescription": "カーブページでは直近 1 時間の履歴概要を保持し、現在のカーブと温度推移を比較できます。",
+      "saving": "保存中",
+      "backgroundRecording": "バックグラウンド記録",
+      "emptyEnabled": "バックグラウンド記録は有効です。さらに温度とファンのサンプルを待っています。",
+      "emptyDisabled": "バックグラウンド記録は現在オフです。このページで有効にできます。",
+      "recentTrend": "最近の推移",
+      "waitingMoreSamples": "サンプルを 1 件記録しました。推移グラフを表示するにはさらにデータが必要です。",
+      "series": {
+        "cpu": "CPU",
+        "gpu": "GPU",
+        "fan": "ファン RPM"
+      },
+      "duration": {
+        "ltOneMinute": "< 1 分",
+        "minutes": "{{count}} 分",
+        "hoursAndMinutes": "{{hours}} 時間 {{minutes}} 分",
+        "hours": "{{hours}} 時間"
+      },
+      "summary": {
+        "cpuPeak": "CPU 最大値",
+        "gpuPeak": "GPU 最大値",
+        "fanPeak": "ファン最大値",
+        "averageTemperature": "平均 {{value}}°C",
+        "averageFan": "平均 {{value}} RPM",
+        "noCpuTemperature": "CPU 温度データなし",
+        "noGpuTemperature": "GPU 温度データなし",
+        "noFanData": "ファンデータなし"
+      }
+    },
+    "profiles": {
+      "title": "カーブプロファイル",
+      "currentCurveName": "現在のカーブ",
+      "newCurveName": "新しいカーブ",
+      "namePlaceholder": "現在のプロファイル名（最大 6 文字）",
+      "saveName": "名前を保存",
+      "saveAsNew": "新規プロファイルとして保存",
+      "deleteCurrent": "現在のプロファイルを削除"
+    },
+    "importExport": {
+      "title": "カーブプロファイルのインポート / エクスポート",
+      "description": "短い文字列をコピーして貼り付けできます",
+      "exportTitle": "エクスポート",
+      "generate": "生成",
+      "exportPlaceholder": "生成を押すとエクスポート文字列が表示されます",
+      "importTitle": "インポート",
+      "importPlaceholder": "B2C1. で始まる文字列を貼り付けてください"
+    },
+    "warning": {
+      "title": "注意",
+      "body": "1000 RPM 未満は FlyDigi の公式最小設計基準を下回ります。これによって発生する問題はすべてユーザーの責任となります。",
+      "confirm": "理解しました"
+    },
+    "toast": {
+      "saveCurveFailed": "カーブの保存に失敗しました: {{error}}",
+      "profileSwitched": "温度カーブを切り替えました",
+      "switchFailed": "切り替えに失敗しました: {{error}}",
+      "profileRenamed": "プロファイル名を更新しました",
+      "renameFailed": "名前の更新に失敗しました: {{error}}",
+      "profileSavedAsNew": "新しいプロファイルとして保存しました",
+      "saveAsFailed": "別名保存に失敗しました: {{error}}",
+      "profileDeleted": "カーブプロファイルを削除しました",
+      "deleteFailed": "削除に失敗しました: {{error}}",
+      "exportCopied": "エクスポート文字列をコピーしました",
+      "exportGenerated": "エクスポート文字列を生成しました",
+      "exportCopiedAgain": "エクスポート文字列をコピーしました",
+      "exportFailed": "エクスポートに失敗しました: {{error}}",
+      "importMissingCode": "まずインポート文字列を貼り付けてください",
+      "importSucceeded": "カーブプロファイルを正常にインポートしました",
+      "importFailed": "インポートに失敗しました: {{error}}",
+      "saveLearningFailed": "学習設定の保存に失敗しました",
+      "learningReset": "学習オフセットをリセットしました",
+      "learningResetDescription": "ファンカーブは設定した値に正確に従います",
+      "resetFailed": "リセットに失敗しました"
+    }
+  },
+  "controlPanel": {
+    "overview": {
+      "title": "リアルタイム概要",
+      "currentTemperature": "現在温度",
+      "currentRpm": "現在の回転数",
+      "currentGear": "現在のギア",
+      "targetRpm": "目標回転数",
+      "cpuGpuTemperature": "CPU {{cpu}}°C · GPU {{gpu}}°C",
+      "gearValue": "ギア {{gear}}",
+      "workModes": {
+        "manual": "ギア動作モード",
+        "auto": "自動モード (実回転数)"
+      }
+    },
+    "light": {
+      "sectionTitle": "ライティング",
+      "effectMode": "効果モード",
+      "animationSpeed": "アニメーション速度",
+      "brightness": "明るさ",
+      "smartTempWarning": "スマート温度モードではデバイスがライティングを自動制御するため、色や明るさを手動調整できません。",
+      "colorLabel": "カラー {{index}}",
+      "applyHintConnected": "適用後すぐに反映されます",
+      "applyHintDisconnected": "次回接続時に自動適用されます"
+    },
+    "fan": {
+      "sectionTitle": "ファン制御",
+      "autoControlTitle": "自動温度制御",
+      "autoControlDescription": "温度カーブに基づいてファン回転数を自動調整します",
+      "sampleSmoothingTitle": "温度平滑化",
+      "sampleSmoothingDescription": "EMA 加重: 値が大きいほど滑らかで安定し、値が小さいほど反応は速くなります。迷ったら既定値のままにしてください。",
+      "temperatureBaselineTitle": "温度基準",
+      "temperatureBaselineDescription": "制御に使う温度ソース、GPU デバイス、センサーを選択します。複数 GPU のノートではここで dGPU を固定できます。",
+      "cpuBaseline": "CPU 基準",
+      "processorDevice": "プロセッサーデバイス",
+      "processorDeviceHintDetected": "認識されたプロセッサーは TempBridge に合わせて自動更新されます。",
+      "processorDeviceHintWaiting": "CPU モデルはまだ認識されていません。TempBridge が利用可能になると自動表示されます。",
+      "waitingRecognition": "認識待ち...",
+      "temperatureSensor": "温度センサー",
+      "currentBaselineTemperature": "現在の基準温度 {{temperature}}°C",
+      "noCpuTemperatureData": "現在利用可能な CPU 温度データはありません",
+      "gpuBaseline": "GPU 基準",
+      "gpuDevice": "GPU デバイス",
+      "gpuDeviceHintDetected": "自動モードで現在選択中: {{model}}",
+      "gpuDeviceHintAuto": "自動モードでは可能な限り dGPU を優先します。",
+      "gpuDeviceHintLocked": "選択した GPU デバイスに固定されています。",
+      "noGpuTemperatureData": "現在利用可能な GPU 温度データはありません",
+      "currentControlSource": "現在のファン制御は {{source}} 基準を使用し、制御温度は {{temperature}}°C です。",
+      "noControlTemperature": "有効な制御基準温度はまだ取得されていません。",
+      "transientSpikeFilterTitle": "温度スパイクフィルター",
+      "transientSpikeFilterDescription": "単発の異常温度上昇を無視し、孤立したスパイクがスマート制御のサンプリングや応答を乱さないようにします。",
+      "transientSpikeFilterAria": "温度スパイクフィルターを切り替える",
+      "learningTitle": "適応学習",
+      "learningDescription": "長時間の動作後、各温度ポイントの目標 RPM を自動で微調整し、実際の温度を設定したカーブに近づけます。学習したオフセットはいつでもリセットできます。",
+      "learningAria": "適応学習を切り替える",
+      "temperatureHistoryTitle": "温度履歴",
+      "temperatureHistoryDescription": "有効にすると、コアサービスが直近 1 時間の CPU/GPU 温度カーブを保持します。無効時は GUI が開いている間だけ一時カーブを描画します。",
+      "temperatureHistoryAria": "コア温度履歴を切り替える",
+      "curveProfileTitle": "カーブプロファイル",
+      "curveProfileDescription": "ページを切り替えずに設定画面から直接ファン制御カーブを変更できます。",
+      "customSpeedTitle": "カスタム回転数",
+      "customSpeedDescription": "特定のシーン向けの固定回転数",
+      "customSpeedWarning": "⚠ カスタム回転数を有効にするとスマート温度制御は無効になります",
+      "toasts": {
+        "profileSwitched": "温度カーブを切り替えました",
+        "profileSwitchFailed": "カーブの切り替えに失敗しました: {{error}}"
+      }
+    },
+    "device": {
+      "sectionTitle": "デバイス設定",
+      "gearLightTitle": "ギアライト",
+      "gearLightDescription": "デバイス上のギアインジケーターライトを制御します",
+      "powerOnStartTitle": "通電時に開始",
+      "powerOnStartDescription": "デバイスに電源が入ると自動的に動作します",
+      "smartStartStopTitle": "スマート開始/停止",
+      "smartStartStopDescription": "システム終了後に冷却を停止するタイミングを選びます"
+    },
+    "legionFnQ": {
+      "sectionTitle": "Legion Fn+Q 連携",
+      "enableTitle": "プラグインを有効化",
+      "enableDescription": "Fn+Q や Lenovo ソフトを含む Legion の性能モード変更を監視します。",
+      "takeOverTitle": "ファン回転数を引き継ぐ",
+      "takeOverDescription": "性能モードの変更を検出すると、下のマッピングされた手動ギアに切り替えます。",
+      "mappingTitle": "モードマッピング",
+      "mappingDescription": "右側の回転数レベルは同じファンギア内の低/中/高サブレベルで、実際の RPM に影響します。",
+      "headers": {
+        "mode": "Legion モード",
+        "gear": "ファンギア",
+        "level": "回転数レベル"
+      },
+      "toasts": {
+        "saveFailed": "Fn+Q プラグイン設定の保存に失敗しました: {{error}}"
+      }
+    },
+    "system": {
+      "sectionTitle": "システム設定",
+      "themeTitle": "テーマ",
+      "themeDescription": "既定ではシステムに追従し、必要に応じてライトまたはダークに固定できます。",
+      "languageTitle": "言語",
+      "languageDescription": "アプリの表示言語をすぐに切り替え、選択内容を自動保存します。",
+      "hotkeys": {
+        "title": "グローバルホットキー",
+        "description": "右側の入力欄をクリックしてキーの組み合わせを押してください。フォーカスが外れると自動保存されます。Backspace/Delete またはクリアボタンで空にして無効化できます。",
+        "emptyPlaceholder": "空欄で無効",
+        "clearAria": "ホットキーをクリア",
+        "manual": {
+          "title": "手動ギアを切り替え",
+          "description": "静音、標準、強劲、超频 を順番に切り替え、それぞれのサブレベル記憶を保持します。"
+        },
+        "auto": {
+          "title": "スマート制御を切り替え",
+          "description": "ゲーム時や静音時などでスマート温度制御を素早くオン/オフします。"
+        },
+        "curve": {
+          "title": "温度カーブを切り替え",
+          "description": "仕事、ゲーム、夜間用などのカーブプロファイルを素早く切り替えます。"
+        },
+        "toasts": {
+          "duplicate": "3 つのホットキーに同じ組み合わせは設定できません",
+          "saved": "ホットキーを保存しました",
+          "saveFailed": "ホットキーの保存に失敗しました: {{error}}"
+        }
+      },
+      "autoStartTitle": "Windows 起動時に開始",
+      "autoStartDescription": "Windows 起動時に自動実行します",
+      "autoStartTip": "管理者権限で実行すると毎回の UAC 確認を避けられます",
+      "reconnectTitle": "再接続後も設定を維持",
+      "reconnectDescription": "再接続後もアプリ設定を使い続けます",
+      "reconnectTip": "切断後にデバイス既定モードへ戻るのを防ぐため、有効化を推奨します"
+    },
+    "offline": {
+      "message": "デバイスが接続されていないため、一部機能は利用できません"
+    },
+    "debug": {
+      "panelTitle": "デバッグパネル",
+      "modeTitle": "デバッグモード",
+      "modeDescription": "詳細ログを有効にする",
+      "refresh": "デバッグ情報を更新",
+      "pawnTitle": "PawnIO ドライバー",
+      "pawnDescription": "温度読み取りに異常がありますか？ PawnIO ドライバーの再インストールを試してください。",
+      "reinstall": "PawnIO を再インストール",
+      "toasts": {
+        "reinstallExecuted": "PawnIO インストーラーを実行しました",
+        "uninstallWarning": "PawnIO アンインストール手順から通知が返されました: {{warning}}",
+        "bridgeWarning": "温度モニターの再初期化に失敗しました: {{warning}}",
+        "reinstallFailed": "PawnIO の再インストールに失敗しました: {{error}}"
+      }
+    },
+    "customSpeedDialog": {
+      "title": "リスク通知",
+      "enabledTitle": "有効にすると:",
+      "bullets": {
+        "disableAutoControl": "• スマート温度制御が無効になります",
+        "fixedSpeed": "• ファンは固定回転数で動作します",
+        "insufficientCooling": "• 冷却不足になる可能性があります"
+      },
+      "speedLabel": "設定回転数",
+      "confirm": "確認"
+    },
+    "alerts": {
+      "autoStartFailed": "自動起動の設定に失敗しました: {{error}}",
+      "lightStripFailed": "ライトストリップ設定の適用に失敗しました: {{error}}"
+    },
+    "options": {
+      "smartStartStop": {
+        "off": {
+          "label": "オフ",
+          "description": "スマート開始/停止を無効化"
+        },
+        "immediate": {
+          "label": "即時",
+          "description": "システム負荷の変化にすぐ反応"
+        },
+        "delayed": {
+          "label": "遅延",
+          "description": "頻繁な開始/停止を避けるため応答を遅らせる"
+        }
+      },
+      "sampleCount": {
+        "1": "1 · 即時追従",
+        "2": "2 · 弱い平滑化",
+        "3": "3 · 既定",
+        "5": "5 · やや強い平滑化",
+        "10": "10 · 強い平滑化 (低速応答)"
+      },
+      "tempSource": {
+        "max": "最高温度",
+        "cpu": "CPU のみ",
+        "gpu": "GPU のみ"
+      },
+      "themeMode": {
+        "light": "ライト",
+        "dark": "ダーク",
+        "system": "システムに追従"
+      },
+      "lightMode": {
+        "off": {
+          "label": "ライトをオフ",
+          "description": "すべての RGB ライトを消灯"
+        },
+        "smart_temp": {
+          "label": "スマート温度",
+          "description": "温度に応じてライティングを自動切替"
+        },
+        "static_single": {
+          "label": "単色常時点灯",
+          "description": "固定の単色を表示"
+        },
+        "static_multi": {
+          "label": "多色常時点灯",
+          "description": "3 色の静的ゾーン表示"
+        },
+        "rotation": {
+          "label": "カラー回転",
+          "description": "色を循環回転"
+        },
+        "flowing": {
+          "label": "フロー",
+          "description": "プリセットの流れる効果"
+        },
+        "breathing": {
+          "label": "ブリージング",
+          "description": "多色の呼吸効果"
+        }
+      },
+      "lightSpeed": {
+        "fast": "速い",
+        "medium": "普通",
+        "slow": "遅い"
+      },
+      "lightPresets": {
+        "neon": "ネオン",
+        "forest": "フォレスト",
+        "glacier": "グレイシャー"
+      },
+      "legionPowerModes": {
+        "Quiet": "静音モード",
+        "Balance": "バランスモード",
+        "Performance": "パフォーマンスモード",
+        "Extreme": "エクストリームモード",
+        "GodMode": "カスタムモード"
+      },
+      "gpuDevice": {
+        "autoPreferred": "自動選択 (dGPU 優先)",
+        "auto": "自動選択"
+      },
+      "sensor": {
+        "autoRecommended": "自動選択 (推奨)",
+        "auto": "自動選択"
+      }
+    }
+  }
+}

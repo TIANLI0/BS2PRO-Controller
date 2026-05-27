@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import clsx from 'clsx';
+import { useTranslation } from 'react-i18next';
 import { Select } from './ui/index';
 
 export type FanCurveProfileOption = {
@@ -26,12 +27,15 @@ export default function FanCurveProfileSelect({
   onChange,
   loading = false,
   className,
-  placeholder = '选择曲线方案',
+  placeholder,
 }: FanCurveProfileSelectProps) {
+  const { t } = useTranslation();
   const options = useMemo(
     () => profiles.map((profile) => ({ value: profile.id, label: profile.name })),
     [profiles]
   );
+
+  const resolvedPlaceholder = placeholder || t('fanCurveProfileSelect.placeholder');
 
   const selectedValue = activeProfileId || options[0]?.value || EMPTY_PROFILE_SENTINEL;
 
@@ -47,10 +51,10 @@ export default function FanCurveProfileSelect({
         options={
           options.length > 0
             ? options
-            : [{ value: EMPTY_PROFILE_SENTINEL, label: '暂无曲线方案', disabled: true }]
+            : [{ value: EMPTY_PROFILE_SENTINEL, label: t('fanCurveProfileSelect.empty'), disabled: true }]
         }
         size="sm"
-        placeholder={placeholder}
+        placeholder={resolvedPlaceholder}
         disabled={loading || options.length === 0}
         triggerClassName="h-9 rounded-xl border-border/70 bg-background/45 text-[13px]"
       />
