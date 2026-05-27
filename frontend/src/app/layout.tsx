@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist_Mono, Manrope, Noto_Sans_JP, Noto_Sans_SC } from "next/font/google";
+import { Geist_Mono, Manrope, Noto_Sans_SC } from "next/font/google";
 import "./globals.css";
 import SystemThemeSync from "./components/SystemThemeSync";
 import { Toaster } from "@/components/ui/sonner";
@@ -17,13 +17,6 @@ const uiCjk = Noto_Sans_SC({
   variable: "--font-ui-cjk",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
-  display: "swap",
-});
-
-const uiJp = Noto_Sans_JP({
-  variable: "--font-ui-jp",
-  subsets: ["latin"],
-  weight: ["400", "500", "700"],
   display: "swap",
 });
 
@@ -45,7 +38,7 @@ export default function RootLayout({
   return (
     <html lang="zh-CN" suppressHydrationWarning>
       <body
-        className={`${uiSans.variable} ${uiCjk.variable} ${uiJp.variable} ${geistMono.variable}`}
+        className={`${uiSans.variable} ${uiCjk.variable} ${geistMono.variable}`}
       >
         <AppI18nProvider>
           <SystemThemeSync />

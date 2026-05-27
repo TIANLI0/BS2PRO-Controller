@@ -69,7 +69,7 @@
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
   --color-destructive: var(--destructive);
-  --font-sans: var(--font-ui-sans), var(--font-ui-cjk), var(--font-ui-jp);
+  --font-sans: var(--font-ui-sans), var(--font-ui-cjk);
   --font-mono: var(--font-geist-mono);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -195,7 +195,7 @@ body {
 
 body {
   overflow: hidden;
-  /* 西文优先 Manrope，中文/日文优先 Noto Sans 系列，系统字体仅保底 */
+  /* 西文优先 Manrope，中文使用内置 CJK 字体，日文直接走系统字体回退 */
   font-family: var(--font-sans), "PingFang SC", "Hiragino Sans GB",
     "Hiragino Sans", "Yu Gothic UI", "HarmonyOS Sans SC", "Source Han Sans SC", "Noto Sans CJK SC",
     "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI Variable",
