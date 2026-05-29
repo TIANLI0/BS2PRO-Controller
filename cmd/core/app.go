@@ -69,7 +69,11 @@ type CoreApp struct {
 	reconnectInProgress     atomic.Bool
 	autoReconnectSuppressed atomic.Bool
 	resumeRecoveryRunning   atomic.Bool
+	systemSuspended         atomic.Bool
 	lastResumeRecoveryUnix  int64
+
+	// 系统电源（睡眠/唤醒）通知注销函数
+	powerNotifyStop func()
 
 	// 监控相关
 	guiLastResponse   int64
@@ -271,6 +275,14 @@ func (a *CoreApp) Start() error {
 	a.applyHotkeyBindings(cfg)
 	a.applyPluginConfig(cfg)
 
+	// 注册系统睡眠/唤醒通知：睡眠前主动断开设备/桥接，唤醒后恢复，避免唤醒崩溃。
+	if stop, err := registerSuspendResumeNotifications(a.onSystemSuspend, a.onSystemResume); err != nil {
+		a.logError("注册系统电源通知失败（将退化为基于时间间隔的唤醒检测）: %v", err)
+	} else {
+		a.powerNotifyStop = stop
+		a.logInfo("已注册系统睡眠/唤醒通知")
+	}
+
 	// 启动健康监控
 	if cfg.GuiMonitoring {
 		a.logInfo("启动健康监控")
@@ -304,6 +316,10 @@ func (a *CoreApp) Start() error {
 // Stop 停止核心服务
 func (a *CoreApp) Stop() {
 	a.logInfo("核心服务正在停止...")
+	if a.powerNotifyStop != nil {
+		a.safeRun("power-notify-unregister", a.powerNotifyStop)
+		a.powerNotifyStop = nil
+	}
 	a.stopTemperatureMonitoring()
 	if a.hotkeyManager != nil {
 		a.hotkeyManager.Stop()
@@ -1147,26 +1163,72 @@ func (a *CoreApp) maybeRecoverFromSystemResume(source string, gap, expectedInter
 	if !shouldRecoverFromSystemResumeGap(gap, expectedInterval) {
 		return false
 	}
+	a.triggerResumeRecovery(source, gap, false)
+	return true
+}
 
+// onSystemSuspend 收到系统挂起（睡眠/休眠）通知时调用。
+func (a *CoreApp) onSystemSuspend() {
+	if !a.systemSuspended.CompareAndSwap(false, true) {
+		return
+	}
+	a.logInfo("收到系统挂起通知：提前停止监控并断开设备/桥接，避免唤醒后失效句柄导致崩溃")
+
+	a.autoReconnectSuppressed.Store(true)
+	a.stopTemperatureMonitoring()
+
+	a.safeRun("suspend-device-disconnect", func() {
+		a.deviceManager.DisconnectSilently()
+	})
+	a.mutex.Lock()
+	a.isConnected = false
+	a.mutex.Unlock()
+
+	a.safeRun("suspend-bridge-stop", func() {
+		a.bridgeManager.Stop()
+	})
+
+	if a.ipcServer != nil {
+		a.ipcServer.BroadcastEvent(ipc.EventDeviceDisconnected, nil)
+	}
+}
+
+// onSystemResume 收到系统唤醒通知时调用，触发设备与监控的恢复。
+func (a *CoreApp) onSystemResume() {
+	a.logInfo("收到系统唤醒通知")
+	a.triggerResumeRecovery("power-event", 0, true)
+}
+
+// triggerResumeRecovery 以节流方式触发唤醒恢复，避免电源事件与基于时间间隔的检测重复执行。
+func (a *CoreApp) triggerResumeRecovery(source string, gap time.Duration, forceReconnect bool) {
 	nowUnix := time.Now().UnixNano()
 	lastUnix := atomic.LoadInt64(&a.lastResumeRecoveryUnix)
 	if lastUnix > 0 && time.Duration(nowUnix-lastUnix) < systemResumeRecoveryCooldown {
-		return true
+		a.refreshTrayAfterResume()
+		return
 	}
 	if !a.resumeRecoveryRunning.CompareAndSwap(false, true) {
-		return true
+		a.refreshTrayAfterResume()
+		return
 	}
 	atomic.StoreInt64(&a.lastResumeRecoveryUnix, nowUnix)
 
 	a.safeGo("systemResumeRecovery@"+source, func() {
 		defer a.resumeRecoveryRunning.Store(false)
-		a.handleSystemResume(source, gap)
+		a.handleSystemResume(source, gap, forceReconnect)
 	})
-	return true
 }
 
-func (a *CoreApp) handleSystemResume(source string, gap time.Duration) {
-	a.logInfo("检测到系统从睡眠/休眠恢复，来源=%s，挂起时长约=%s，开始执行连接自愈", source, gap.Round(time.Second))
+func (a *CoreApp) handleSystemResume(source string, gap time.Duration, forceReconnect bool) {
+	// 若之前收到过挂起通知（主动断开），唤醒后必须强制重连，且需要重启已停止的温度监控。
+	proactivelySuspended := a.systemSuspended.Swap(false)
+	forceReconnect = forceReconnect || proactivelySuspended
+
+	a.logInfo("检测到系统从睡眠/休眠恢复，来源=%s，挂起时长约=%s，主动挂起=%v，开始执行连接自愈",
+		source, gap.Round(time.Second), proactivelySuspended)
+
+	// 唤醒后 Explorer 可能重启或通知区域被重建，主动刷新托盘图标避免图标丢失/无响应。
+	a.refreshTrayAfterResume()
 
 	wasConnected := a.deviceManager.IsConnected()
 	a.mutex.RLock()
@@ -1175,14 +1237,27 @@ func (a *CoreApp) handleSystemResume(source string, gap time.Duration) {
 	}
 	a.mutex.RUnlock()
 
-	a.bridgeManager.Stop()
+	// 桥接停止与设备断开都涉及外部进程/cgo 调用，唤醒后句柄可能失效，统一兜底防止崩溃。
+	a.safeRun("resume-bridge-stop", func() {
+		a.bridgeManager.Stop()
+	})
 
-	if !wasConnected {
+	// 主动挂起时温度监控已停止，唤醒后需重新启动（与设备连接解耦）。
+	if proactivelySuspended {
+		a.autoReconnectSuppressed.Store(false)
+		a.safeGo("resume-temp-monitor", func() {
+			a.startTemperatureMonitoring()
+		})
+	}
+
+	if !wasConnected && !forceReconnect {
 		a.logInfo("系统恢复时设备原本未连接，仅重置桥接状态")
 		return
 	}
 
-	a.deviceManager.DisconnectSilently()
+	a.safeRun("resume-device-disconnect", func() {
+		a.deviceManager.DisconnectSilently()
+	})
 	a.mutex.Lock()
 	a.isConnected = false
 	a.mutex.Unlock()
@@ -1197,6 +1272,31 @@ func (a *CoreApp) handleSystemResume(source string, gap time.Duration) {
 		15 * time.Second,
 		30 * time.Second,
 	})
+}
+
+// refreshTrayAfterResume 在系统唤醒后刷新托盘图标。
+//
+// 由于唤醒后 Explorer/通知区域可能尚未完全恢复，这里立即刷新一次，并在数秒后再刷新一次，
+// 以提高托盘图标恢复成功率。
+func (a *CoreApp) refreshTrayAfterResume() {
+	if a.trayManager == nil {
+		return
+	}
+	a.trayManager.RefreshIcon()
+	a.safeGo("resume-tray-refresh-delayed", func() {
+		time.Sleep(5 * time.Second)
+		a.trayManager.RefreshIcon()
+	})
+}
+
+// safeRun 在当前协程内执行 fn，并捕获其 panic，避免影响调用方的后续清理流程。
+func (a *CoreApp) safeRun(name string, fn func()) {
+	defer func() {
+		if r := recover(); r != nil {
+			a.logError("[%s] 执行时发生panic，已恢复: %v", name, r)
+		}
+	}()
+	fn()
 }
 
 // ConnectDevice 连接设备

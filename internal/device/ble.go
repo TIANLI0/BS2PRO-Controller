@@ -202,6 +202,13 @@ func (b *BLEManager) discoverCharacteristics() bool {
 // enableNotifications 启用通知接收
 func (b *BLEManager) enableNotifications() {
 	err := b.notifyChar.EnableNotifications(func(buf []byte) {
+		// 通知回调运行在蓝牙栈线程上，唤醒后可能收到异常数据，需兜底防止进程崩溃。
+		defer func() {
+			if r := recover(); r != nil {
+				b.logError("BLE 通知回调发生panic，已恢复: %v", r)
+			}
+		}()
+
 		fanData := b.parseBS1Notification(buf)
 		if fanData != nil {
 			b.mutex.Lock()
@@ -312,6 +319,13 @@ func parseBS1WorkMode(mode uint8) string {
 
 // heartbeatLoop 定时发送心跳包保持 BLE 连接
 func (b *BLEManager) heartbeatLoop() {
+	// 系统休眠/唤醒后蓝牙栈状态可能异常，写入操作的 panic 不应导致进程崩溃。
+	defer func() {
+		if r := recover(); r != nil {
+			b.logError("BLE 心跳协程发生panic，已恢复: %v", r)
+		}
+	}()
+
 	ticker := time.NewTicker(3 * time.Second)
 	defer ticker.Stop()
 
@@ -379,9 +393,23 @@ func (b *BLEManager) Disconnect() {
 	}
 
 	b.isConnected = false
-	close(b.stopChan)
 
-	b.device.Disconnect()
+	// 防止与 handleDisconnect 竞争导致 stopChan 被重复关闭。
+	select {
+	case <-b.stopChan:
+	default:
+		close(b.stopChan)
+	}
+
+	// 唤醒后蓝牙句柄可能已失效，底层断开调用的异常不应导致进程崩溃。
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				b.logError("断开 BLE 设备时发生错误，已恢复: %v", r)
+			}
+		}()
+		b.device.Disconnect()
+	}()
 	b.logInfo("BS1 BLE 连接已断开")
 }
 

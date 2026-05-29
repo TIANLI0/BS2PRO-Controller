@@ -53,6 +53,12 @@ type Manager struct {
 	logger         types.Logger
 	currentFanData atomic.Pointer[types.FanData]
 
+	// HID 监控协程生命周期（监控协程是 HID 句柄的唯一拥有者，负责最终关闭）。
+	monitorStop        chan struct{}
+	monitorDone        chan struct{}
+	explicitDisconnect bool // 是否为显式断开（区别于读错误导致的意外断开）
+	disconnectNotify   bool // 显式断开时是否触发断连回调
+
 	// BLE 管理器 (BS1)
 	bleManager *BLEManager
 
@@ -125,6 +131,12 @@ func (m *Manager) Connect() (bool, map[string]string) {
 		m.productID = connectedProductID
 		m.deviceType = types.DeviceTypeHID
 
+		// 为本次连接创建独立的监控生命周期信号。
+		m.monitorStop = make(chan struct{})
+		m.monitorDone = make(chan struct{})
+		m.explicitDisconnect = false
+		m.disconnectNotify = false
+
 		modelName := modelNameForProductID(connectedProductID)
 
 		// 获取设备信息
@@ -150,8 +162,8 @@ func (m *Manager) Connect() (bool, map[string]string) {
 			}
 		}
 
-		// 开始监控设备数据
-		go m.monitorDeviceData()
+		// 开始监控设备数据（显式传入本次连接的句柄与信号，避免与后续重连串扰）
+		go m.monitorDeviceData(device, m.monitorStop, m.monitorDone)
 
 		return true, info
 	}
@@ -193,22 +205,55 @@ func (m *Manager) disconnect(notify bool) {
 
 	if m.deviceType == types.DeviceTypeBLE {
 		m.bleManager.Disconnect()
-	} else {
-		if m.device != nil {
-			func() {
-				defer func() {
-					if r := recover(); r != nil {
-						m.logError("关闭设备时发生错误: %v", r)
-					}
-				}()
-				m.device.Close()
-			}()
-			m.device = nil
+		m.isConnected = false
+		m.deviceType = ""
+		onDisconnect := notify && m.onDisconnect != nil
+		m.mutex.Unlock()
+
+		m.logInfo("设备连接已断开")
+		if onDisconnect {
+			m.onDisconnect()
 		}
+		return
 	}
 
-	m.isConnected = false
-	m.deviceType = ""
+	// HID：不在此处直接 Close（监控协程可能正阻塞在读操作上，直接 Close 会触发
+	// hidapi 的 use-after-free 崩溃）。改为标记显式断开意图并通知监控协程停止，
+	// 由监控协程退出读循环后统一关闭句柄并按需触发断连回调（见 finalizeMonitor）。
+	m.explicitDisconnect = true
+	m.disconnectNotify = notify
+	stop := m.monitorStop
+	done := m.monitorDone
+	dev := m.device
+	m.mutex.Unlock()
+
+	if stop != nil && done != nil {
+		// 通知监控协程停止读取，并等待其退出后完成关闭与回调。
+		select {
+		case <-stop:
+		default:
+			close(stop)
+		}
+
+		// ReadWithTimeout 有 500ms 超时，正常会很快退出；超时则不强行关闭仍可能在读的
+		// 句柄，避免触发崩溃，交由监控协程稍后自行收尾。
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			m.logError("等待设备监控协程退出超时，延后由监控协程自行收尾")
+		}
+		return
+	}
+
+	// 没有监控协程（异常情况）时，安全关闭并清理。
+	m.closeDeviceLocked(dev)
+	m.mutex.Lock()
+	if m.device == dev {
+		m.device = nil
+		m.isConnected = false
+		m.deviceType = ""
+		m.productID = 0
+	}
 	onDisconnect := notify && m.onDisconnect != nil
 	m.mutex.Unlock()
 
@@ -216,6 +261,19 @@ func (m *Manager) disconnect(notify bool) {
 	if onDisconnect {
 		m.onDisconnect()
 	}
+}
+
+// closeDeviceLocked 在持有锁的情况下安全关闭 HID 句柄。
+func (m *Manager) closeDeviceLocked(dev *hid.Device) {
+	if dev == nil {
+		return
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			m.logError("关闭设备时发生错误: %v", r)
+		}
+	}()
+	dev.Close()
 }
 
 // IsConnected 检查设备是否已连接
@@ -264,13 +322,22 @@ func (m *Manager) GetCurrentFanData() *types.FanData {
 }
 
 // monitorDeviceData 监控设备数据
-func (m *Manager) monitorDeviceData() {
-	m.mutex.RLock()
-	device := m.device
-	connected := m.isConnected
-	m.mutex.RUnlock()
+//
+// 该协程是 HID 句柄的唯一拥有者：无论因停止信号还是读错误退出，都由它负责关闭句柄
+// （见 finalizeMonitor），从而避免“读操作进行中被其他协程 Close”导致的 cgo 崩溃
+// （典型触发场景：睡眠唤醒后句柄失效，读卡住时执行断开）。
+func (m *Manager) monitorDeviceData(device *hid.Device, stop <-chan struct{}, done chan struct{}) {
+	// 退出时统一收尾：关闭句柄、清理状态、按需触发断连回调。
+	defer m.finalizeMonitor(device, done)
 
-	if !connected || device == nil {
+	// 解析或回调中的任何 panic 都不能让整个进程崩溃，这里兜底恢复。
+	defer func() {
+		if r := recover(); r != nil {
+			m.logError("设备数据监控协程发生panic，已恢复: %v", r)
+		}
+	}()
+
+	if device == nil {
 		return
 	}
 
@@ -284,15 +351,19 @@ func (m *Manager) monitorDeviceData() {
 	const maxConsecutiveErrors = 5
 
 	for {
-		n, err := device.ReadWithTimeout(buffer, 1*time.Second)
+		// 优先响应停止信号，确保断开时尽快退出读循环，再由 finalizeMonitor 安全关闭句柄。
+		select {
+		case <-stop:
+			m.logInfo("收到停止信号，停止设备数据监控")
+			return
+		default:
+		}
+
+		// 使用较短超时，使停止信号能在 ~500ms 内被响应。
+		n, err := device.ReadWithTimeout(buffer, 500*time.Millisecond)
 		if err != nil {
 			if err == hid.ErrTimeout {
 				consecutiveErrors = 0
-				// 顺便检查一下 isConnected，便于外部 Disconnect 时及时退出
-				if !m.IsConnected() {
-					m.logInfo("设备已断开，停止数据监控")
-					break
-				}
 				continue
 			}
 
@@ -301,10 +372,14 @@ func (m *Manager) monitorDeviceData() {
 
 			if consecutiveErrors >= maxConsecutiveErrors {
 				m.logError("连续读取失败次数过多，设备可能已断开")
-				break
+				return
 			}
 
-			time.Sleep(500 * time.Millisecond)
+			select {
+			case <-stop:
+				return
+			case <-time.After(500 * time.Millisecond):
+			}
 			continue
 		}
 
@@ -322,43 +397,48 @@ func (m *Manager) monitorDeviceData() {
 			}
 		}
 	}
-
-	m.handleDeviceDisconnected(device)
 }
 
-// handleDeviceDisconnected 处理设备断开
-func (m *Manager) handleDeviceDisconnected(device *hid.Device) {
+// finalizeMonitor 监控协程退出时的收尾：关闭句柄、清理状态并按需触发断连回调。
+//
+// 关闭句柄只在读循环已退出后进行，因此不会与读操作并发，杜绝 use-after-free 崩溃。
+func (m *Manager) finalizeMonitor(device *hid.Device, done chan struct{}) {
+	if done != nil {
+		defer close(done)
+	}
+
 	m.mutex.Lock()
-	if device != nil && m.device != device {
+	// 若当前活动句柄已不是本协程的句柄，说明已被新连接替换，忽略以免误清理。
+	if m.device != device {
 		m.mutex.Unlock()
-		m.logDebug("忽略过期 HID 监控协程的断开事件")
+		m.logDebug("忽略过期 HID 监控协程的收尾事件")
 		return
 	}
 
 	wasConnected := m.isConnected
+	explicit := m.explicitDisconnect
+	notifyOnExplicit := m.disconnectNotify
 
-	if m.device != nil {
-		func() {
-			defer func() {
-				if r := recover(); r != nil {
-					m.logError("关闭设备时发生错误: %v", r)
-				}
-			}()
-			m.device.Close()
-		}()
-		m.device = nil
-	}
-
+	m.closeDeviceLocked(device)
+	m.device = nil
 	m.isConnected = false
 	m.deviceType = ""
 	m.productID = 0
+	m.monitorStop = nil
+	m.monitorDone = nil
+	m.explicitDisconnect = false
+	m.disconnectNotify = false
 	m.mutex.Unlock()
 
-	if wasConnected {
-		m.logInfo("设备连接已断开")
-		if m.onDisconnect != nil {
-			m.onDisconnect()
-		}
+	// 触发回调：显式断开按调用方意图，意外断开（读错误）则始终通知。
+	shouldNotify := wasConnected
+	if explicit {
+		shouldNotify = notifyOnExplicit
+	}
+
+	m.logInfo("设备连接已断开")
+	if shouldNotify && m.onDisconnect != nil {
+		m.onDisconnect()
 	}
 }
 
