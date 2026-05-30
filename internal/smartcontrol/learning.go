@@ -256,10 +256,7 @@ func targetTempCeiling(cfg types.SmartControlConfig) int {
 // comfortBandWidth 返回目标温度下方的舒适带宽度 (°C)。
 // 舒适带内不动作，避免无意义的转速抖动；带宽随滞回温差略微放宽。
 func comfortBandWidth(cfg types.SmartControlConfig) int {
-	band := cfg.Hysteresis + 3
-	if band < 3 {
-		band = 3
-	}
+	band := max(cfg.Hysteresis+3, 3)
 	return band
 }
 

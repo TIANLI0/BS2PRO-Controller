@@ -9,14 +9,102 @@ on:
     tags:
       - 'v*'
       - 'V*'
+  schedule:
+    - cron: '10 16 * * *'
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
+  prepare-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      should_build: ${{ steps.plan.outputs.should_build }}
+      should_publish_release: ${{ steps.plan.outputs.should_publish_release }}
+      release_type: ${{ steps.plan.outputs.release_type }}
+      is_prerelease: ${{ steps.plan.outputs.is_prerelease }}
+      release_tag: ${{ steps.plan.outputs.release_tag }}
+      release_name: ${{ steps.plan.outputs.release_name }}
+      release_label: ${{ steps.plan.outputs.release_label }}
+      release_date: ${{ steps.plan.outputs.release_date }}
+      release_guidance: ${{ steps.plan.outputs.release_guidance }}
+      target_commitish: ${{ steps.plan.outputs.target_commitish }}
+      target_branch: ${{ steps.plan.outputs.target_branch }}
+      window_start: ${{ steps.plan.outputs.window_start }}
+      window_end: ${{ steps.plan.outputs.window_end }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine release plan
+        id: plan
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          {
+            echo "should_build=false"
+            echo "should_publish_release=false"
+            echo "release_type=none"
+            echo "is_prerelease=false"
+            echo "release_tag="
+            echo "release_name="
+            echo "release_label="
+            echo "release_date=$(TZ=Asia/Shanghai date +%F)"
+            echo "release_guidance="
+            echo "target_commitish=${GITHUB_SHA}"
+            echo "target_branch=main"
+            echo "window_start="
+            echo "window_end="
+          } >> "$GITHUB_OUTPUT"
+
+          if [[ "${GITHUB_EVENT_NAME}" == "schedule" ]]; then
+            target_day=$(TZ=Asia/Shanghai date -d 'yesterday' +%F)
+            start_utc=$(TZ=Asia/Shanghai date -u -d "${target_day} 00:00:00" +%Y-%m-%dT%H:%M:%SZ)
+            end_utc=$(TZ=Asia/Shanghai date -u -d "${target_day} 00:00:00 +1 day" +%Y-%m-%dT%H:%M:%SZ)
+            commit_count=$(git rev-list --count origin/main --since="$start_utc" --until="$end_utc")
+
+            if [[ "$commit_count" != "0" ]]; then
+              {
+                echo "should_build=true"
+                echo "should_publish_release=true"
+                echo "release_type=prerelease"
+                echo "is_prerelease=true"
+                echo "release_tag=nightly-$(TZ=Asia/Shanghai date -d "$target_day" +%Y%m%d)"
+                echo "release_name=Daily Pre-release $target_day"
+                echo "release_label=daily pre-release"
+                echo "release_guidance=This is a daily prerelease built from that day's main branch changes. Make it clear that details may still change and do not phrase it as a final stability promise."
+                echo "release_date=$target_day"
+                echo "target_commitish=$(git rev-parse origin/main)"
+                echo "target_branch=main"
+                echo "window_start=$start_utc"
+                echo "window_end=$end_utc"
+              } >> "$GITHUB_OUTPUT"
+            fi
+          elif [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
+            {
+              echo "should_build=true"
+              echo "should_publish_release=true"
+              echo "release_type=stable"
+              echo "is_prerelease=false"
+              echo "release_tag=${GITHUB_REF_NAME}"
+              echo "release_name=${GITHUB_REF_NAME}"
+              echo "release_label=formal release"
+              echo "release_guidance=This is a formal release. Emphasize stable delivery and user-visible changes, but only state facts supported by the commit data."
+            } >> "$GITHUB_OUTPUT"
+          else
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+          fi
+
   build-windows:
+    needs: prepare-release
+    if: needs.prepare-release.outputs.should_build == 'true'
     runs-on: windows-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
@@ -111,11 +199,169 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Prepare release notes context
+        if: needs.prepare-release.outputs.should_publish_release == 'true'
+        id: release_context
+        shell: pwsh
+        env:
+          RELEASE_TYPE: ${{ needs.prepare-release.outputs.release_type }}
+          RELEASE_TAG: ${{ needs.prepare-release.outputs.release_tag }}
+          RELEASE_DATE: ${{ needs.prepare-release.outputs.release_date }}
+          WINDOW_START: ${{ needs.prepare-release.outputs.window_start }}
+          WINDOW_END: ${{ needs.prepare-release.outputs.window_end }}
+          TARGET_BRANCH: ${{ needs.prepare-release.outputs.target_branch }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          New-Item -ItemType Directory -Force -Path build/release-context | Out-Null
+
+          $releaseType = $env:RELEASE_TYPE
+          $compareSummary = ''
+          $commitLines = @()
+          $fileLines = @()
+
+          if ($releaseType -eq 'stable') {
+            $currentTag = $env:RELEASE_TAG
+            $previousTag = (git describe --tags --abbrev=0 "$currentTag^" 2>$null)
+            if ($LASTEXITCODE -ne 0) {
+              $previousTag = ''
+            }
+            $previousTag = "$previousTag".Trim()
+
+            if ([string]::IsNullOrWhiteSpace($previousTag)) {
+              $compareSummary = "Formal release $currentTag; no earlier tag was found, so the notes should be based on the currently visible recent commits for this tag."
+              $commitLines = @(git log $currentTag --pretty=format:"- %h %s (%an, %ad)" --date=short --max-count=60)
+              $fileLines = @(git log $currentTag --name-only --pretty=format: --max-count=60 | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+            } else {
+              $range = "$previousTag..$currentTag"
+              $compareSummary = "Formal release $currentTag; change range $range."
+              $commitLines = @(git log $range --pretty=format:"- %h %s (%an, %ad)" --date=short --max-count=60)
+              $fileLines = @(git log $range --name-only --pretty=format: --max-count=60 | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+            }
+          } else {
+            $branchRef = "origin/$($env:TARGET_BRANCH)"
+            $windowStart = $env:WINDOW_START
+            $windowEnd = $env:WINDOW_END
+            $compareSummary = "Daily prerelease covering main branch commits from $windowStart to $windowEnd UTC, corresponding to $($env:RELEASE_DATE) in Asia/Shanghai."
+            $commitLines = @(git log $branchRef --since="$windowStart" --until="$windowEnd" --pretty=format:"- %h %s (%an, %ad)" --date=short --max-count=60)
+            $fileLines = @(git log $branchRef --since="$windowStart" --until="$windowEnd" --name-only --pretty=format: --max-count=60 | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+          }
+
+          if (-not $commitLines -or $commitLines.Count -eq 0) {
+            $commitLines = @('- No commit list could be extracted. Summarize conservatively from the release scope only.')
+          }
+
+          if (-not $fileLines -or $fileLines.Count -eq 0) {
+            $fileLines = @('- No file list could be extracted.')
+          } else {
+            $fileLines = $fileLines | ForEach-Object { "- $_" }
+          }
+
+          $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+          [System.IO.File]::WriteAllLines((Join-Path $PWD 'build/release-context/commits.txt'), $commitLines, $utf8NoBom)
+          [System.IO.File]::WriteAllLines((Join-Path $PWD 'build/release-context/files.txt'), $fileLines, $utf8NoBom)
+
+          "compare_summary=$compareSummary" >> $env:GITHUB_OUTPUT
+
+      - name: Generate AI release notes
+        if: needs.prepare-release.outputs.should_publish_release == 'true'
+        id: ai_release_notes
+        shell: pwsh
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets[format('{0}', 'DEEPSEEK_API_KEY')] }}
+          DEEPSEEK_API_BASE_URL: ${{ vars[format('{0}', 'DEEPSEEK_API_BASE_URL')] || 'https://api.deepseek.com' }}
+          DEEPSEEK_MODEL: ${{ vars[format('{0}', 'DEEPSEEK_RELEASE_NOTES_MODEL')] || 'deepseek-v4-pro' }}
+          REPO_NAME: ${{ github.repository }}
+          RELEASE_NAME: ${{ needs.prepare-release.outputs.release_name }}
+          RELEASE_TAG: ${{ needs.prepare-release.outputs.release_tag }}
+          RELEASE_LABEL: ${{ needs.prepare-release.outputs.release_label }}
+          RELEASE_DATE: ${{ needs.prepare-release.outputs.release_date }}
+          COMPARE_SUMMARY: ${{ steps.release_context.outputs.compare_summary }}
+          RELEASE_GUIDANCE: ${{ needs.prepare-release.outputs.release_guidance }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          if ([string]::IsNullOrWhiteSpace($env:DEEPSEEK_API_KEY)) {
+            throw 'Missing GitHub secret DEEPSEEK_API_KEY for release note generation.'
+          }
+
+          $templateRaw = Get-Content '.github/prompts/release-notes.prompt.yml' -Raw
+          $templateMatch = [System.Text.RegularExpressions.Regex]::Match($templateRaw, '(?s)^template:\s*\|\r?\n(?<body>.*)$')
+          if (-not $templateMatch.Success) {
+            throw 'Release prompt template must use a template: | block scalar.'
+          }
+
+          $prompt = $templateMatch.Groups['body'].Value -replace '(?m)^  ', ''
+          $commitSummary = Get-Content 'build/release-context/commits.txt' -Raw
+          $changedFiles = Get-Content 'build/release-context/files.txt' -Raw
+
+          $replacements = @{
+            '{{repo_name}}' = $env:REPO_NAME
+            '{{release_name}}' = $env:RELEASE_NAME
+            '{{release_tag}}' = $env:RELEASE_TAG
+            '{{release_label}}' = $env:RELEASE_LABEL
+            '{{release_date}}' = $env:RELEASE_DATE
+            '{{compare_summary}}' = $env:COMPARE_SUMMARY
+            '{{release_guidance}}' = $env:RELEASE_GUIDANCE
+            '{{commit_summary}}' = $commitSummary.Trim()
+            '{{changed_files}}' = $changedFiles.Trim()
+          }
+
+          foreach ($entry in $replacements.GetEnumerator()) {
+            $prompt = $prompt.Replace($entry.Key, $entry.Value)
+          }
+
+          $payload = @{
+            model = $env:DEEPSEEK_MODEL
+            messages = @(
+              @{
+                role = 'system'
+                content = 'You are a meticulous release engineer. Write concise GitHub release notes in bilingual Markdown using Simplified Chinese first and English second. Only use facts supported by the supplied release scope, commit list, and file list. Do not invent features, fixes, compatibility claims, dates, migration steps, or internal details. Do not mention AI, models, prompts, or internal generation process. Do not use code fences.'
+              },
+              @{
+                role = 'user'
+                content = $prompt
+              }
+            )
+            thinking = @{ type = 'enabled' }
+            reasoning_effort = 'high'
+            max_tokens = 1800
+            response_format = @{ type = 'text' }
+            stream = $false
+            temperature = 0.4
+            user_id = "github-actions-$($env:GITHUB_RUN_ID)"
+          } | ConvertTo-Json -Depth 20
+
+          $uri = "$($env:DEEPSEEK_API_BASE_URL.TrimEnd('/'))/chat/completions"
+          $headers = @{
+            Authorization = "Bearer $($env:DEEPSEEK_API_KEY)"
+            Accept = 'application/json'
+          }
+
+          $response = Invoke-RestMethod -Method Post -Uri $uri -Headers $headers -ContentType 'application/json' -Body $payload
+          $notes = $response.choices[0].message.content
+
+          if ([string]::IsNullOrWhiteSpace($notes)) {
+            throw 'DeepSeek API returned empty release notes.'
+          }
+
+          $notesRelativePath = 'build/release-context/release-notes.md'
+          $notesFullPath = Join-Path $PWD $notesRelativePath
+          $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+          [System.IO.File]::WriteAllText($notesFullPath, $notes.Trim() + [Environment]::NewLine, $utf8NoBom)
+
+          "notes_path=$notesRelativePath" >> $env:GITHUB_OUTPUT
+
       - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
+        if: needs.prepare-release.outputs.should_publish_release == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
+          name: ${{ needs.prepare-release.outputs.release_name }}
+          tag_name: ${{ needs.prepare-release.outputs.release_tag }}
+          target_commitish: ${{ needs.prepare-release.outputs.target_commitish }}
+          prerelease: ${{ needs.prepare-release.outputs.is_prerelease }}
+          body_path: ${{ steps.ai_release_notes.outputs.notes_path }}
           files: |
             build/bin/THRM-amd64-installer.exe
             build/bin/THRM-windows-portable.zip
