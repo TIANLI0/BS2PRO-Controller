@@ -6,14 +6,14 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/TIANLI0/BS2PRO-Controller/internal/appmeta"
-	"github.com/TIANLI0/BS2PRO-Controller/internal/theme"
+	"github.com/TIANLI0/THRM/internal/appmeta"
+	"github.com/TIANLI0/THRM/internal/theme"
 )
 
 // embeddedThemes 内置默认主题（含官方 THRM 参考主题）。
 //
 // 作用：1) 首次运行时把这些主题播种到安装目录，方便用户直接编辑；
-//      2) 当磁盘上的主题文件缺失时作为安全兜底，保证 THRM 始终可选。
+//  2. 当磁盘上的主题文件缺失时作为安全兜底，保证 THRM 始终可选。
 //
 //go:embed all:themes
 var embeddedThemes embed.FS

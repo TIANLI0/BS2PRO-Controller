@@ -1,6 +1,6 @@
 package smartcontrol
 
-import "github.com/TIANLI0/BS2PRO-Controller/internal/types"
+import "github.com/TIANLI0/THRM/internal/types"
 
 func getCurveEdgeRPMBounds(curve []types.FanCurvePoint) (int, int) {
 	return GetCurveRPMBounds(curve)

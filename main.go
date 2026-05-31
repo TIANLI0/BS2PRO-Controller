@@ -5,8 +5,8 @@ import (
 	"embed"
 	"os"
 
-	"github.com/TIANLI0/BS2PRO-Controller/internal/appmeta"
-	"github.com/TIANLI0/BS2PRO-Controller/internal/guiapp"
+	"github.com/TIANLI0/THRM/internal/appmeta"
+	"github.com/TIANLI0/THRM/internal/guiapp"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"

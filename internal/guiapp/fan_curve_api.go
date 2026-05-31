@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/TIANLI0/BS2PRO-Controller/internal/ipc"
-	"github.com/TIANLI0/BS2PRO-Controller/internal/types"
+	"github.com/TIANLI0/THRM/internal/ipc"
+	"github.com/TIANLI0/THRM/internal/types"
 )
 
 // SetFanCurve 设置风扇曲线

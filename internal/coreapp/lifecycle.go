@@ -5,14 +5,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TIANLI0/BS2PRO-Controller/internal/autostart"
-	"github.com/TIANLI0/BS2PRO-Controller/internal/config"
-	"github.com/TIANLI0/BS2PRO-Controller/internal/curveprofiles"
-	"github.com/TIANLI0/BS2PRO-Controller/internal/ipc"
-	"github.com/TIANLI0/BS2PRO-Controller/internal/powernotify"
-	"github.com/TIANLI0/BS2PRO-Controller/internal/smartcontrol"
-	"github.com/TIANLI0/BS2PRO-Controller/internal/tray"
-	"github.com/TIANLI0/BS2PRO-Controller/internal/version"
+	"github.com/TIANLI0/THRM/internal/autostart"
+	"github.com/TIANLI0/THRM/internal/config"
+	"github.com/TIANLI0/THRM/internal/curveprofiles"
+	"github.com/TIANLI0/THRM/internal/ipc"
+	"github.com/TIANLI0/THRM/internal/powernotify"
+	"github.com/TIANLI0/THRM/internal/smartcontrol"
+	"github.com/TIANLI0/THRM/internal/tray"
+	"github.com/TIANLI0/THRM/internal/version"
 )
 
 // Start 启动核心服务

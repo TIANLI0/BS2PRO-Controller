@@ -3,8 +3,8 @@ package guiapp
 import (
 	"encoding/json"
 
-	"github.com/TIANLI0/BS2PRO-Controller/internal/ipc"
-	"github.com/TIANLI0/BS2PRO-Controller/internal/types"
+	"github.com/TIANLI0/THRM/internal/ipc"
+	"github.com/TIANLI0/THRM/internal/types"
 )
 
 // ConnectDevice 连接HID设备

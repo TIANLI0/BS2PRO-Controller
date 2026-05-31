@@ -4,10 +4,10 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/TIANLI0/BS2PRO-Controller/internal/ipc"
-	"github.com/TIANLI0/BS2PRO-Controller/internal/smartcontrol"
-	"github.com/TIANLI0/BS2PRO-Controller/internal/temperature"
-	"github.com/TIANLI0/BS2PRO-Controller/internal/types"
+	"github.com/TIANLI0/THRM/internal/ipc"
+	"github.com/TIANLI0/THRM/internal/smartcontrol"
+	"github.com/TIANLI0/THRM/internal/temperature"
+	"github.com/TIANLI0/THRM/internal/types"
 )
 
 const staleBridgeUpdateThreshold = 3

@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/TIANLI0/BS2PRO-Controller/internal/appmeta"
-	hotkeysvc "github.com/TIANLI0/BS2PRO-Controller/internal/hotkey"
-	"github.com/TIANLI0/BS2PRO-Controller/internal/ipc"
-	"github.com/TIANLI0/BS2PRO-Controller/internal/plugins/fnqpowermode"
-	"github.com/TIANLI0/BS2PRO-Controller/internal/types"
+	"github.com/TIANLI0/THRM/internal/appmeta"
+	hotkeysvc "github.com/TIANLI0/THRM/internal/hotkey"
+	"github.com/TIANLI0/THRM/internal/ipc"
+	"github.com/TIANLI0/THRM/internal/plugins/fnqpowermode"
+	"github.com/TIANLI0/THRM/internal/types"
 )
 
 func (a *CoreApp) registerPlugins() {

@@ -16,7 +16,7 @@ if "!VERSION!"=="" (
 )
 
 set "BUILD_BIN=build\bin"
-set LDFLAGS=-s -w -X github.com/TIANLI0/BS2PRO-Controller/internal/version.BuildVersion=!VERSION! -H=windowsgui
+set LDFLAGS=-s -w -X github.com/TIANLI0/THRM/internal/version.BuildVersion=!VERSION! -H=windowsgui
 
 if not exist "!BUILD_BIN!" mkdir "!BUILD_BIN!"
 

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/TIANLI0/BS2PRO-Controller/internal/ipc"
+	"github.com/TIANLI0/THRM/internal/ipc"
 )
 
 // TestBridgeProgram 测试桥接程序

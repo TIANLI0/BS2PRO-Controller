@@ -11,7 +11,7 @@ import (
 	"os/exec"
 	"sync"
 
-	"github.com/TIANLI0/BS2PRO-Controller/internal/plugins"
+	"github.com/TIANLI0/THRM/internal/plugins"
 )
 
 type Plugin struct {

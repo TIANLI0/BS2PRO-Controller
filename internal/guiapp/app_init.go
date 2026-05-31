@@ -3,11 +3,11 @@ package guiapp
 import (
 	"context"
 
-	"github.com/TIANLI0/BS2PRO-Controller/internal/appmeta"
-	"github.com/TIANLI0/BS2PRO-Controller/internal/ipc"
-	"github.com/TIANLI0/BS2PRO-Controller/internal/theme"
-	"github.com/TIANLI0/BS2PRO-Controller/internal/types"
-	"github.com/TIANLI0/BS2PRO-Controller/internal/version"
+	"github.com/TIANLI0/THRM/internal/appmeta"
+	"github.com/TIANLI0/THRM/internal/ipc"
+	"github.com/TIANLI0/THRM/internal/theme"
+	"github.com/TIANLI0/THRM/internal/types"
+	"github.com/TIANLI0/THRM/internal/version"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 

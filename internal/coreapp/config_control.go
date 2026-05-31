@@ -6,12 +6,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/TIANLI0/BS2PRO-Controller/internal/appmeta"
-	"github.com/TIANLI0/BS2PRO-Controller/internal/config"
-	"github.com/TIANLI0/BS2PRO-Controller/internal/curveprofiles"
-	"github.com/TIANLI0/BS2PRO-Controller/internal/ipc"
-	"github.com/TIANLI0/BS2PRO-Controller/internal/smartcontrol"
-	"github.com/TIANLI0/BS2PRO-Controller/internal/types"
+	"github.com/TIANLI0/THRM/internal/appmeta"
+	"github.com/TIANLI0/THRM/internal/config"
+	"github.com/TIANLI0/THRM/internal/curveprofiles"
+	"github.com/TIANLI0/THRM/internal/ipc"
+	"github.com/TIANLI0/THRM/internal/smartcontrol"
+	"github.com/TIANLI0/THRM/internal/types"
 )
 
 func runtimeDebugInfo() map[string]any {
@@ -28,20 +28,20 @@ func runtimeDebugInfo() map[string]any {
 	}
 
 	return map[string]any{
-		"goroutines":        runtime.NumGoroutine(),
-		"allocMB":           toMB(mem.Alloc),
-		"heapAllocMB":       toMB(mem.HeapAlloc),
-		"heapInUseMB":       toMB(mem.HeapInuse),
-		"heapIdleMB":        toMB(mem.HeapIdle),
-		"heapReleasedMB":    toMB(mem.HeapReleased),
-		"stackInUseMB":      toMB(mem.StackInuse),
-		"sysMB":             toMB(mem.Sys),
-		"heapObjects":       mem.HeapObjects,
-		"nextGCMB":          toMB(mem.NextGC),
-		"numGC":             mem.NumGC,
-		"lastGC":            lastGC,
-		"gccpFraction":      mem.GCCPUFraction,
-		"pauseTotalMs":      float64(mem.PauseTotalNs) / 1_000_000,
+		"goroutines":     runtime.NumGoroutine(),
+		"allocMB":        toMB(mem.Alloc),
+		"heapAllocMB":    toMB(mem.HeapAlloc),
+		"heapInUseMB":    toMB(mem.HeapInuse),
+		"heapIdleMB":     toMB(mem.HeapIdle),
+		"heapReleasedMB": toMB(mem.HeapReleased),
+		"stackInUseMB":   toMB(mem.StackInuse),
+		"sysMB":          toMB(mem.Sys),
+		"heapObjects":    mem.HeapObjects,
+		"nextGCMB":       toMB(mem.NextGC),
+		"numGC":          mem.NumGC,
+		"lastGC":         lastGC,
+		"gccpFraction":   mem.GCCPUFraction,
+		"pauseTotalMs":   float64(mem.PauseTotalNs) / 1_000_000,
 	}
 }
 

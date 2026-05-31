@@ -1,6 +1,6 @@
 package smartcontrol
 
-import "github.com/TIANLI0/BS2PRO-Controller/internal/types"
+import "github.com/TIANLI0/THRM/internal/types"
 
 // NormalizeConfig 归一化智能控温配置。
 func NormalizeConfig(cfg types.SmartControlConfig, curve []types.FanCurvePoint, _ bool) (types.SmartControlConfig, bool) {

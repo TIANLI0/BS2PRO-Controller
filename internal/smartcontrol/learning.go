@@ -1,7 +1,7 @@
 package smartcontrol
 
 import (
-	"github.com/TIANLI0/BS2PRO-Controller/internal/types"
+	"github.com/TIANLI0/THRM/internal/types"
 )
 
 // StableObserver + 稳态学习用到的常量。

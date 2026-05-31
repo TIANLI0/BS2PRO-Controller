@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TIANLI0/BS2PRO-Controller/internal/config"
+	"github.com/TIANLI0/THRM/internal/config"
 )
 
 func CapturePanic(app *CoreApp, source string, recovered any) string {

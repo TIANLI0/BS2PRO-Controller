@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/Microsoft/go-winio"
-	"github.com/TIANLI0/BS2PRO-Controller/internal/appmeta"
-	"github.com/TIANLI0/BS2PRO-Controller/internal/types"
+	"github.com/TIANLI0/THRM/internal/appmeta"
+	"github.com/TIANLI0/THRM/internal/types"
 )
 
 var messageCounter uint64

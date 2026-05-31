@@ -1,6 +1,6 @@
 package fnqpowermode
 
-import "github.com/TIANLI0/BS2PRO-Controller/internal/types"
+import "github.com/TIANLI0/THRM/internal/types"
 
 const (
 	PluginID   = "lenovo-legion-fnq-power-mode"

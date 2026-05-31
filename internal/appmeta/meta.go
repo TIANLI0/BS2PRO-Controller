@@ -28,7 +28,7 @@ const (
 	NotificationCacheDir   = "THRM"
 	LegacyNotifyCacheDir   = "BS2PRO-Controller"
 	ProtocolVersion        = "3.0"
-	RepositoryURL          = "https://github.com/TIANLI0/BS2PRO-Controller"
+	RepositoryURL          = "https://github.com/TIANLI0/THRM"
 	LatestReleaseURL       = RepositoryURL + "/releases/latest"
 )
 

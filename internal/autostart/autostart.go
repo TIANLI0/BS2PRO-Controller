@@ -11,8 +11,8 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/TIANLI0/BS2PRO-Controller/internal/appmeta"
-	"github.com/TIANLI0/BS2PRO-Controller/internal/types"
+	"github.com/TIANLI0/THRM/internal/appmeta"
+	"github.com/TIANLI0/THRM/internal/types"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 )

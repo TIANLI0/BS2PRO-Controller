@@ -11,8 +11,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	cfgpkg "github.com/TIANLI0/BS2PRO-Controller/internal/config"
-	"github.com/TIANLI0/BS2PRO-Controller/internal/types"
+	cfgpkg "github.com/TIANLI0/THRM/internal/config"
+	"github.com/TIANLI0/THRM/internal/types"
 )
 
 const exportPrefix = "B2C1."

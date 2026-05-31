@@ -7,7 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/TIANLI0/BS2PRO-Controller/internal/coreapp"
+	"github.com/TIANLI0/THRM/internal/coreapp"
 )
 
 //go:embed icon.ico

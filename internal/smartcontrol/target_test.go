@@ -3,7 +3,7 @@ package smartcontrol
 import (
 	"testing"
 
-	"github.com/TIANLI0/BS2PRO-Controller/internal/types"
+	"github.com/TIANLI0/THRM/internal/types"
 )
 
 func TestCalculateTargetRPMIgnoresOffsetsWhenLearningDisabled(t *testing.T) {

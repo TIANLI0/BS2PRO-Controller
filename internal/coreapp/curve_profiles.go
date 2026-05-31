@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"strings"
 
-	cfgpkg "github.com/TIANLI0/BS2PRO-Controller/internal/config"
-	"github.com/TIANLI0/BS2PRO-Controller/internal/curveprofiles"
-	"github.com/TIANLI0/BS2PRO-Controller/internal/ipc"
-	"github.com/TIANLI0/BS2PRO-Controller/internal/smartcontrol"
-	"github.com/TIANLI0/BS2PRO-Controller/internal/types"
+	cfgpkg "github.com/TIANLI0/THRM/internal/config"
+	"github.com/TIANLI0/THRM/internal/curveprofiles"
+	"github.com/TIANLI0/THRM/internal/ipc"
+	"github.com/TIANLI0/THRM/internal/smartcontrol"
+	"github.com/TIANLI0/THRM/internal/types"
 )
 
 func (a *CoreApp) fanCurveProfilesPayloadFromConfig(cfg types.AppConfig) types.FanCurveProfilesPayload {

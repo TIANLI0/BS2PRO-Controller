@@ -1,4 +1,4 @@
-module github.com/TIANLI0/BS2PRO-Controller
+module github.com/TIANLI0/THRM
 
 go 1.26.2
 

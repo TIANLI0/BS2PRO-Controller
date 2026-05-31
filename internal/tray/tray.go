@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"fyne.io/systray"
-	"github.com/TIANLI0/BS2PRO-Controller/internal/appmeta"
-	"github.com/TIANLI0/BS2PRO-Controller/internal/types"
+	"github.com/TIANLI0/THRM/internal/appmeta"
+	"github.com/TIANLI0/THRM/internal/types"
 )
 
 // Manager 系统托盘管理器

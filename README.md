@@ -12,7 +12,7 @@
 
 ### 下载与安装
 
-1. 前往 [Releases](https://github.com/TIANLI0/BS2PRO-Controller/releases/latest) 下载最新 Windows 安装包。
+1. 前往 [Releases](https://github.com/TIANLI0/THRM/releases/latest) 下载最新 Windows 安装包。
 2. 完成安装后启动 THRM。
 3. 程序会自动拉起后台组件，无需手动单独启动核心服务或温度桥接。
 4. 按设备类型连接：

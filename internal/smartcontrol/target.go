@@ -1,8 +1,8 @@
 package smartcontrol
 
 import (
-	"github.com/TIANLI0/BS2PRO-Controller/internal/temperature"
-	"github.com/TIANLI0/BS2PRO-Controller/internal/types"
+	"github.com/TIANLI0/THRM/internal/temperature"
+	"github.com/TIANLI0/THRM/internal/types"
 )
 
 // CalculateTargetRPM 以基础曲线加学习偏移计算目标转速。

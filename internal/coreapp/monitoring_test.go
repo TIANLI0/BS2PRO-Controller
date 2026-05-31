@@ -3,7 +3,7 @@ package coreapp
 import (
 	"testing"
 
-	"github.com/TIANLI0/BS2PRO-Controller/internal/types"
+	"github.com/TIANLI0/THRM/internal/types"
 )
 
 func TestCompactTemperatureEventPayload(t *testing.T) {
@@ -60,13 +60,13 @@ func TestCompactTemperatureEventPayload(t *testing.T) {
 
 func TestTrackBridgeTemperatureStaleness(t *testing.T) {
 	tests := []struct {
-		name            string
-		temp            types.TemperatureData
-		lastUpdate      int64
-		staleCount      int
-		wantUpdate      int64
-		wantStaleCount  int
-		wantRestartNow  bool
+		name           string
+		temp           types.TemperatureData
+		lastUpdate     int64
+		staleCount     int
+		wantUpdate     int64
+		wantStaleCount int
+		wantRestartNow bool
 	}{
 		{
 			name:           "reset when bridge is not ok",

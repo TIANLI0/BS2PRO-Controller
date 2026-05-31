@@ -11,8 +11,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/TIANLI0/BS2PRO-Controller/internal/bridge"
-	"github.com/TIANLI0/BS2PRO-Controller/internal/types"
+	"github.com/TIANLI0/THRM/internal/bridge"
+	"github.com/TIANLI0/THRM/internal/types"
 	"github.com/shirou/gopsutil/v4/sensors"
 )
 
@@ -31,9 +31,9 @@ type Reader struct {
 	bridgeManager *bridge.Manager
 	logger        types.Logger
 
-	cacheMutex       sync.RWMutex
-	cachedGPUVendor  string
-	cachedVendorAt   time.Time
+	cacheMutex      sync.RWMutex
+	cachedGPUVendor string
+	cachedVendorAt  time.Time
 }
 
 // NewReader 创建新的温度读取器
