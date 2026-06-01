@@ -9,13 +9,13 @@
       "ja-JP": "日本語"
     },
     "actions": {
-      "apply": "適用",
+      "apply": "インポート",
       "cancel": "キャンセル",
       "close": "閉じる",
       "copy": "コピー",
       "delete": "削除",
       "export": "エクスポート",
-      "import": "インポート",
+      "import": "適用",
       "refresh": "更新",
       "retry": "再試行",
       "save": "保存"
