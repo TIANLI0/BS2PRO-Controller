@@ -74,6 +74,12 @@ func (a *CoreApp) Start() error {
 			a.logError("保存挡位转速默认配置失败: %v", err)
 		}
 	}
+	if normalizeFanFeatureConfig(&cfg) {
+		a.configManager.Set(cfg)
+		if err := a.configManager.Save(); err != nil {
+			a.logError("保存风扇增强功能默认配置失败: %v", err)
+		}
+	}
 	if a.applyCachedLegionFnQSupport(&cfg) {
 		a.configManager.Set(cfg)
 		if err := a.configManager.Save(); err != nil {

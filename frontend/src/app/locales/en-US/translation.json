@@ -333,6 +333,52 @@
         }
       }
     },
+    "avoidance": {
+      "title": "Noise avoidance range",
+      "badge": "Enabled",
+      "description": "When smart control calculates a target RPM inside a noisy range, it automatically jumps outside that range to reduce intermittent bearing noise.",
+      "toggleAria": "Toggle noise avoidance range",
+      "minTitle": "Range start",
+      "minDescription": "Lower RPM boundary of the noisy range.",
+      "maxTitle": "Range end",
+      "maxDescription": "Upper RPM boundary of the noisy range.",
+      "marginTitle": "Avoidance margin",
+      "marginDescription": "Extra RPM distance added when jumping outside the range.",
+      "bypassTitle": "High-temp bypass",
+      "bypassDescription": "Temporarily ignore the range above this temperature so cooling wins first.",
+      "summary": "Avoid {{min}} - {{max}} RPM with a {{margin}} RPM margin",
+      "activeHint": "Current target {{rpm}} RPM is inside the sensitive range and will be avoided automatically",
+      "autoOnlyHint": "Only applies in smart control mode"
+    },
+    "schedule": {
+      "title": "Time-based curves",
+      "description": "Switch between different curve profiles by time period, useful for daytime performance and nighttime silence.",
+      "toggleAria": "Toggle time-based curves",
+      "currentBadge": "Matched",
+      "currentRule": "Current rule: {{name}}",
+      "noRuleMatched": "No rule matches the current time",
+      "autoControlHint": "Only switches the active curve profile and does not force smart control on",
+      "addRule": "Add rule",
+      "empty": "No schedule rules yet. Click the button above to add one.",
+      "newRuleName": "New period",
+      "defaultRuleName": "Period {{index}}",
+      "ruleName": "Rule name",
+      "ruleNamePlaceholder": "Example: Quiet at night",
+      "profileTitle": "Curve profile",
+      "startTitle": "Start time",
+      "endTitle": "End time",
+      "daysTitle": "Active days",
+      "ruleToggleAria": "Toggle schedule rule",
+      "days": {
+        "mon": "Mon",
+        "tue": "Tue",
+        "wed": "Wed",
+        "thu": "Thu",
+        "fri": "Fri",
+        "sat": "Sat",
+        "sun": "Sun"
+      }
+    },
     "hints": {
       "dragPoint": "Drag the blue points to adjust RPM",
       "curveLegend": "Solid: base · Dashed: learned"
@@ -409,6 +455,7 @@
       "importSucceeded": "Curve profiles imported successfully",
       "importFailed": "Failed to import: {{error}}",
       "saveLearningFailed": "Failed to save learning settings",
+      "saveFeatureFailed": "Failed to save advanced fan settings",
       "learningReset": "Learned offsets reset",
       "learningResetDescription": "The fan curve will now follow your configured values exactly",
       "resetFailed": "Reset failed"

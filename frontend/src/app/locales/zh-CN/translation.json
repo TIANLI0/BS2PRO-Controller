@@ -333,6 +333,52 @@
         }
       }
     },
+    "avoidance": {
+      "title": "避噪转速区间",
+      "badge": "已启用",
+      "description": "当自动控温计算出的目标转速落入噪音敏感区间时，自动跳到区间外，减少轴噪概率。",
+      "toggleAria": "切换避噪转速区间",
+      "minTitle": "区间起点",
+      "minDescription": "噪音区间的较低转速边界。",
+      "maxTitle": "区间终点",
+      "maxDescription": "噪音区间的较高转速边界。",
+      "marginTitle": "避让余量",
+      "marginDescription": "落入区间时，额外向外跳开的 RPM 余量。",
+      "bypassTitle": "高温旁路",
+      "bypassDescription": "温度达到该阈值时临时忽略避让，优先散热。",
+      "summary": "避让区间 {{min}} - {{max}} RPM，余量 {{margin}} RPM",
+      "activeHint": "当前目标 {{rpm}} RPM 处于敏感区间，系统会自动避让",
+      "autoOnlyHint": "仅在智能变频模式下生效"
+    },
+    "schedule": {
+      "title": "分时曲线",
+      "description": "按时间段自动切换不同的曲线方案，适合白天性能、夜间静音等场景。",
+      "toggleAria": "切换分时曲线",
+      "currentBadge": "当前命中",
+      "currentRule": "当前规则：{{name}}",
+      "noRuleMatched": "当前时间没有命中任何规则",
+      "autoControlHint": "仅切换活动曲线方案，不会强制打开智能变频",
+      "addRule": "新增规则",
+      "empty": "还没有分时规则，点击右上角新增。",
+      "newRuleName": "新时段",
+      "defaultRuleName": "时段 {{index}}",
+      "ruleName": "规则名称",
+      "ruleNamePlaceholder": "例如：深夜静音",
+      "profileTitle": "曲线方案",
+      "startTitle": "开始时间",
+      "endTitle": "结束时间",
+      "daysTitle": "生效日期",
+      "ruleToggleAria": "切换时段规则",
+      "days": {
+        "mon": "一",
+        "tue": "二",
+        "wed": "三",
+        "thu": "四",
+        "fri": "五",
+        "sat": "六",
+        "sun": "日"
+      }
+    },
     "hints": {
       "dragPoint": "拖拽蓝色圆点调整转速",
       "curveLegend": "实线: 基础 · 虚线: 学习"
@@ -409,6 +455,7 @@
       "importSucceeded": "曲线方案导入成功",
       "importFailed": "导入失败: {{error}}",
       "saveLearningFailed": "保存学习设置失败",
+      "saveFeatureFailed": "保存风扇增强设置失败",
       "learningReset": "已重置学习偏移",
       "learningResetDescription": "风扇曲线将完全按用户设定执行",
       "resetFailed": "重置失败"

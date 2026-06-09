@@ -78,7 +78,32 @@ export interface AppConfig {
   guiMonitoring: boolean;      // GUI监控开关
   customSpeedEnabled: boolean; // 自定义转速开关
   customSpeedRPM: number;      // 自定义转速值(无上下限)
+  speedAvoidance?: SpeedAvoidanceConfig;
+  timeCurveSchedule?: TimeCurveScheduleConfig;
   smartControl: SmartControlConfig; // 学习型智能控温
+}
+
+export interface SpeedAvoidanceConfig {
+  enabled: boolean;
+  minRpm: number;
+  maxRpm: number;
+  marginRpm: number;
+  emergencyBypassTemp: number;
+}
+
+export interface TimeCurveScheduleConfig {
+  enabled: boolean;
+  rules: TimeCurveScheduleRule[];
+}
+
+export interface TimeCurveScheduleRule {
+  id: string;
+  name: string;
+  enabled: boolean;
+  weekdays: number[];
+  startTime: string;
+  endTime: string;
+  curveProfileId: string;
 }
 
 export interface SmartControlConfig {

@@ -119,6 +119,7 @@ func (m *Manager) tryLoadFromPathLocked(configPath string) bool {
 	applyMissingLegionFnQDefaults(&config, rawConfig)
 	applyMissingThemeDefaults(&config, rawConfig)
 	applyMissingTemperatureDefaults(&config, rawConfig)
+	applyMissingFanFeatureDefaults(&config, rawConfig)
 
 	m.config = config
 	return true

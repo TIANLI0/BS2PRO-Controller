@@ -139,6 +139,7 @@ func (a *CoreApp) startTemperatureMonitoring() {
 		rawTempHistory = append(rawTempHistory, initialTemp.ControlTemp)
 	}
 	lastTargetRPM := -1
+	lastControlTemp := -1
 	learningDirty := false
 	lastLearningSave := time.Now()
 	lastMonitorTick := time.Now()
@@ -169,6 +170,7 @@ func (a *CoreApp) startTemperatureMonitoring() {
 			}
 
 			cfg, cfgRevision = a.configManager.GetWithRevision()
+			a.applyTimeCurveSchedule(now)
 			updateInterval = temperatureMonitorInterval(cfg.TempUpdateRate)
 			selection := types.TemperatureSelection{
 				TempSource: cfg.TempSource,
@@ -302,6 +304,11 @@ func (a *CoreApp) startTemperatureMonitoring() {
 					}
 				}
 
+				adjustedRPM, avoided := applySpeedAvoidance(targetRPM, curveMinRPM, curveMaxRPM, prevTargetRPM, controlTemp, lastControlTemp, cfg.SpeedAvoidance)
+				if avoided {
+					targetRPM = adjustedRPM
+				}
+
 				fanData := a.deviceManager.GetCurrentFanData()
 				observedRPM := targetRPM
 				if fanData != nil && fanData.CurrentRPM > 0 {
@@ -355,10 +362,12 @@ func (a *CoreApp) startTemperatureMonitoring() {
 				if baseRPM > 0 {
 					a.logDebug("智能控温: 最高=%d°C 基准=%s 当前=%d°C 平均=%d°C 控制温度=%d°C 基础=%dRPM 目标=%dRPM", temp.MaxTemp, temp.ControlSource, temp.ControlTemp, avgTemp, controlTemp, baseRPM, targetRPM)
 				}
+				lastControlTemp = controlTemp
 			}
 
 			if !cfg.AutoControl {
 				lastTargetRPM = -1
+				lastControlTemp = -1
 			}
 
 			timer.Reset(updateInterval)

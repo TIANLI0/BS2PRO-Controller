@@ -139,6 +139,82 @@ export namespace types {
 	        this.learnedRateCool = source["learnedRateCool"];
 	    }
 	}
+	export class TimeCurveScheduleRule {
+	    id: string;
+	    name: string;
+	    enabled: boolean;
+	    weekdays: number[];
+	    startTime: string;
+	    endTime: string;
+	    curveProfileId: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TimeCurveScheduleRule(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.enabled = source["enabled"];
+	        this.weekdays = source["weekdays"];
+	        this.startTime = source["startTime"];
+	        this.endTime = source["endTime"];
+	        this.curveProfileId = source["curveProfileId"];
+	    }
+	}
+	export class TimeCurveScheduleConfig {
+	    enabled: boolean;
+	    rules: TimeCurveScheduleRule[];
+	
+	    static createFrom(source: any = {}) {
+	        return new TimeCurveScheduleConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.enabled = source["enabled"];
+	        this.rules = this.convertValues(source["rules"], TimeCurveScheduleRule);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class SpeedAvoidanceConfig {
+	    enabled: boolean;
+	    minRpm: number;
+	    maxRpm: number;
+	    marginRpm: number;
+	    emergencyBypassTemp: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SpeedAvoidanceConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.enabled = source["enabled"];
+	        this.minRpm = source["minRpm"];
+	        this.maxRpm = source["maxRpm"];
+	        this.marginRpm = source["marginRpm"];
+	        this.emergencyBypassTemp = source["emergencyBypassTemp"];
+	    }
+	}
 	export class FanCurveProfile {
 	    id: string;
 	    name: string;
@@ -281,6 +357,8 @@ export namespace types {
 	    customSpeedEnabled: boolean;
 	    customSpeedRPM: number;
 	    ignoreDeviceOnReconnect: boolean;
+	    speedAvoidance: SpeedAvoidanceConfig;
+	    timeCurveSchedule: TimeCurveScheduleConfig;
 	    smartControl: SmartControlConfig;
 	    lightStrip: LightStripConfig;
 	
@@ -321,6 +399,8 @@ export namespace types {
 	        this.customSpeedEnabled = source["customSpeedEnabled"];
 	        this.customSpeedRPM = source["customSpeedRPM"];
 	        this.ignoreDeviceOnReconnect = source["ignoreDeviceOnReconnect"];
+	        this.speedAvoidance = this.convertValues(source["speedAvoidance"], SpeedAvoidanceConfig);
+	        this.timeCurveSchedule = this.convertValues(source["timeCurveSchedule"], TimeCurveScheduleConfig);
 	        this.smartControl = this.convertValues(source["smartControl"], SmartControlConfig);
 	        this.lightStrip = this.convertValues(source["lightStrip"], LightStripConfig);
 	    }
@@ -697,6 +777,7 @@ export namespace types {
 	
 	
 	
+	
 	export class TemperatureData {
 	    cpuTemp: number;
 	    gpuTemp: number;
@@ -806,6 +887,8 @@ export namespace types {
 		    return a;
 		}
 	}
+	
+	
 	
 
 }

@@ -77,6 +77,7 @@ func (a *CoreApp) UpdateConfig(cfg types.AppConfig) error {
 	normalizeHotkeyConfig(&cfg)
 	normalizeManualGearMemoryConfig(&cfg)
 	types.NormalizeManualGearRPM(&cfg)
+	normalizeFanFeatureConfig(&cfg)
 
 	cfg.ConfigPath = oldCfg.ConfigPath
 	if err := a.configManager.Update(cfg); err != nil {

@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   RotateCw,
   Check,
+  Clock3,
   History,
   Info,
   Spline,
@@ -42,12 +43,43 @@ const DEFAULT_CURVE_LENGTH = ((FAN_CURVE_MAX_TEMP - FAN_CURVE_MIN_TEMP) / FAN_CU
 const SMART_CONTROL_TARGET_TEMP_MIN = 45;
 const SMART_CONTROL_TARGET_TEMP_MAX = 90;
 type CurveProfile = { id: string; name: string; curve: types.FanCurvePoint[] };
+type TimeCurveScheduleRuleView = {
+  id: string;
+  name: string;
+  enabled: boolean;
+  weekdays: number[];
+  startTime: string;
+  endTime: string;
+  curveProfileId: string;
+};
+
+type TimeCurveScheduleView = {
+  enabled: boolean;
+  rules: TimeCurveScheduleRuleView[];
+};
 
 const LEARNING_BIAS_OPTIONS = [
   { value: 'balanced', labelKey: 'fanCurve.learning.biasOptions.balanced.label', descriptionKey: 'fanCurve.learning.biasOptions.balanced.description' },
   { value: 'cooling', labelKey: 'fanCurve.learning.biasOptions.cooling.label', descriptionKey: 'fanCurve.learning.biasOptions.cooling.description' },
   { value: 'quiet', labelKey: 'fanCurve.learning.biasOptions.quiet.label', descriptionKey: 'fanCurve.learning.biasOptions.quiet.description' },
 ];
+
+const DEFAULT_SPEED_AVOIDANCE = {
+  enabled: false,
+  minRpm: 1900,
+  maxRpm: 2200,
+  marginRpm: 100,
+  emergencyBypassTemp: 80,
+};
+
+const DEFAULT_SCHEDULE_RULE = {
+  enabled: true,
+  weekdays: [1, 2, 3, 4, 5, 6, 0],
+  startTime: '22:00',
+  endTime: '07:00',
+};
+
+const WEEKDAY_SEQUENCE = [1, 2, 3, 4, 5, 6, 0];
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
@@ -65,6 +97,116 @@ function constrainOffsetByLearningBias(offset: number, learningBias: string) {
 
 function normalizeTargetTemp(value: number) {
   return Math.max(SMART_CONTROL_TARGET_TEMP_MIN, Math.min(SMART_CONTROL_TARGET_TEMP_MAX, Math.round(value)));
+}
+
+function normalizeClockValue(value: string | undefined, fallback: string) {
+  if (!value || !/^\d{2}:\d{2}$/.test(value)) {
+    return fallback;
+  }
+  return value;
+}
+
+function normalizeWeekdayList(days: number[] | undefined) {
+  if (!Array.isArray(days)) {
+    return [...DEFAULT_SCHEDULE_RULE.weekdays];
+  }
+  const unique = Array.from(new Set(days.filter((day) => Number.isInteger(day) && day >= 0 && day <= 6)));
+  return unique.length > 0 ? WEEKDAY_SEQUENCE.filter((day) => unique.includes(day)) : [...DEFAULT_SCHEDULE_RULE.weekdays];
+}
+
+function sanitizeTimeDraftInput(value: string) {
+  let result = '';
+  let colonUsed = false;
+  for (const char of value) {
+    if (/\d/.test(char)) {
+      result += char;
+      continue;
+    }
+    if (char === ':' && !colonUsed) {
+      result += char;
+      colonUsed = true;
+    }
+  }
+  return result.slice(0, 5);
+}
+
+function normalizeTimeDraftValue(value: string, fallback: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return fallback;
+  }
+
+  let hoursPart = '';
+  let minutesPart = '';
+  if (trimmed.includes(':')) {
+    const [rawHours = '', rawMinutes = ''] = trimmed.split(':', 2);
+    hoursPart = rawHours;
+    minutesPart = rawMinutes;
+  } else {
+    const digitsOnly = trimmed.replace(/\D/g, '');
+    if (digitsOnly.length <= 2) {
+      hoursPart = digitsOnly;
+      minutesPart = '00';
+    } else {
+      hoursPart = digitsOnly.slice(0, digitsOnly.length - 2);
+      minutesPart = digitsOnly.slice(-2);
+    }
+  }
+
+  if (!hoursPart) {
+    return fallback;
+  }
+
+  const hours = Number(hoursPart);
+  const minutes = Number(minutesPart || '0');
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+    return fallback;
+  }
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+    return fallback;
+  }
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+function ruleMatchesNow(rule: {
+  enabled?: boolean;
+  weekdays?: number[];
+  startTime?: string;
+  endTime?: string;
+}, now: Date) {
+  if (!rule.enabled) {
+    return false;
+  }
+
+  const toMinutes = (value: string | undefined) => {
+    const normalized = normalizeClockValue(value, '');
+    if (!normalized) return null;
+    const [hours, minutes] = normalized.split(':').map((part) => Number(part));
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+    return hours * 60 + minutes;
+  };
+
+  const startMinutes = toMinutes(rule.startTime);
+  const endMinutes = toMinutes(rule.endTime);
+  if (startMinutes === null || endMinutes === null) {
+    return false;
+  }
+
+  const days = normalizeWeekdayList(rule.weekdays);
+  const weekday = now.getDay();
+  const previousWeekday = (weekday + 6) % 7;
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+  if (startMinutes === endMinutes) {
+    return days.includes(weekday);
+  }
+  if (startMinutes < endMinutes) {
+    return days.includes(weekday) && currentMinutes >= startMinutes && currentMinutes < endMinutes;
+  }
+  if (currentMinutes >= startMinutes) {
+    return days.includes(weekday);
+  }
+  return days.includes(previousWeekday) && currentMinutes < endMinutes;
 }
 
 function syncCurveRpmAtIndex(
@@ -263,7 +405,7 @@ const DraggablePoint = memo(function DraggablePoint({
    ─── Main FanCurve Component ───
    ═══════════════════════════════════════════════════════════ */
 
-const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, temperature, deviceModel, focusTarget, onFocusHandled }: FanCurveProps) {
+const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, fanData, temperature, deviceModel, focusTarget, onFocusHandled }: FanCurveProps) {
   const { t } = useTranslation();
   const { locale } = useLocale();
   const [localCurve, setLocalCurve] = useState<types.FanCurvePoint[]>([]);
@@ -279,6 +421,8 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
   const [isSaving, setIsSaving] = useState(false);
   const [learningConfigLoading, setLearningConfigLoading] = useState(false);
   const [learningResetLoading, setLearningResetLoading] = useState(false);
+  const [featureConfigLoading, setFeatureConfigLoading] = useState(false);
+  const [scheduleTimeDrafts, setScheduleTimeDrafts] = useState<Record<string, string>>({});
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [isInteracting, setIsInteracting] = useState(false);
   const [showLowRpmWarning, setShowLowRpmWarning] = useState(false);
@@ -406,6 +550,68 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
   const currentLearningBias = normalizeLearningBias((smartControl as any).learningBias);
   const currentLearningBiasOption = learningBiasOptions.find((option) => option.value === currentLearningBias) ?? learningBiasOptions[0];
   const [targetTempDraft, setTargetTempDraft] = useState(() => normalizeTargetTemp((config.smartControl as any)?.targetTemp ?? 68));
+  const speedAvoidance = useMemo(() => {
+    const existing = (config as any).speedAvoidance;
+    return {
+      enabled: existing?.enabled ?? DEFAULT_SPEED_AVOIDANCE.enabled,
+      minRpm: existing?.minRpm ?? DEFAULT_SPEED_AVOIDANCE.minRpm,
+      maxRpm: existing?.maxRpm ?? DEFAULT_SPEED_AVOIDANCE.maxRpm,
+      marginRpm: existing?.marginRpm ?? DEFAULT_SPEED_AVOIDANCE.marginRpm,
+      emergencyBypassTemp: existing?.emergencyBypassTemp ?? DEFAULT_SPEED_AVOIDANCE.emergencyBypassTemp,
+    };
+  }, [config]);
+  const timeCurveSchedule = useMemo<TimeCurveScheduleView>(() => {
+    const existing = (config as any).timeCurveSchedule;
+    const fallbackProfileId = externalActiveProfileId || curveProfiles[0]?.id || '';
+    const rules: TimeCurveScheduleRuleView[] = Array.isArray(existing?.rules)
+      ? existing.rules.map((rule: any, index: number): TimeCurveScheduleRuleView => ({
+        id: String(rule?.id || `schedule-${index + 1}`),
+        name: String(rule?.name || t('fanCurve.schedule.defaultRuleName', { index: index + 1 })),
+        enabled: rule?.enabled !== false,
+        weekdays: normalizeWeekdayList(rule?.weekdays),
+        startTime: normalizeClockValue(rule?.startTime, DEFAULT_SCHEDULE_RULE.startTime),
+        endTime: normalizeClockValue(rule?.endTime, DEFAULT_SCHEDULE_RULE.endTime),
+        curveProfileId: String(rule?.curveProfileId || fallbackProfileId),
+      }))
+      : [];
+
+    return {
+      enabled: existing?.enabled ?? false,
+      rules,
+    };
+  }, [config, curveProfiles, externalActiveProfileId, t]);
+  const weekdayOptions = useMemo(() => ([
+    { value: 1, label: t('fanCurve.schedule.days.mon') },
+    { value: 2, label: t('fanCurve.schedule.days.tue') },
+    { value: 3, label: t('fanCurve.schedule.days.wed') },
+    { value: 4, label: t('fanCurve.schedule.days.thu') },
+    { value: 5, label: t('fanCurve.schedule.days.fri') },
+    { value: 6, label: t('fanCurve.schedule.days.sat') },
+    { value: 0, label: t('fanCurve.schedule.days.sun') },
+  ]), [t, locale]);
+  const scheduleProfileOptions = useMemo(() => curveProfiles.map((profile) => ({
+    value: profile.id,
+    label: profile.name,
+  })), [curveProfiles]);
+  const currentScheduleRule = useMemo(() => {
+    if (!timeCurveSchedule.enabled) {
+      return null;
+    }
+    return timeCurveSchedule.rules.find((rule) => ruleMatchesNow(rule, new Date())) ?? null;
+  }, [timeCurveSchedule]);
+
+  useEffect(() => {
+    setScheduleTimeDrafts((prev) => {
+      const next: Record<string, string> = {};
+      for (const rule of timeCurveSchedule.rules) {
+        const startKey = `${rule.id}:start`;
+        const endKey = `${rule.id}:end`;
+        if (startKey in prev) next[startKey] = prev[startKey];
+        if (endKey in prev) next[endKey] = prev[endKey];
+      }
+      return next;
+    });
+  }, [timeCurveSchedule.rules]);
 
   useEffect(() => {
     setTargetTempDraft(normalizeTargetTemp((smartControl as any).targetTemp ?? 68));
@@ -868,6 +1074,97 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
     }
   }, [syncConfigFromBackend, t]);
 
+  const updateFanFeatureConfig = useCallback(async (patch: Partial<types.AppConfig>) => {
+    setFeatureConfigLoading(true);
+    try {
+      const nextConfig = types.AppConfig.createFrom({ ...config, ...patch });
+      await apiService.updateConfig(nextConfig);
+      onConfigChange(nextConfig);
+    } catch (err) {
+      toast.error(t('fanCurve.toast.saveFeatureFailed'), { description: getErrorMessage(err) });
+    } finally {
+      setFeatureConfigLoading(false);
+    }
+  }, [config, onConfigChange, t]);
+
+  const updateSpeedAvoidance = useCallback((patch: Partial<types.SpeedAvoidanceConfig>) => {
+    const nextSpeedAvoidance = types.SpeedAvoidanceConfig.createFrom({ ...speedAvoidance, ...patch });
+    void updateFanFeatureConfig({ speedAvoidance: nextSpeedAvoidance as any });
+  }, [speedAvoidance, updateFanFeatureConfig]);
+
+  const updateTimeCurveSchedule = useCallback((patch: Partial<types.TimeCurveScheduleConfig> & { rules?: TimeCurveScheduleRuleView[] }) => {
+    const nextTimeCurveSchedule = types.TimeCurveScheduleConfig.createFrom({
+      ...timeCurveSchedule,
+      ...patch,
+      rules: patch.rules ?? timeCurveSchedule.rules,
+    });
+    void updateFanFeatureConfig({ timeCurveSchedule: nextTimeCurveSchedule as any });
+  }, [timeCurveSchedule, updateFanFeatureConfig]);
+
+  const handleAddScheduleRule = useCallback(() => {
+    const fallbackProfileId = activeProfileId || curveProfiles[0]?.id || '';
+    const nextRule = {
+      id: `schedule-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+      name: t('fanCurve.schedule.newRuleName'),
+      enabled: true,
+      weekdays: [...DEFAULT_SCHEDULE_RULE.weekdays],
+      startTime: DEFAULT_SCHEDULE_RULE.startTime,
+      endTime: DEFAULT_SCHEDULE_RULE.endTime,
+      curveProfileId: fallbackProfileId,
+    };
+    updateTimeCurveSchedule({ rules: [...timeCurveSchedule.rules, nextRule] });
+  }, [activeProfileId, curveProfiles, t, timeCurveSchedule.rules, updateTimeCurveSchedule]);
+
+  const handleScheduleRuleChange = useCallback((ruleId: string, patch: Partial<types.TimeCurveScheduleRule>) => {
+    const nextRules = timeCurveSchedule.rules.map((rule) => {
+      if (rule.id !== ruleId) return rule;
+      return {
+        ...rule,
+        ...patch,
+      };
+    });
+    updateTimeCurveSchedule({ rules: nextRules });
+  }, [timeCurveSchedule.rules, updateTimeCurveSchedule]);
+
+  const handleScheduleRuleDelete = useCallback((ruleId: string) => {
+    updateTimeCurveSchedule({ rules: timeCurveSchedule.rules.filter((rule) => rule.id !== ruleId) });
+  }, [timeCurveSchedule.rules, updateTimeCurveSchedule]);
+
+  const toggleScheduleWeekday = useCallback((ruleId: string, day: number) => {
+    const nextRules = timeCurveSchedule.rules.map((rule) => {
+      if (rule.id !== ruleId) return rule;
+      const exists = rule.weekdays.includes(day);
+      const nextWeekdays = exists
+        ? rule.weekdays.filter((item) => item !== day)
+        : [...rule.weekdays, day];
+      return {
+        ...rule,
+        weekdays: normalizeWeekdayList(nextWeekdays.length > 0 ? nextWeekdays : rule.weekdays),
+      };
+    });
+    updateTimeCurveSchedule({ rules: nextRules });
+  }, [timeCurveSchedule.rules, updateTimeCurveSchedule]);
+
+  const handleScheduleTimeDraftChange = useCallback((ruleId: string, field: 'startTime' | 'endTime', value: string) => {
+    const draftKey = `${ruleId}:${field === 'startTime' ? 'start' : 'end'}`;
+    setScheduleTimeDrafts((prev) => ({
+      ...prev,
+      [draftKey]: sanitizeTimeDraftInput(value),
+    }));
+  }, []);
+
+  const handleScheduleTimeDraftCommit = useCallback((ruleId: string, field: 'startTime' | 'endTime', fallback: string) => {
+    const draftKey = `${ruleId}:${field === 'startTime' ? 'start' : 'end'}`;
+    const rawValue = scheduleTimeDrafts[draftKey] ?? fallback;
+    const normalizedValue = normalizeTimeDraftValue(rawValue, fallback);
+    setScheduleTimeDrafts((prev) => {
+      const next = { ...prev };
+      delete next[draftKey];
+      return next;
+    });
+    handleScheduleRuleChange(ruleId, { [field]: normalizedValue } as Partial<types.TimeCurveScheduleRule>);
+  }, [handleScheduleRuleChange, scheduleTimeDrafts]);
+
   /* ── Reference temperature (follows settings 控温温度来源: max/cpu/gpu) ── */
   const referenceTemp = useMemo(() => {
     if (!temperature) return null;
@@ -1300,6 +1597,267 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, t
               <div className="rounded-lg border border-dashed border-border/70 bg-card/55 px-3 py-2 text-xs text-muted-foreground">{t('fanCurve.learning.noOffsets')}</div>
             )}
           </div>
+        </section>
+
+        <section className="rounded-2xl border border-border/70 bg-card p-4 shadow-sm">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                <TriangleAlert className="h-4 w-4 text-orange-500" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="text-sm font-medium text-foreground">{t('fanCurve.avoidance.title')}</div>
+                  {speedAvoidance.enabled && <Badge variant="warning">{t('fanCurve.avoidance.badge')}</Badge>}
+                </div>
+                <div className="text-xs leading-relaxed text-muted-foreground">{t('fanCurve.avoidance.description')}</div>
+              </div>
+            </div>
+            <ToggleSwitch
+              enabled={!!speedAvoidance.enabled}
+              onChange={(enabled) => updateSpeedAvoidance({ enabled })}
+              loading={featureConfigLoading}
+              size="sm"
+              color="orange"
+              srLabel={t('fanCurve.avoidance.toggleAria')}
+            />
+          </div>
+
+          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-4">
+            <div className="flex h-full flex-col rounded-xl border border-border/70 bg-background/45 p-3">
+              <div className="text-xs font-medium text-muted-foreground">{t('fanCurve.avoidance.minTitle')}</div>
+              <div className="mt-1 min-h-10 text-xs leading-relaxed text-muted-foreground">{t('fanCurve.avoidance.minDescription')}</div>
+              <div className="mt-3">
+                <NumberInput
+                  value={speedAvoidance.minRpm}
+                  onChange={(value) => updateSpeedAvoidance({ minRpm: value })}
+                  min={800}
+                  max={4500}
+                  step={50}
+                  suffix="RPM"
+                  disabled={featureConfigLoading}
+                />
+              </div>
+            </div>
+
+            <div className="flex h-full flex-col rounded-xl border border-border/70 bg-background/45 p-3">
+              <div className="text-xs font-medium text-muted-foreground">{t('fanCurve.avoidance.maxTitle')}</div>
+              <div className="mt-1 min-h-10 text-xs leading-relaxed text-muted-foreground">{t('fanCurve.avoidance.maxDescription')}</div>
+              <div className="mt-3">
+                <NumberInput
+                  value={speedAvoidance.maxRpm}
+                  onChange={(value) => updateSpeedAvoidance({ maxRpm: value })}
+                  min={800}
+                  max={4500}
+                  step={50}
+                  suffix="RPM"
+                  disabled={featureConfigLoading}
+                />
+              </div>
+            </div>
+
+            <div className="flex h-full flex-col rounded-xl border border-border/70 bg-background/45 p-3">
+              <div className="text-xs font-medium text-muted-foreground">{t('fanCurve.avoidance.marginTitle')}</div>
+              <div className="mt-1 min-h-10 text-xs leading-relaxed text-muted-foreground">{t('fanCurve.avoidance.marginDescription')}</div>
+              <div className="mt-3">
+                <NumberInput
+                  value={speedAvoidance.marginRpm}
+                  onChange={(value) => updateSpeedAvoidance({ marginRpm: value })}
+                  min={50}
+                  max={500}
+                  step={50}
+                  suffix="RPM"
+                  disabled={featureConfigLoading}
+                />
+              </div>
+            </div>
+
+            <div className="flex h-full flex-col rounded-xl border border-border/70 bg-background/45 p-3">
+              <div className="text-xs font-medium text-muted-foreground">{t('fanCurve.avoidance.bypassTitle')}</div>
+              <div className="mt-1 min-h-10 text-xs leading-relaxed text-muted-foreground">{t('fanCurve.avoidance.bypassDescription')}</div>
+              <div className="mt-3">
+                <NumberInput
+                  value={speedAvoidance.emergencyBypassTemp}
+                  onChange={(value) => updateSpeedAvoidance({ emergencyBypassTemp: value })}
+                  min={60}
+                  max={95}
+                  step={1}
+                  suffix="°C"
+                  disabled={featureConfigLoading}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <span className="rounded-full border border-border/70 bg-background/60 px-3 py-1">
+              {t('fanCurve.avoidance.summary', {
+                min: Math.min(speedAvoidance.minRpm, speedAvoidance.maxRpm),
+                max: Math.max(speedAvoidance.minRpm, speedAvoidance.maxRpm),
+                margin: speedAvoidance.marginRpm,
+              })}
+            </span>
+            {speedAvoidance.enabled && fanData?.targetRpm && fanData.targetRpm >= Math.min(speedAvoidance.minRpm, speedAvoidance.maxRpm) && fanData.targetRpm <= Math.max(speedAvoidance.minRpm, speedAvoidance.maxRpm) && (
+              <span className="rounded-full border border-orange-500/40 bg-orange-500/10 px-3 py-1 text-orange-600 dark:text-orange-300">
+                {t('fanCurve.avoidance.activeHint', { rpm: fanData.targetRpm })}
+              </span>
+            )}
+            {!config.autoControl && (
+              <span className="rounded-full border border-border/70 bg-background/60 px-3 py-1">
+                {t('fanCurve.avoidance.autoOnlyHint')}
+              </span>
+            )}
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-border/70 bg-card p-4 shadow-sm">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                <Clock3 className="h-4 w-4 text-sky-500" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="text-sm font-medium text-foreground">{t('fanCurve.schedule.title')}</div>
+                  {currentScheduleRule && <Badge variant="info">{t('fanCurve.schedule.currentBadge')}</Badge>}
+                </div>
+                <div className="text-xs leading-relaxed text-muted-foreground">{t('fanCurve.schedule.description')}</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 self-start md:self-center">
+              <Button variant="secondary" size="sm" onClick={handleAddScheduleRule} disabled={featureConfigLoading || scheduleProfileOptions.length === 0} icon={<Plus className="h-3.5 w-3.5" />}>
+                {t('fanCurve.schedule.addRule')}
+              </Button>
+              <ToggleSwitch
+                enabled={!!timeCurveSchedule.enabled}
+                onChange={(enabled) => updateTimeCurveSchedule({ enabled })}
+                loading={featureConfigLoading}
+                size="sm"
+                color="blue"
+                srLabel={t('fanCurve.schedule.toggleAria')}
+              />
+            </div>
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            {currentScheduleRule ? (
+              <span className="rounded-full border border-sky-500/30 bg-sky-500/10 px-3 py-1 text-sky-700 dark:text-sky-300">
+                {t('fanCurve.schedule.currentRule', { name: currentScheduleRule.name })}
+              </span>
+            ) : (
+              <span className="rounded-full border border-border/70 bg-background/60 px-3 py-1">
+                {t('fanCurve.schedule.noRuleMatched')}
+              </span>
+            )}
+            <span className="rounded-full border border-border/70 bg-background/60 px-3 py-1">
+              {t('fanCurve.schedule.autoControlHint')}
+            </span>
+          </div>
+
+          {timeCurveSchedule.rules.length === 0 ? (
+            <div className="mt-3 rounded-xl border border-dashed border-border/70 bg-background/35 px-4 py-6 text-center text-sm text-muted-foreground">
+              {t('fanCurve.schedule.empty')}
+            </div>
+          ) : (
+            <div className="mt-3 space-y-3">
+              {timeCurveSchedule.rules.map((rule) => (
+                <div key={rule.id} className="rounded-xl border border-border/70 bg-background/35 p-3">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                    <div className="grid flex-1 grid-cols-1 gap-3 md:grid-cols-4">
+                      <div className="space-y-1">
+                        <div className="text-[11px] font-medium text-muted-foreground">{t('fanCurve.schedule.ruleName')}</div>
+                        <Input
+                          value={rule.name}
+                          onChange={(event) => handleScheduleRuleChange(rule.id, { name: event.target.value })}
+                          className="h-9"
+                          placeholder={t('fanCurve.schedule.ruleNamePlaceholder')}
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="text-[11px] font-medium text-muted-foreground">{t('fanCurve.schedule.profileTitle')}</div>
+                        <Select
+                          value={rule.curveProfileId}
+                          onChange={(value: string | number) => handleScheduleRuleChange(rule.id, { curveProfileId: String(value) })}
+                          options={scheduleProfileOptions}
+                          size="sm"
+                          className="w-full"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="text-[11px] font-medium text-muted-foreground">{t('fanCurve.schedule.startTitle')}</div>
+                        <Input
+                          value={scheduleTimeDrafts[`${rule.id}:start`] ?? rule.startTime}
+                          onChange={(event) => handleScheduleTimeDraftChange(rule.id, 'startTime', event.target.value)}
+                          onBlur={() => handleScheduleTimeDraftCommit(rule.id, 'startTime', rule.startTime)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              event.currentTarget.blur();
+                            }
+                          }}
+                          className="h-9"
+                          placeholder="HH:mm"
+                          inputMode="numeric"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="text-[11px] font-medium text-muted-foreground">{t('fanCurve.schedule.endTitle')}</div>
+                        <Input
+                          value={scheduleTimeDrafts[`${rule.id}:end`] ?? rule.endTime}
+                          onChange={(event) => handleScheduleTimeDraftChange(rule.id, 'endTime', event.target.value)}
+                          onBlur={() => handleScheduleTimeDraftCommit(rule.id, 'endTime', rule.endTime)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              event.currentTarget.blur();
+                            }
+                          }}
+                          className="h-9"
+                          placeholder="HH:mm"
+                          inputMode="numeric"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 self-start md:self-end">
+                      <ToggleSwitch
+                        enabled={rule.enabled}
+                        onChange={(enabled) => handleScheduleRuleChange(rule.id, { enabled })}
+                        loading={featureConfigLoading}
+                        size="sm"
+                        color="green"
+                        srLabel={t('fanCurve.schedule.ruleToggleAria')}
+                      />
+                      <Button variant="danger" size="sm" onClick={() => handleScheduleRuleDelete(rule.id)} icon={<Trash2 className="h-3.5 w-3.5" />}>
+                        {t('common.actions.delete')}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <span className="text-[11px] font-medium text-muted-foreground">{t('fanCurve.schedule.daysTitle')}</span>
+                    {weekdayOptions.map((day) => {
+                      const selected = rule.weekdays.includes(day.value);
+                      return (
+                        <button
+                          key={`${rule.id}-${day.value}`}
+                          type="button"
+                          onClick={() => toggleScheduleWeekday(rule.id, day.value)}
+                          className={clsx(
+                            'cursor-pointer rounded-full border px-2.5 py-1 text-[11px] transition-colors',
+                            selected ? 'border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-300' : 'border-border/70 bg-background/60 text-muted-foreground',
+                          )}
+                        >
+                          {day.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
 
         {/* ── Tips ── */}

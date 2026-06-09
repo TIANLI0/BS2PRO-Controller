@@ -410,6 +410,8 @@ type AppConfig struct {
 	CustomSpeedEnabled       bool                      `json:"customSpeedEnabled"`       // 自定义转速开关
 	CustomSpeedRPM           int                       `json:"customSpeedRPM"`           // 自定义转速值(无上下限)
 	IgnoreDeviceOnReconnect  bool                      `json:"ignoreDeviceOnReconnect"`  // 断连后忽略设备状态(保持APP配置)
+	SpeedAvoidance           SpeedAvoidanceConfig      `json:"speedAvoidance"`           // 智能控温转速避让
+	TimeCurveSchedule        TimeCurveScheduleConfig   `json:"timeCurveSchedule"`        // 分时曲线计划
 	SmartControl             SmartControlConfig        `json:"smartControl"`             // 学习型智能控温配置
 	LightStrip               LightStripConfig          `json:"lightStrip"`               // 灯带配置
 }
@@ -782,6 +784,8 @@ func GetDefaultConfig(isAutoStart bool) AppConfig {
 		CustomSpeedEnabled:      false,
 		CustomSpeedRPM:          2000,
 		IgnoreDeviceOnReconnect: true, // 默认开启，防止断连后误判用户手动切换
+		SpeedAvoidance:          GetDefaultSpeedAvoidanceConfig(),
+		TimeCurveSchedule:       GetDefaultTimeCurveScheduleConfig(),
 		SmartControl:            GetDefaultSmartControlConfig(defaultCurve),
 		LightStrip:              GetDefaultLightStripConfig(),
 		LegionFnQ:               GetDefaultLegionFnQConfig(),

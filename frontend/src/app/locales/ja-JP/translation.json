@@ -332,6 +332,52 @@
         }
       }
     },
+    "avoidance": {
+      "title": "共振回転数の回避",
+      "badge": "有効",
+      "description": "スマート制御で計算した目標 RPM がノイズの出やすい回転域に入った場合、その範囲外へ自動で逃がして軸音を抑えます。",
+      "toggleAria": "共振回転数回避を切り替える",
+      "minTitle": "開始 RPM",
+      "minDescription": "ノイズが出やすい回転域の下限です。",
+      "maxTitle": "終了 RPM",
+      "maxDescription": "ノイズが出やすい回転域の上限です。",
+      "marginTitle": "回避余白",
+      "marginDescription": "範囲外へ逃がすときに追加する RPM 余白です。",
+      "bypassTitle": "高温時のバイパス",
+      "bypassDescription": "この温度以上では回避を一時的に無視し、冷却を優先します。",
+      "summary": "{{min}} - {{max}} RPM を回避、余白 {{margin}} RPM",
+      "activeHint": "現在の目標 {{rpm}} RPM は敏感な回転域にあり、自動回避されます",
+      "autoOnlyHint": "スマート制御モードでのみ有効です"
+    },
+    "schedule": {
+      "title": "時間帯別カーブ",
+      "description": "時間帯ごとに異なるカーブプロファイルへ自動切替します。昼は性能重視、夜は静音重視などに便利です。",
+      "toggleAria": "時間帯別カーブを切り替える",
+      "currentBadge": "適用中",
+      "currentRule": "現在のルール: {{name}}",
+      "noRuleMatched": "現在時刻に一致するルールはありません",
+      "autoControlHint": "アクティブなカーブプロファイルだけを切り替え、スマート制御を強制的には有効化しません",
+      "addRule": "ルール追加",
+      "empty": "時間帯ルールはまだありません。右上から追加してください。",
+      "newRuleName": "新しい時間帯",
+      "defaultRuleName": "時間帯 {{index}}",
+      "ruleName": "ルール名",
+      "ruleNamePlaceholder": "例: 深夜静音",
+      "profileTitle": "カーブプロファイル",
+      "startTitle": "開始時刻",
+      "endTitle": "終了時刻",
+      "daysTitle": "有効曜日",
+      "ruleToggleAria": "時間帯ルールを切り替える",
+      "days": {
+        "mon": "月",
+        "tue": "火",
+        "wed": "水",
+        "thu": "木",
+        "fri": "金",
+        "sat": "土",
+        "sun": "日"
+      }
+    },
     "hints": {
       "dragPoint": "ブルーポイントをドラッグして RPM を調整",
       "curveLegend": "実線: 基準 · 破線: 学習"
@@ -408,6 +454,7 @@
       "importSucceeded": "カーブプロファイルをインポートしました",
       "importFailed": "インポートに失敗しました: {{error}}",
       "saveLearningFailed": "学習設定の保存に失敗しました",
+      "saveFeatureFailed": "拡張ファン設定の保存に失敗しました",
       "learningReset": "学習オフセットをリセットしました",
       "learningResetDescription": "ファンカーブは設定値にしたがって動作します",
       "resetFailed": "リセットに失敗しました"
