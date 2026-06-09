@@ -648,7 +648,10 @@ export default function DeviceStatus({
   const fanSpinDuration = getFanSpinDuration(fanData?.currentRpm);
   const maxRpmInfo = useMemo(() => getReportedMaxRpm(fanData?.gearSettings, fanData?.maxGear), [fanData?.gearSettings, fanData?.maxGear]);
   const deviceExtremeRPM = deviceSettings?.gearRpmTable?.find((item) => item.label === 'extreme')?.rpm;
-  const maxGearHighLevelRpm = deviceExtremeRPM || maxRpmInfo.rpm;
+  const reportedMaxRpm = maxRpmInfo.rpm;
+  const maxGearHighLevelRpm = (isBs1Model || isBs2Model || isBs3Model)
+    ? 3300
+    : reportedMaxRpm || deviceExtremeRPM;
   // 温度就绪判定：后端首次推送（updateTime > 0）且该路传感器读到非零值。
   // 单独按通路判 — 只有 GPU 没装独显时仍会保持 0，但 CPU 已就绪则只显示 GPU 占位。
   const tempPushed = (temperature?.updateTime ?? 0) > 0;
