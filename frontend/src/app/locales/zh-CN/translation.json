@@ -10,6 +10,7 @@
     },
     "actions": {
       "apply": "应用",
+      "back": "返回",
       "cancel": "取消",
       "close": "关闭",
       "copy": "复制",
@@ -318,6 +319,10 @@
       "offsetDescription": "当前学习曲线相对基础曲线的主要 RPM 修正点。",
       "reset": "重置学习",
       "noOffsets": "暂无学习偏移",
+      "noiseTestTitle": "噪音实测校准",
+      "noiseTestDescription": "用麦克风实测各转速的真实噪音，学习模式会优先在「降速最省噪」的区间做静音优化。",
+      "noiseTestButton": "噪音测试",
+      "noiseTestCalibrated": "已校准 {{date}}",
       "biasOptions": {
         "balanced": {
           "label": "均衡",
@@ -331,6 +336,64 @@
           "label": "静音优先",
           "description": "只允许学习降低转速，避免自动把风扇拉高。"
         }
+      }
+    },
+    "noiseTest": {
+      "title": "风扇噪音测试",
+      "description": "通过麦克风实测不同转速下的噪音水平，生成噪音档案用于优化学习模式。",
+      "intro": {
+        "envTitle": "测试前请确保环境安静",
+        "point1": "关闭音乐、视频、空调等持续声源，测试期间不要说话或敲键盘。",
+        "point2": "把带麦克风的设备放在距离散热器约 20-30 cm 处，不要遮挡麦克风。",
+        "point3": "如使用笔记本内置麦克风，测试期间不要移动设备。",
+        "point4": "测得的是相对噪音（以最安静档位为基准），无需专业声学校准。",
+        "sweepNotice": "测试将把风扇从 {{min}} RPM 逐级提升到 {{max}} RPM，共 {{steps}} 个测量点，约需 2-3 分钟。期间风扇会明显变响，测试结束后自动恢复原有设置。",
+        "next": "选择麦克风"
+      },
+      "setup": {
+        "micTitle": "选择麦克风",
+        "refresh": "刷新",
+        "noMicFound": "未找到可用麦克风",
+        "permissionError": "无法访问麦克风，请检查系统隐私设置中的麦克风权限（{{error}}）",
+        "levelTitle": "实时环境声级",
+        "stable": "环境稳定",
+        "unstable": "环境波动大",
+        "stableHint": "背景声级稳定，可以开始测试。",
+        "unstableHint": "检测到声级波动，请保持安静（不要说话、关闭声源）后再开始。",
+        "deviceRequired": "设备未连接，无法控制风扇转速。",
+        "start": "开始测试"
+      },
+      "running": {
+        "preparing": "正在准备…",
+        "settling": "等待风扇稳定在 {{rpm}} RPM…",
+        "sampling": "正在测量 {{rpm}} RPM 噪音…",
+        "keepQuiet": "测试进行中，请保持环境安静，不要说话或移动麦克风。",
+        "cancel": "取消测试"
+      },
+      "done": {
+        "riseTitle": "全程噪音上升",
+        "kneeTitle": "噪音拐点",
+        "kneeValue": "约 {{rpm}} RPM 起噪音明显上升",
+        "noKnee": "未检测到明显拐点",
+        "resonance": "检测到 {{rpm}} RPM 附近存在共振峰（高出趋势 {{db}} dB），建议设置 {{min}}-{{max}} RPM 避噪区间。",
+        "lowConfidence": "全程噪音变化过小，测量区分度不足。请把麦克风移近散热器、确认环境安静后重测；本次结果不建议写入学习档案。",
+        "applyProfile": "写入学习模式噪音档案",
+        "profileApplied": "噪音档案已写入",
+        "applyAvoidance": "设置避噪区间 {{min}}-{{max}} RPM",
+        "avoidanceApplied": "避噪区间已设置",
+        "retest": "重新测试",
+        "close": "完成"
+      },
+      "chart": {
+        "series": "相对噪音"
+      },
+      "toast": {
+        "cancelled": "噪音测试已取消，风扇设置已恢复",
+        "failed": "噪音测试失败",
+        "restoreFailed": "恢复风扇设置失败，请手动检查转速模式",
+        "profileSaved": "噪音档案已保存，学习模式将参考实测噪音进行静音优化",
+        "avoidanceSaved": "已启用 {{min}}-{{max}} RPM 避噪区间",
+        "applyFailed": "保存失败"
       }
     },
     "avoidance": {

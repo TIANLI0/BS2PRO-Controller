@@ -27,6 +27,16 @@ const (
 	offsetSmoothPullLimit      = 30
 	offsetSmoothSelfWeight     = 0.7
 	offsetSmoothNeighborWeight = 0.15
+
+	// 噪音档案（麦克风实测转速-噪音曲线）相关常量。
+	noiseProfileMinPoints  = 3      // 少于该点数不足以估计局部斜率
+	noiseProfileMinSpanRPM = 500    // 档案覆盖的最小转速跨度
+	noiseProfileMinRiseDB  = 1.0    // 全程噪音上升低于该值视为测量无效
+	noiseGainRawMin        = 0.3    // 局部/平均斜率比的下限
+	noiseGainRawMax        = 2.0    // 局部/平均斜率比的上限
+	noiseGainMin           = 0.4    // 最终降速增益下限
+	noiseGainMax           = 1.8    // 最终降速增益上限
+	noiseWeightBaseline    = 4.0    // NoiseWeight 默认值，作为增益强度基准
 )
 
 // eqPoint 记录一次稳态 (转速, 温度) 平衡点。
@@ -326,6 +336,77 @@ func comfortBandWidth(cfg types.SmartControlConfig) int {
 	return band
 }
 
+// localNoiseSlope 估计 rpm 附近的噪音斜率 (dB/RPM)。
+// 取包含 rpm 的档案段并向两侧各扩一个点做中心差分，抑制单点测量噪声。
+func localNoiseSlope(rpm int, profile []types.NoiseProfilePoint) (float64, bool) {
+	n := len(profile)
+	if n < 2 {
+		return 0, false
+	}
+	seg := n - 2
+	for i := 0; i < n-1; i++ {
+		if rpm < profile[i+1].RPM {
+			seg = i
+			break
+		}
+	}
+	lo := max(seg-1, 0)
+	hi := min(seg+2, n-1)
+	span := profile[hi].RPM - profile[lo].RPM
+	if span <= 0 {
+		return 0, false
+	}
+	slope := (profile[hi].DB - profile[lo].DB) / float64(span)
+	if slope < 0 {
+		slope = 0
+	}
+	return slope, true
+}
+
+// noiseDownGain 依据实测噪音档案计算降速步长增益。
+//
+// 思路：降速的价值 = 省下的噪音。局部噪音斜率（dB/RPM）相对全程平均斜率
+// 越陡，说明在当前转速附近降一点转速就能省较多噪音，学习降速应更积极（增益>1）；
+// 斜率平坦说明降速几乎听不出差别，不如保留散热余量（增益<1）。
+// NoiseWeight 控制档案对学习的影响强度，0 表示完全不参考档案。
+func noiseDownGain(rpm int, cfg types.SmartControlConfig) float64 {
+	profile := cfg.NoiseProfile
+	if len(profile) < noiseProfileMinPoints || cfg.NoiseWeight <= 0 || rpm <= 0 {
+		return 1
+	}
+	span := profile[len(profile)-1].RPM - profile[0].RPM
+	totalRise := profile[len(profile)-1].DB - profile[0].DB
+	if span < noiseProfileMinSpanRPM || totalRise < noiseProfileMinRiseDB {
+		return 1
+	}
+	avgSlope := totalRise / float64(span)
+	local, ok := localNoiseSlope(rpm, profile)
+	if !ok || avgSlope <= 0 {
+		return 1
+	}
+
+	raw := local / avgSlope
+	if raw < noiseGainRawMin {
+		raw = noiseGainRawMin
+	}
+	if raw > noiseGainRawMax {
+		raw = noiseGainRawMax
+	}
+
+	influence := float64(cfg.NoiseWeight) / noiseWeightBaseline
+	if influence > 1.5 {
+		influence = 1.5
+	}
+	gain := 1 + (raw-1)*influence
+	if gain < noiseGainMin {
+		gain = noiseGainMin
+	}
+	if gain > noiseGainMax {
+		gain = noiseGainMax
+	}
+	return gain
+}
+
 // solveLearnStep 依据稳态温度、目标温度带与冷却效率，求出本次应施加的转速调整 (RPM)。
 //
 // 策略：
@@ -333,9 +414,10 @@ func comfortBandWidth(cfg types.SmartControlConfig) int {
 //   - 温度处于舒适带内  → 保持不动（这是消除“无脑降温”的关键：温度够低就不再加速）。
 //   - 温度低于舒适带    → 主动降转速省噪音，可降幅 = α·(可上升°C)/效率；
 //     冷却越低效（效率小），同样的降速带来的升温越小，于是越敢大幅降速。
+//     若存在实测噪音档案，降幅再按当前转速附近的降噪收益加权（见 noiseDownGain）。
 //
 // 冷却效率 eff (°C/RPM) 把“温度误差”换算成“转速需求”，使步长物理合理、收敛快且不易过冲。
-func solveLearnStep(steadyTemp int, eff float64, haveEff bool, cfg types.SmartControlConfig) int {
+func solveLearnStep(steadyTemp, steadyRPM int, eff float64, haveEff bool, cfg types.SmartControlConfig) int {
 	ceiling := targetTempCeiling(cfg)
 	lowTarget := ceiling - comfortBandWidth(cfg)
 	alpha := alphaFromLearnRate(cfg.LearnRate)
@@ -355,7 +437,7 @@ func solveLearnStep(steadyTemp int, eff float64, haveEff bool, cfg types.SmartCo
 			step = minSafetyStep
 		}
 	case steadyTemp < lowTarget:
-		step = -alpha * float64(lowTarget-steadyTemp) / eff
+		step = -alpha * float64(lowTarget-steadyTemp) / eff * noiseDownGain(steadyRPM, cfg)
 	default:
 		return 0
 	}
@@ -374,10 +456,11 @@ func solveLearnStep(steadyTemp int, eff float64, haveEff bool, cfg types.SmartCo
 	return delta
 }
 
-// LearnSteadyOffset 根据一次稳态观测（温度 + 冷却效率）更新学习偏移。
+// LearnSteadyOffset 根据一次稳态观测（温度 + 转速 + 冷却效率）更新学习偏移。
 func LearnSteadyOffset(
 	bucketIdx int,
 	steadyMeanTemp int,
+	steadyMeanRPM int,
 	localEff float64,
 	haveEff bool,
 	curve []types.FanCurvePoint,
@@ -395,7 +478,10 @@ func LearnSteadyOffset(
 		}
 	}
 
-	mainDelta := solveLearnStep(steadyMeanTemp, localEff, haveEff, cfg)
+	if steadyMeanRPM <= 0 {
+		steadyMeanRPM = curve[bucketIdx].RPM + offsets[bucketIdx]
+	}
+	mainDelta := solveLearnStep(steadyMeanTemp, steadyMeanRPM, localEff, haveEff, cfg)
 	if mainDelta == 0 {
 		return offsets, false
 	}

@@ -328,6 +328,7 @@ func (a *CoreApp) startTemperatureMonitoring() {
 						newOffsets, changed := smartcontrol.LearnSteadyOffset(
 							steady.BucketIdx,
 							steady.MeanTemp,
+							steady.MeanRPM,
 							steady.LocalEff,
 							steady.HaveEff,
 							cfg.FanCurve,

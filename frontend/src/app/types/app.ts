@@ -106,6 +106,12 @@ export interface TimeCurveScheduleRule {
   curveProfileId: string;
 }
 
+// 噪音测试采样点：以测试中最安静点为 0 dB 的相对噪音
+export interface NoiseProfilePoint {
+  rpm: number;
+  db: number;
+}
+
 export interface SmartControlConfig {
   enabled: boolean;
   learning: boolean;
@@ -130,6 +136,8 @@ export interface SmartControlConfig {
   learnedOffsetsCool: number[];
   learnedRateHeat: number[];
   learnedRateCool: number[];
+  noiseProfile?: NoiseProfilePoint[];      // 实测转速-噪音档案
+  noiseProfileUpdatedAt?: number;          // 噪音测试完成时间(Unix 秒)
 }
 
 // 调试信息

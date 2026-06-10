@@ -10,6 +10,7 @@
     },
     "actions": {
       "apply": "Apply",
+      "back": "Back",
       "cancel": "Cancel",
       "close": "Close",
       "copy": "Copy",
@@ -318,6 +319,10 @@
       "offsetDescription": "The main RPM corrections of the current learned curve relative to the base curve.",
       "reset": "Reset learning",
       "noOffsets": "No learned offsets yet",
+      "noiseTestTitle": "Measured noise calibration",
+      "noiseTestDescription": "Measure real fan noise at each RPM with a microphone. Adaptive learning will then prioritize quiet optimizations where lowering RPM saves the most noise.",
+      "noiseTestButton": "Noise test",
+      "noiseTestCalibrated": "Calibrated {{date}}",
       "biasOptions": {
         "balanced": {
           "label": "Balanced",
@@ -331,6 +336,64 @@
           "label": "Quiet first",
           "description": "Only allows learned RPM decreases, avoiding unnecessary fan ramp-up."
         }
+      }
+    },
+    "noiseTest": {
+      "title": "Fan noise test",
+      "description": "Measure noise levels at different fan speeds with a microphone and build a noise profile to optimize adaptive learning.",
+      "intro": {
+        "envTitle": "Make sure the environment is quiet before testing",
+        "point1": "Turn off music, videos, air conditioning and other constant sound sources. Do not talk or type during the test.",
+        "point2": "Place the microphone about 20-30 cm from the cooler and keep it unobstructed.",
+        "point3": "If you use the laptop's built-in microphone, do not move the device during the test.",
+        "point4": "Results are relative noise levels (referenced to the quietest step) — no professional acoustic calibration is needed.",
+        "sweepNotice": "The test sweeps the fan from {{min}} RPM up to {{max}} RPM across {{steps}} measurement points and takes about 2-3 minutes. The fan will get noticeably loud; your previous settings are restored automatically afterwards.",
+        "next": "Choose microphone"
+      },
+      "setup": {
+        "micTitle": "Microphone",
+        "refresh": "Refresh",
+        "noMicFound": "No usable microphone found",
+        "permissionError": "Cannot access the microphone. Please check microphone permissions in system privacy settings ({{error}})",
+        "levelTitle": "Live ambient level",
+        "stable": "Stable",
+        "unstable": "Fluctuating",
+        "stableHint": "Background level is stable. You can start the test.",
+        "unstableHint": "Sound level fluctuations detected. Please keep quiet (no talking, no sound sources) before starting.",
+        "deviceRequired": "Device is not connected, fan speed cannot be controlled.",
+        "start": "Start test"
+      },
+      "running": {
+        "preparing": "Preparing…",
+        "settling": "Waiting for fan to settle at {{rpm}} RPM…",
+        "sampling": "Measuring noise at {{rpm}} RPM…",
+        "keepQuiet": "Test in progress. Please keep the environment quiet and do not talk or move the microphone.",
+        "cancel": "Cancel test"
+      },
+      "done": {
+        "riseTitle": "Total noise rise",
+        "kneeTitle": "Noise knee",
+        "kneeValue": "Noise rises sharply from about {{rpm}} RPM",
+        "noKnee": "No clear knee detected",
+        "resonance": "Resonance peak detected near {{rpm}} RPM ({{db}} dB above trend). Consider setting a {{min}}-{{max}} RPM avoidance range.",
+        "lowConfidence": "Total noise variation is too small for a reliable measurement. Move the microphone closer to the cooler, make sure the room is quiet, and run the test again. Saving this result is not recommended.",
+        "applyProfile": "Save noise profile for adaptive learning",
+        "profileApplied": "Noise profile saved",
+        "applyAvoidance": "Set avoidance range {{min}}-{{max}} RPM",
+        "avoidanceApplied": "Avoidance range set",
+        "retest": "Test again",
+        "close": "Done"
+      },
+      "chart": {
+        "series": "Relative noise"
+      },
+      "toast": {
+        "cancelled": "Noise test cancelled, fan settings restored",
+        "failed": "Noise test failed",
+        "restoreFailed": "Failed to restore fan settings, please check the speed mode manually",
+        "profileSaved": "Noise profile saved. Adaptive learning will use measured noise for quiet optimization",
+        "avoidanceSaved": "Avoidance range {{min}}-{{max}} RPM enabled",
+        "applyFailed": "Save failed"
       }
     },
     "avoidance": {

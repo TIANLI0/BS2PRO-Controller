@@ -19,6 +19,7 @@ import {
   Upload,
   Pencil,
   X,
+  AudioLines,
 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Input } from '@/components/ui/input';
@@ -31,6 +32,7 @@ import { types } from '../../../wailsjs/go/models';
 import { BS1_MANUAL_GEAR_PRESETS, getManualGearLabel, getManualLevelLabel, MANUAL_GEAR_PRESETS, getEffectiveManualGearPresets, normalizeManualGearRpmMap, MANUAL_GEAR_RPM_MAX, MANUAL_GEAR_RPM_MIN, type ManualGearRpmMap } from '../lib/manualGearPresets';
 import { useTranslation } from 'react-i18next';
 import FanCurveProfileSelect from './FanCurveProfileSelect';
+import NoiseTest from './NoiseTest';
 import { toast } from 'sonner';
 import { ToggleSwitch, Button, Badge, Select, Slider, NumberInput, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/index';
 import clsx from 'clsx';
@@ -421,6 +423,7 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
   const [isSaving, setIsSaving] = useState(false);
   const [learningConfigLoading, setLearningConfigLoading] = useState(false);
   const [learningResetLoading, setLearningResetLoading] = useState(false);
+  const [noiseTestOpen, setNoiseTestOpen] = useState(false);
   const [featureConfigLoading, setFeatureConfigLoading] = useState(false);
   const [scheduleTimeDrafts, setScheduleTimeDrafts] = useState<Record<string, string>>({});
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -546,6 +549,13 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
     })),
     [t, locale],
   );
+
+  const noiseProfileDate = useMemo(() => {
+    const updatedAt = (config.smartControl as any)?.noiseProfileUpdatedAt;
+    const profile = (config.smartControl as any)?.noiseProfile;
+    if (!updatedAt || !Array.isArray(profile) || profile.length < 2) return null;
+    return new Date(updatedAt * 1000).toLocaleDateString(locale);
+  }, [config.smartControl, locale]);
 
   const currentLearningBias = normalizeLearningBias((smartControl as any).learningBias);
   const currentLearningBiasOption = learningBiasOptions.find((option) => option.value === currentLearningBias) ?? learningBiasOptions[0];
@@ -1596,8 +1606,34 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
             ) : (
               <div className="rounded-lg border border-dashed border-border/70 bg-card/55 px-3 py-2 text-xs text-muted-foreground">{t('fanCurve.learning.noOffsets')}</div>
             )}
+
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="text-xs font-medium text-muted-foreground">{t('fanCurve.learning.noiseTestTitle')}</div>
+                  {noiseProfileDate && <Badge variant="success">{t('fanCurve.learning.noiseTestCalibrated', { date: noiseProfileDate })}</Badge>}
+                </div>
+                <div className="mt-1 text-xs leading-relaxed text-muted-foreground">{t('fanCurve.learning.noiseTestDescription')}</div>
+              </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setNoiseTestOpen(true)}
+                icon={<AudioLines className="h-3.5 w-3.5" />}
+              >
+                {t('fanCurve.learning.noiseTestButton')}
+              </Button>
+            </div>
           </div>
         </section>
+
+        <NoiseTest
+          open={noiseTestOpen}
+          onOpenChange={setNoiseTestOpen}
+          config={config}
+          onConfigChange={onConfigChange}
+          isConnected={isConnected}
+        />
 
         <section className="rounded-2xl border border-border/70 bg-card p-4 shadow-sm">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">

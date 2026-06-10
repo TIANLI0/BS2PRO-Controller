@@ -350,6 +350,13 @@ type LegionFnQSupportCache struct {
 	Supported bool `json:"supported"`
 }
 
+// NoiseProfilePoint 一次噪音测试中某个转速的实测噪音水平。
+// DB 为相对量（以测试中最安静点为 0 dB 的 A 计权相对噪音），不是绝对声压级。
+type NoiseProfilePoint struct {
+	RPM int     `json:"rpm"` // 实测时的目标转速
+	DB  float64 `json:"db"`  // 相对噪音水平 (dB)
+}
+
 type SmartControlConfig struct {
 	Enabled                 bool             `json:"enabled"`              // 智能耦合控制开关
 	Learning                bool             `json:"learning"`             // 学习开关
@@ -375,6 +382,9 @@ type SmartControlConfig struct {
 	LearnedOffsetsCool      []int            `json:"learnedOffsetsCool"` // 降温工况学习偏移(RPM)
 	LearnedRateHeat         []int            `json:"learnedRateHeat"`    // 升温变化率学习偏置(分桶RPM)
 	LearnedRateCool         []int            `json:"learnedRateCool"`    // 降温变化率学习偏置(分桶RPM)
+
+	NoiseProfile          []NoiseProfilePoint `json:"noiseProfile"`          // 实测转速-噪音曲线(麦克风噪音测试结果)
+	NoiseProfileUpdatedAt int64               `json:"noiseProfileUpdatedAt"` // 噪音测试完成时间(Unix 秒)
 }
 
 // AppConfig 应用配置
