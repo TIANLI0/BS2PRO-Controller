@@ -6,6 +6,16 @@ const STORAGE_KEY = 'bs2pro-theme-mode';
 
 function applyTheme(mode: ThemeMode) {
   document.documentElement.classList.toggle('dark', mode === 'dark');
+  // 同步 Windows DWM 沉浸式深色模式属性，使 Mica 材质的明暗与应用内主题保持一致
+  void import('../../../wailsjs/runtime/runtime')
+    .then(({ WindowSetDarkTheme, WindowSetLightTheme }) => {
+      if (mode === 'dark') {
+        WindowSetDarkTheme();
+      } else {
+        WindowSetLightTheme();
+      }
+    })
+    .catch(() => {});
 }
 
 export function useThemeMode() {

@@ -215,10 +215,7 @@ func (s *Server) acceptConnections() {
 			// 监听器持续故障时退避重试，避免热循环空转占满 CPU 并刷爆日志。
 			consecutiveFailures++
 			s.logError("接受连接失败（连续第 %d 次）: %v", consecutiveFailures, err)
-			backoff := time.Duration(consecutiveFailures*100) * time.Millisecond
-			if backoff > 3*time.Second {
-				backoff = 3 * time.Second
-			}
+			backoff := min(time.Duration(consecutiveFailures*100)*time.Millisecond, 3*time.Second)
 			time.Sleep(backoff)
 			continue
 		}

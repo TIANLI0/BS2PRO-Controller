@@ -51,11 +51,11 @@ func main() {
 			UniqueId:               "d2111a29-a967-4e46-807f-2fb5fcff9ed4-gui",
 			OnSecondInstanceLaunch: guiapp.OnSecondInstanceLaunch,
 		},
+		BackgroundColour: &options.RGBA{R: 0, G: 0, B: 0, A: 0},
 		Windows: &windows.Options{
-			// 窗口背景本身是不透明的，开启半透明会让 WebView2 表面带 alpha 通道，
-			// 从而关闭 ClearType 次像素抗锯齿，在 1080p 等非整数 DPI 缩放下字体会发虚发糊。
-			// 关闭半透明以恢复清晰的字体渲染。
-			WindowIsTranslucent: false,
+			WebviewIsTransparent: true,
+			WindowIsTranslucent:  true,
+			BackdropType:         windows.Mica,
 		},
 		Bind: []any{
 			app,

@@ -19,6 +19,7 @@ func (a *CoreApp) fanCurveProfilesPayloadFromConfig(cfg types.AppConfig) types.F
 }
 
 func (a *CoreApp) applyCurveProfilesConfig(cfg types.AppConfig) error {
+	loadSmartControlPrefsForActiveProfile(&cfg)
 	syncSmartControlOffsetsForActiveProfile(&cfg)
 	cfg.SmartControl, _ = smartcontrol.NormalizeConfig(cfg.SmartControl, cfg.FanCurve, cfg.DebugMode)
 	storeSmartControlOffsetsForActiveProfile(&cfg)

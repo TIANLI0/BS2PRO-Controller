@@ -67,5 +67,38 @@ func storeSmartControlOffsetsForActiveProfile(cfg *types.AppConfig) bool {
 		cfg.SmartControl.LearnedOffsetsByProfile = map[string][]int{}
 	}
 	cfg.SmartControl.LearnedOffsetsByProfile[activeID] = cloneIntSlice(cfg.SmartControl.LearnedOffsets)
+	storeSmartControlPrefsForActiveProfile(cfg)
 	return true
+}
+
+// storeSmartControlPrefsForActiveProfile 把当前学习偏好（目标温度/学习倾向）
+// 记到当前曲线方案名下。噪音校准是全局的，不在此列。
+func storeSmartControlPrefsForActiveProfile(cfg *types.AppConfig) {
+	activeID := cfg.ActiveFanCurveProfileID
+	if activeID == "" {
+		return
+	}
+	if cfg.SmartControl.TargetTempByProfile == nil {
+		cfg.SmartControl.TargetTempByProfile = map[string]int{}
+	}
+	if cfg.SmartControl.LearningBiasByProfile == nil {
+		cfg.SmartControl.LearningBiasByProfile = map[string]string{}
+	}
+	cfg.SmartControl.TargetTempByProfile[activeID] = cfg.SmartControl.TargetTemp
+	cfg.SmartControl.LearningBiasByProfile[activeID] = types.NormalizeLearningBias(cfg.SmartControl.LearningBias)
+}
+
+// loadSmartControlPrefsForActiveProfile 切换曲线方案后，恢复该方案记忆的
+// 目标温度与学习倾向；没有记忆时保持当前值（随后由 store 落表）。
+func loadSmartControlPrefsForActiveProfile(cfg *types.AppConfig) {
+	activeID := cfg.ActiveFanCurveProfileID
+	if activeID == "" {
+		return
+	}
+	if temp, ok := cfg.SmartControl.TargetTempByProfile[activeID]; ok && temp >= 45 && temp <= 90 {
+		cfg.SmartControl.TargetTemp = temp
+	}
+	if bias, ok := cfg.SmartControl.LearningBiasByProfile[activeID]; ok {
+		cfg.SmartControl.LearningBias = types.NormalizeLearningBias(bias)
+	}
 }

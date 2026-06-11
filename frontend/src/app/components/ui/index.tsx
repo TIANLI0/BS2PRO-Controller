@@ -281,12 +281,19 @@ interface NumberInputProps {
 
 export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
   ({ value, onChange, min, max, step = 1, disabled = false, label, suffix, onFocus, onBlur }, ref) => {
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      let nextValue = Number(e.target.value);
-      if (Number.isNaN(nextValue)) nextValue = min ?? 0;
+    // 输入期间只维护本地草稿，失焦/回车时才钳制范围并提交，
+    // 避免每次按键都被 min/max 钳制、且触发整页配置写入与重绘。
+    const [draft, setDraft] = React.useState<string | null>(null);
+    const focusedRef = React.useRef(false);
+
+    const commit = () => {
+      if (draft === null) return;
+      let nextValue = Number(draft);
+      if (Number.isNaN(nextValue) || draft.trim() === '') nextValue = value;
       if (min !== undefined) nextValue = Math.max(min, nextValue);
       if (max !== undefined) nextValue = Math.min(max, nextValue);
-      onChange(nextValue);
+      setDraft(null);
+      if (nextValue !== value) onChange(nextValue);
     };
 
     return (
@@ -296,10 +303,20 @@ export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
           <Input
             ref={ref}
             type="number"
-            value={value}
-            onChange={handleChange}
-            onFocus={onFocus}
-            onBlur={onBlur}
+            value={focusedRef.current && draft !== null ? draft : value}
+            onChange={(e) => setDraft(e.target.value)}
+            onFocus={() => {
+              focusedRef.current = true;
+              onFocus?.();
+            }}
+            onBlur={() => {
+              focusedRef.current = false;
+              commit();
+              onBlur?.();
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') e.currentTarget.blur();
+            }}
             min={min}
             max={max}
             step={step}

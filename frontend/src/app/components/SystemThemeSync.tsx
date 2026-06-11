@@ -35,6 +35,19 @@ function writeThemeBootstrapSnapshot(snapshot: ThemeBootstrapSnapshot) {
   }
 }
 
+// 同步 Windows DWM 沉浸式深色模式属性，使 Mica 材质明暗与应用内 .dark 状态保持一致
+function syncWindowsDarkMode(isDark: boolean) {
+  void import('../../../wailsjs/runtime/runtime')
+    .then(({ WindowSetDarkTheme, WindowSetLightTheme }) => {
+      if (isDark) {
+        WindowSetDarkTheme();
+      } else {
+        WindowSetLightTheme();
+      }
+    })
+    .catch(() => {});
+}
+
 function ensureCustomThemeStyle(css: string) {
   let styleEl = document.getElementById(CUSTOM_STYLE_ID) as HTMLStyleElement | null;
   if (!styleEl) {
@@ -57,6 +70,7 @@ function applyBuiltinMode(mode: string, prefersDark: boolean) {
   clearCustomTheme();
   const isDark = mode === 'dark' || (mode === 'system' && prefersDark);
   document.documentElement.classList.toggle('dark', isDark);
+  syncWindowsDarkMode(isDark);
   if (isBuiltinMode(mode)) {
     writeThemeBootstrapSnapshot(createBuiltinThemeSnapshot(mode));
   }
@@ -71,11 +85,13 @@ function applyCachedCustomTheme(snapshot: ThemeBootstrapSnapshot) {
   if (!snapshot.css) {
     clearCustomTheme();
     document.documentElement.classList.toggle('dark', base === 'dark');
+    syncWindowsDarkMode(base === 'dark');
     return;
   }
 
   ensureCustomThemeStyle(snapshot.css);
   document.documentElement.classList.toggle('dark', base === 'dark');
+  syncWindowsDarkMode(base === 'dark');
   document.documentElement.dataset.theme = snapshot.mode;
 }
 
@@ -115,6 +131,7 @@ async function applyCustomTheme(id: string, isCancelled?: () => boolean): Promis
     // 自定义主题不可用：清理并回退到基础主题（按 base 决定浅/深）。
     clearCustomTheme();
     document.documentElement.classList.toggle('dark', base === 'dark');
+    syncWindowsDarkMode(base === 'dark');
     writeThemeBootstrapSnapshot(createBuiltinThemeSnapshot(base));
     return;
   }
@@ -123,6 +140,7 @@ async function applyCustomTheme(id: string, isCancelled?: () => boolean): Promis
 
   // 先设基底明暗，再打 data-theme，避免基础变量覆盖主题变量。
   document.documentElement.classList.toggle('dark', base === 'dark');
+  syncWindowsDarkMode(base === 'dark');
   document.documentElement.dataset.theme = id;
   writeThemeBootstrapSnapshot(createCustomThemeSnapshot(id, base, css));
 }

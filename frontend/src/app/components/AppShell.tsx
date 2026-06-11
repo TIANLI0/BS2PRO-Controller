@@ -33,8 +33,6 @@ const MAIN_TAB_ITEMS = [
 ] as const;
 
 const ABOUT_TAB = { id: 'about', titleKey: 'appShell.tabs.about', icon: Info } as const;
-const WINDOWS_TITLEBAR_HEIGHT = 40;
-const WINDOWS_SCROLLBAR_TOP_OFFSET = WINDOWS_TITLEBAR_HEIGHT + 8;
 
 type ActiveTab = (typeof MAIN_TAB_ITEMS)[number]['id'] | typeof ABOUT_TAB.id;
 
@@ -161,7 +159,8 @@ function TitleBar({
 }) {
   return (
     <div
-      className="glacier-titlebar absolute left-16 right-0 top-0 z-50 flex h-10 items-center justify-between bg-background"
+      // z-[9999]：保证最小化/最大化/关闭三键始终高于 Dialog 遮罩（z-50）等弹层并可交互
+      className="glacier-titlebar pointer-events-auto absolute left-16 right-0 top-0 z-[9999] flex h-10 items-center justify-between bg-background"
       style={DRAG_STYLE}
       onDoubleClick={onToggleMaximise}
     >
@@ -530,7 +529,12 @@ export default function AppShell({
   }, [activeTab]);
 
   return (
-    <div className="glacier-shell relative flex h-dvh w-full overflow-hidden bg-background text-foreground">
+    <div
+      className={clsx(
+        'glacier-shell relative flex h-dvh w-full overflow-hidden bg-background text-foreground',
+        isWindowsChrome && 'glacier-native-backdrop',
+      )}
+    >
       {isWindowsChrome && (
         <TitleBar
           minimizeLabel={t('appShell.titleBar.minimize')}
@@ -636,7 +640,7 @@ export default function AppShell({
         </div>
       </aside>
 
-      <section className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
+      <section className="glacier-content relative flex min-w-0 flex-1 flex-col overflow-hidden">
         {!isWindowsChrome && (
           <header
             className="shrink-0 border-b border-border/65 bg-background/92 px-4 pb-3 pt-3 backdrop-blur-xl sm:px-5 lg:px-6"
@@ -648,13 +652,13 @@ export default function AppShell({
           </header>
         )}
 
-        <div className="relative min-h-0 flex-1 overflow-hidden">
+        <div className="glacier-content-panel relative min-h-0 flex-1 overflow-hidden">
           <div
             ref={scrollRef}
             className="app-scroll-root app-scroll-root--hide-native h-full"
             style={NO_DRAG_STYLE}
           >
-            <div className={clsx('min-h-full px-4 pb-6 sm:px-5 lg:px-6', isWindowsChrome ? 'pt-12' : 'pt-4')}>
+            <div className="min-h-full px-4 pb-6 pt-4 sm:px-5 lg:px-6">
 
           {/* Alerts */}
           <div className="mx-auto max-w-[1120px] min-[1680px]:max-w-[1280px] min-[2200px]:max-w-[1480px]">
@@ -720,7 +724,8 @@ export default function AppShell({
         </div>
 
         {/* Floating overlay scrollbar — never reserves width */}
-        <OverlayScrollbar scrollRef={scrollRef} topOffset={isWindowsChrome ? WINDOWS_SCROLLBAR_TOP_OFFSET : 6} />
+        {/* 内容面板在 Windows 下已经从顶栏下沿开始，滚动条无需再避让顶栏 */}
+        <OverlayScrollbar scrollRef={scrollRef} topOffset={6} />
         </div>
       </section>
     </div>

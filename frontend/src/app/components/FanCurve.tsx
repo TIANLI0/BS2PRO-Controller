@@ -426,6 +426,7 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
   const [noiseTestOpen, setNoiseTestOpen] = useState(false);
   const [featureConfigLoading, setFeatureConfigLoading] = useState(false);
   const [scheduleTimeDrafts, setScheduleTimeDrafts] = useState<Record<string, string>>({});
+  const [scheduleNameDrafts, setScheduleNameDrafts] = useState<Record<string, string>>({});
   const [profileManagerOpen, setProfileManagerOpen] = useState(false);
   const [profileCreateOpen, setProfileCreateOpen] = useState(false);
   const [newProfileName, setNewProfileName] = useState('');
@@ -1128,12 +1129,8 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
   }, [commitTargetTemp, targetTempDraft]);
 
   const handleTargetTempInputChange = useCallback((value: number) => {
-    setTargetTempDraft(normalizeTargetTemp(value));
-  }, []);
-
-  const handleTargetTempInputBlur = useCallback(() => {
-    commitTargetTemp(targetTempDraft);
-  }, [commitTargetTemp, targetTempDraft]);
+    commitTargetTemp(value);
+  }, [commitTargetTemp]);
 
   const handleResetLearnedOffsets = useCallback(async () => {
     setLearningResetLoading(true);
@@ -1218,6 +1215,20 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
     });
     updateTimeCurveSchedule({ rules: nextRules });
   }, [timeCurveSchedule.rules, updateTimeCurveSchedule]);
+
+  const handleScheduleNameDraftCommit = useCallback((ruleId: string, fallback: string) => {
+    const rawValue = scheduleNameDrafts[ruleId];
+    setScheduleNameDrafts((prev) => {
+      const next = { ...prev };
+      delete next[ruleId];
+      return next;
+    });
+    if (rawValue === undefined) return;
+    const trimmed = rawValue.trim() || fallback;
+    if (trimmed !== fallback) {
+      handleScheduleRuleChange(ruleId, { name: trimmed } as Partial<types.TimeCurveScheduleRule>);
+    }
+  }, [handleScheduleRuleChange, scheduleNameDrafts]);
 
   const handleScheduleTimeDraftChange = useCallback((ruleId: string, field: 'startTime' | 'endTime', value: string) => {
     const draftKey = `${ruleId}:${field === 'startTime' ? 'start' : 'end'}`;
@@ -1370,6 +1381,30 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
     if (cx === undefined || cy === undefined) return <g />;
     return <DraggablePoint key={`dot-${index}`} cx={cx} cy={cy} index={index} temperature={payload.temperature} rpm={payload.rpm} onDragStart={handleDragStart} isActive={dragIndex === index} />;
   }, [dragIndex, handleDragStart]);
+
+  /* 主曲线图表整体缓存：温度/转速等高频数据每秒刷新时不重建 recharts 树，
+     当前温度指示线由 TemperatureIndicator 独立覆盖层绘制 */
+  const curveChart = useMemo(() => (
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+        <XAxis dataKey="temperature" type="number" domain={[temperatureRange.min, temperatureRange.max]} ticks={temperatureRange.ticks} tickLine={false} axisLine={{ stroke: 'var(--chart-axis)' }} tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} label={{ value: t('fanCurve.chart.axes.temperature'), position: 'insideBottom', offset: -10, fill: 'var(--chart-tick)', fontSize: 12 }} />
+        <YAxis type="number" domain={[rpmRange.min, rpmRange.max]} ticks={rpmRange.ticks} tickLine={false} axisLine={{ stroke: 'var(--chart-axis)' }} tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} label={{ value: t('fanCurve.chart.axes.rpm'), angle: -90, position: 'insideLeft', fill: 'var(--chart-tick)', fontSize: 12 }} />
+        <RechartsTooltip
+          formatter={(value, name) => {
+            const numericValue = Number(value ?? 0);
+            return name === 'coupledRpm' ? [`${numericValue} RPM`, t('fanCurve.chart.series.learned')] : [`${numericValue} RPM`, t('fanCurve.chart.series.base')];
+          }}
+          labelFormatter={(v) => t('fanCurve.chart.temperatureLabel', { temperature: v })}
+          contentStyle={{ backgroundColor: 'var(--chart-tooltip-bg)', border: '1px solid', borderColor: 'var(--chart-tooltip-border)', borderRadius: '8px', boxShadow: 'var(--chart-tooltip-shadow)', padding: '8px 12px', color: 'var(--chart-tooltip-text)' }}
+          labelStyle={{ color: 'var(--chart-tooltip-text)', fontWeight: 600 }}
+          itemStyle={{ color: 'var(--chart-tooltip-text)' }}
+        />
+        <Line type="monotone" dataKey="rpm" stroke="var(--chart-primary)" strokeWidth={3} dot={CustomDot} activeDot={false} isAnimationActive={false} />
+        {showCoupledCurve && <Line type="monotone" dataKey="coupledRpm" stroke="var(--chart-primary)" strokeWidth={2} strokeDasharray="6 4" dot={false} activeDot={false} isAnimationActive={false} />}
+      </LineChart>
+    </ResponsiveContainer>
+  ), [CustomDot, chartData, rpmRange, showCoupledCurve, t, temperatureRange]);
 
   /* ═══════════════════ RENDER ═══════════════════ */
 
@@ -1554,25 +1589,7 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
             className={clsx('relative rounded-3xl border bg-card p-4 shadow-sm', dragIndex !== null ? 'ring-2 ring-primary/40 border-primary/30' : 'border-border/70')}
           >
             <div className="h-80 md:h-96 relative">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-                  <XAxis dataKey="temperature" type="number" domain={[temperatureRange.min, temperatureRange.max]} ticks={temperatureRange.ticks} tickLine={false} axisLine={{ stroke: 'var(--chart-axis)' }} tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} label={{ value: t('fanCurve.chart.axes.temperature'), position: 'insideBottom', offset: -10, fill: 'var(--chart-tick)', fontSize: 12 }} />
-                  <YAxis type="number" domain={[rpmRange.min, rpmRange.max]} ticks={rpmRange.ticks} tickLine={false} axisLine={{ stroke: 'var(--chart-axis)' }} tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} label={{ value: t('fanCurve.chart.axes.rpm'), angle: -90, position: 'insideLeft', fill: 'var(--chart-tick)', fontSize: 12 }} />
-                  <RechartsTooltip
-                    formatter={(value, name) => {
-                      const numericValue = Number(value ?? 0);
-                      return name === 'coupledRpm' ? [`${numericValue} RPM`, t('fanCurve.chart.series.learned')] : [`${numericValue} RPM`, t('fanCurve.chart.series.base')];
-                    }}
-                    labelFormatter={(v) => t('fanCurve.chart.temperatureLabel', { temperature: v })}
-                    contentStyle={{ backgroundColor: 'var(--chart-tooltip-bg)', border: '1px solid', borderColor: 'var(--chart-tooltip-border)', borderRadius: '8px', boxShadow: 'var(--chart-tooltip-shadow)', padding: '8px 12px', color: 'var(--chart-tooltip-text)' }}
-                    labelStyle={{ color: 'var(--chart-tooltip-text)', fontWeight: 600 }}
-                    itemStyle={{ color: 'var(--chart-tooltip-text)' }}
-                  />
-                  <Line type="monotone" dataKey="rpm" stroke="var(--chart-primary)" strokeWidth={3} dot={CustomDot} activeDot={false} isAnimationActive={false} />
-                  {showCoupledCurve && <Line type="monotone" dataKey="coupledRpm" stroke="var(--chart-primary)" strokeWidth={2} strokeDasharray="6 4" dot={false} activeDot={false} isAnimationActive={false} />}
-                </LineChart>
-              </ResponsiveContainer>
+              {curveChart}
               <TemperatureIndicator temperature={referenceTemp} chartRef={chartRef} temperatureRange={temperatureRange} />
             </div>
           </div>
@@ -1640,7 +1657,6 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
                   <NumberInput
                     value={targetTempDraft}
                     onChange={handleTargetTempInputChange}
-                    onBlur={handleTargetTempInputBlur}
                     min={SMART_CONTROL_TARGET_TEMP_MIN}
                     max={SMART_CONTROL_TARGET_TEMP_MAX}
                     step={1}
@@ -1879,8 +1895,14 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
                       <div className="space-y-1">
                         <div className="text-[11px] font-medium text-muted-foreground">{t('fanCurve.schedule.ruleName')}</div>
                         <Input
-                          value={rule.name}
-                          onChange={(event) => handleScheduleRuleChange(rule.id, { name: event.target.value })}
+                          value={scheduleNameDrafts[rule.id] ?? rule.name}
+                          onChange={(event) => setScheduleNameDrafts((prev) => ({ ...prev, [rule.id]: event.target.value }))}
+                          onBlur={() => handleScheduleNameDraftCommit(rule.id, rule.name)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              event.currentTarget.blur();
+                            }
+                          }}
                           className="h-9"
                           placeholder={t('fanCurve.schedule.ruleNamePlaceholder')}
                         />

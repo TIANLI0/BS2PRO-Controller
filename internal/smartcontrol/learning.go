@@ -27,16 +27,18 @@ const (
 	offsetSmoothPullLimit      = 30
 	offsetSmoothSelfWeight     = 0.7
 	offsetSmoothNeighborWeight = 0.15
+	offsetSmoothRadius         = 2 // 平滑只作用于学习桶 ± 该半径，避免抹平远处已学偏移
+	eqConsistencyBand          = 3 // °C；新旧平衡点热学矛盾超过该值视为负载已变化
 
 	// 噪音档案（麦克风实测转速-噪音曲线）相关常量。
-	noiseProfileMinPoints  = 3      // 少于该点数不足以估计局部斜率
-	noiseProfileMinSpanRPM = 500    // 档案覆盖的最小转速跨度
-	noiseProfileMinRiseDB  = 1.0    // 全程噪音上升低于该值视为测量无效
-	noiseGainRawMin        = 0.3    // 局部/平均斜率比的下限
-	noiseGainRawMax        = 2.0    // 局部/平均斜率比的上限
-	noiseGainMin           = 0.4    // 最终降速增益下限
-	noiseGainMax           = 1.8    // 最终降速增益上限
-	noiseWeightBaseline    = 4.0    // NoiseWeight 默认值，作为增益强度基准
+	noiseProfileMinPoints  = 3   // 少于该点数不足以估计局部斜率
+	noiseProfileMinSpanRPM = 500 // 档案覆盖的最小转速跨度
+	noiseProfileMinRiseDB  = 1.0 // 全程噪音上升低于该值视为测量无效
+	noiseGainRawMin        = 0.3 // 局部/平均斜率比的下限
+	noiseGainRawMax        = 2.0 // 局部/平均斜率比的上限
+	noiseGainMin           = 0.4 // 最终降速增益下限
+	noiseGainMax           = 1.8 // 最终降速增益上限
+	noiseWeightBaseline    = 4.0 // NoiseWeight 默认值，作为增益强度基准
 )
 
 // eqPoint 记录一次稳态 (转速, 温度) 平衡点。
@@ -246,27 +248,58 @@ func (o *StableObserver) Observe(temp, effectiveRPM int, curve []types.FanCurveP
 }
 
 // recordEquilibrium 把一次稳态平衡点写入桶历史（环形保留最近 effHistoryLen 条）。
-// 同一转速附近的旧样本会被新样本覆盖，使历史反映最新的热行为。
+// 同一转速附近的旧样本会被新样本覆盖，使历史反映最新的热行为；
+// 与新样本热学矛盾的旧样本（说明环境/负载已变化）会被剔除，避免污染效率估计。
 func (o *StableObserver) recordEquilibrium(idx, rpm, temp int) {
 	if idx < 0 || idx >= len(o.history) {
 		return
 	}
 	hist := o.history[idx]
-	for i := range hist {
-		if absInt(hist[i].rpm-rpm) < minRPMSpanForEff {
-			hist[i] = eqPoint{rpm: rpm, temp: temp}
-			o.history[idx] = hist
-			return
+	replaced := false
+	kept := hist[:0]
+	for _, p := range hist {
+		if !replaced && absInt(p.rpm-rpm) < minRPMSpanForEff {
+			kept = append(kept, eqPoint{rpm: rpm, temp: temp})
+			replaced = true
+			continue
+		}
+		if !staleEquilibrium(p, rpm, temp) {
+			kept = append(kept, p)
 		}
 	}
-	hist = append(hist, eqPoint{rpm: rpm, temp: temp})
-	if len(hist) > effHistoryLen {
-		hist = hist[len(hist)-effHistoryLen:]
+	if !replaced {
+		kept = append(kept, eqPoint{rpm: rpm, temp: temp})
 	}
-	o.history[idx] = hist
+	if len(kept) > effHistoryLen {
+		kept = kept[len(kept)-effHistoryLen:]
+	}
+	o.history[idx] = kept
 }
 
-// localEfficiency 用历史中转速跨度最大的两点估计局部冷却效率 (°C/RPM, 正值)。
+// staleEquilibrium 判断旧平衡点 p 是否与新平衡点 (rpm, temp) 热学矛盾，
+// 即来自不同的环境/负载工况：
+//   - 方向矛盾：低转速点反而更冷（或高转速点反而更热），超出 eqConsistencyBand；
+//   - 幅度矛盾：两点隐含的冷却效率超过物理上限 effCeilPerRPM。
+func staleEquilibrium(p eqPoint, rpm, temp int) bool {
+	if p.rpm < rpm {
+		if p.temp+eqConsistencyBand < temp {
+			return true
+		}
+		maxDrop := effCeilPerRPM*float64(rpm-p.rpm) + eqConsistencyBand
+		return float64(p.temp-temp) > maxDrop
+	}
+	if p.rpm > rpm {
+		if p.temp > temp+eqConsistencyBand {
+			return true
+		}
+		maxDrop := effCeilPerRPM*float64(p.rpm-rpm) + eqConsistencyBand
+		return float64(temp-p.temp) > maxDrop
+	}
+	return false
+}
+
+// localEfficiency 对桶历史中的全部平衡点做最小二乘回归，估计局部冷却效率
+// (°C/RPM, 正值)。相比只取两个端点，回归对单点测量噪声更稳健。
 // 更高转速对应更低温度时效率为正；若数据不足或冷却无效则保守处理。
 func (o *StableObserver) localEfficiency(idx int) (float64, bool) {
 	if idx < 0 || idx >= len(o.history) {
@@ -276,21 +309,31 @@ func (o *StableObserver) localEfficiency(idx int) (float64, bool) {
 	if len(hist) < 2 {
 		return 0, false
 	}
-	lo, hi := hist[0], hist[0]
-	for _, p := range hist[1:] {
-		if p.rpm < lo.rpm {
-			lo = p
+	minRPM, maxRPM := hist[0].rpm, hist[0].rpm
+	sumR, sumT := 0, 0
+	for _, p := range hist {
+		if p.rpm < minRPM {
+			minRPM = p.rpm
 		}
-		if p.rpm > hi.rpm {
-			hi = p
+		if p.rpm > maxRPM {
+			maxRPM = p.rpm
 		}
+		sumR += p.rpm
+		sumT += p.temp
 	}
-	span := hi.rpm - lo.rpm
-	if span < minRPMSpanForEff {
+	if maxRPM-minRPM < minRPMSpanForEff {
 		return 0, false
 	}
-	// 低转速点温度应更高；冷却有效时 (lo.temp - hi.temp) > 0。
-	eff := float64(lo.temp-hi.temp) / float64(span)
+	meanR := float64(sumR) / float64(len(hist))
+	meanT := float64(sumT) / float64(len(hist))
+	var cov, varR float64
+	for _, p := range hist {
+		dr := float64(p.rpm) - meanR
+		cov += dr * (float64(p.temp) - meanT)
+		varR += dr * dr
+	}
+	// 冷却有效时温度随转速下降，回归斜率为负，取反得到正效率。
+	eff := -cov / varR
 	if eff < effFloorPerRPM {
 		// 冷却几乎无效（甚至负相关）：视为最低效率，让寻优倾向于降转速省噪音。
 		eff = effFloorPerRPM
@@ -506,15 +549,9 @@ func LearnSteadyOffset(
 		offsets = biased
 	}
 
-	smoothOffsets(curve, offsets, cap, leftMin, rightMax)
-	if biased, updated := constrainOffsetsToLearningBias(offsets, cfg.LearningBias); updated {
-		offsets = biased
-	}
-	enforceMonotonicWithOffsets(curve, offsets, cap, leftMin, rightMax)
-	if biased, updated := constrainOffsetsToLearningBias(offsets, cfg.LearningBias); updated {
-		offsets = biased
-	}
-	smoothOffsets(curve, offsets, cap, leftMin, rightMax)
+	// 只在学习桶附近做一轮局部平滑：既把变化柔和地扩散给邻点，
+	// 又不会在每次学习时反复稀释远处已学好的偏移。
+	smoothOffsets(curve, offsets, bucketIdx, cap, leftMin, rightMax)
 	if biased, updated := constrainOffsetsToLearningBias(offsets, cfg.LearningBias); updated {
 		offsets = biased
 	}
@@ -538,16 +575,23 @@ func roundFloat(v float64) int {
 	return int(v - 0.5)
 }
 
-func smoothOffsets(curve []types.FanCurvePoint, offsets []int, cap, leftMin, rightMax int) {
+// smoothOffsets 在 center ± offsetSmoothRadius 的窗口内做加权平滑。
+// 限定窗口是为了让一次学习只影响局部，不抹平远处已学到的偏移。
+func smoothOffsets(curve []types.FanCurvePoint, offsets []int, center, cap, leftMin, rightMax int) {
 	limit := min(len(offsets), len(curve))
 	if limit < 3 {
+		return
+	}
+	lo := max(center-offsetSmoothRadius, 1)
+	hi := min(center+offsetSmoothRadius, limit-2)
+	if lo > hi {
 		return
 	}
 	work := make([]int, len(offsets))
 	copy(work, offsets)
 	for range offsetSmoothPasses {
 		copy(work, offsets)
-		for i := 1; i < limit-1; i++ {
+		for i := lo; i <= hi; i++ {
 			target := roundFloat(
 				offsetSmoothSelfWeight*float64(offsets[i]) +
 					offsetSmoothNeighborWeight*float64(offsets[i-1]) +

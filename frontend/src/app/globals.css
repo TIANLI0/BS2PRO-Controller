@@ -54,6 +54,8 @@
   --sidebar-accent-foreground: #111827;
   --sidebar-border: #e5ebf4;
   --sidebar-ring: #2f6df6;
+  --mica-content-surface: color-mix(in srgb, var(--background) 75%, transparent);
+  --mica-content-border: color-mix(in srgb, var(--border) 90%, transparent);
 }
 
 @theme inline {
@@ -148,10 +150,50 @@
   --sidebar-accent-foreground: #e5e7eb;
   --sidebar-border: #202631;
   --sidebar-ring: #ff4b26;
+  --mica-content-surface: color-mix(in srgb, var(--background) 75%, transparent);
+  --mica-content-border: color-mix(in srgb, var(--border) 90%, transparent);
 }
 
 .theme-thrm-only {
   display: none !important;
+}
+
+/* body 画布必须透明，否则系统材质会被 @layer base 的 bg-background 完全挡住 */
+body:has(.glacier-native-backdrop) {
+  background: transparent;
+}
+
+.glacier-native-backdrop {
+  background: transparent !important;
+}
+
+/* 侧边栏与顶栏不叠加任何背景色，只让 Mica 透出，二者视觉连成一体 */
+.glacier-native-backdrop .glacier-sidebar {
+  background: transparent;
+  border-right-color: transparent;
+  box-shadow: none;
+}
+
+.glacier-native-backdrop .glacier-titlebar {
+  background: transparent;
+}
+
+.glacier-native-backdrop .glacier-content {
+  background: transparent;
+}
+
+
+.glacier-native-backdrop .glacier-content-panel {
+  margin-top: 2.5rem; /* 顶栏高度 */
+  background: var(--mica-content-surface);
+  border-top: 1px solid var(--mica-content-border);
+  border-left: 1px solid var(--mica-content-border);
+  border-top-left-radius: 1rem;
+  box-shadow: 0 -1px 0 rgba(255, 255, 255, 0.04) inset;
+}
+
+.dark .glacier-native-backdrop .glacier-content-panel {
+  box-shadow: 0 -1px 0 rgba(255, 255, 255, 0.06) inset;
 }
 
 html,

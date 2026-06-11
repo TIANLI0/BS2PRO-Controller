@@ -116,6 +116,8 @@ export namespace types {
 	    maxLearnOffset: number;
 	    learnedOffsets: number[];
 	    learnedOffsetsByProfile: Record<string, Array<number>>;
+	    targetTempByProfile?: Record<string, number>;
+	    learningBiasByProfile?: Record<string, string>;
 	    learnedOffsetsHeat: number[];
 	    learnedOffsetsCool: number[];
 	    learnedRateHeat: number[];
@@ -149,6 +151,8 @@ export namespace types {
 	        this.maxLearnOffset = source["maxLearnOffset"];
 	        this.learnedOffsets = source["learnedOffsets"];
 	        this.learnedOffsetsByProfile = source["learnedOffsetsByProfile"];
+	        this.targetTempByProfile = source["targetTempByProfile"];
+	        this.learningBiasByProfile = source["learningBiasByProfile"];
 	        this.learnedOffsetsHeat = source["learnedOffsetsHeat"];
 	        this.learnedOffsetsCool = source["learnedOffsetsCool"];
 	        this.learnedRateHeat = source["learnedRateHeat"];

@@ -256,6 +256,52 @@ func TestNoiseDownGainScalesWithLocalSlope(t *testing.T) {
 	}
 }
 
+// 局部平滑不应稀释远处已学好的偏移。
+func TestLearnSteadyOffsetPreservesDistantOffsets(t *testing.T) {
+	curve := []types.FanCurvePoint{
+		{Temperature: 40, RPM: 1000},
+		{Temperature: 50, RPM: 1400},
+		{Temperature: 60, RPM: 1800},
+		{Temperature: 70, RPM: 2200},
+		{Temperature: 80, RPM: 2600},
+		{Temperature: 90, RPM: 3000},
+	}
+	cfg := types.SmartControlConfig{
+		TargetTemp:     70,
+		Hysteresis:     2,
+		LearnRate:      10,
+		MaxLearnOffset: 600,
+	}
+	prev := []int{0, 0, 0, 0, 0, 150}
+	offsets, changed := LearnSteadyOffset(1, 80, 0, 0, false, curve, prev, cfg)
+	if !changed || offsets[1] <= 0 {
+		t.Fatalf("expected bucket 1 to learn an upward offset, got %v changed=%v", offsets, changed)
+	}
+	if offsets[5] != 150 {
+		t.Fatalf("distant learned offset should be untouched by local smoothing, got %v", offsets)
+	}
+}
+
+// 负载变化后，与新平衡点矛盾的旧历史应被剔除，效率估计跟随新工况。
+func TestRecordEquilibriumPrunesStaleHistory(t *testing.T) {
+	o := NewStableObserver(1)
+	// 旧工况（轻负载）：1000RPM/60°C 与 2000RPM/50°C，效率 0.01。
+	o.recordEquilibrium(0, 1000, 60)
+	o.recordEquilibrium(0, 2000, 50)
+	if eff, ok := o.localEfficiency(0); !ok || eff < 0.009 || eff > 0.011 {
+		t.Fatalf("baseline efficiency = %v ok=%v, want ~0.01", eff, ok)
+	}
+	// 负载骤增：1500RPM 下温度反而高达 80°C，与两条旧记录均矛盾
+	// （低转速旧点更冷属方向矛盾；高转速旧点隐含效率超物理上限属幅度矛盾）。
+	o.recordEquilibrium(0, 1500, 80)
+	if len(o.history[0]) != 1 {
+		t.Fatalf("stale history should be pruned after load change, got %v", o.history[0])
+	}
+	if _, ok := o.localEfficiency(0); ok {
+		t.Fatalf("single fresh point should not yield an efficiency estimate")
+	}
+}
+
 func TestSanitizeNoiseProfileSortsAndNormalizes(t *testing.T) {
 	profile := []types.NoiseProfilePoint{
 		{RPM: 3000, DB: -30},

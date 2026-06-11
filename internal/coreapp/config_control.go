@@ -57,6 +57,16 @@ func (a *CoreApp) UpdateConfig(cfg types.AppConfig) error {
 	}
 	cfg.LegionFnQSupport = oldCfg.LegionFnQSupport
 	cfg.ManualGearLevels = cloneManualGearLevels(oldCfg.ManualGearLevels)
+	// 前端模型可能未携带按曲线方案记忆的映射字段，避免整表被清空
+	if cfg.SmartControl.LearnedOffsetsByProfile == nil {
+		cfg.SmartControl.LearnedOffsetsByProfile = oldCfg.SmartControl.LearnedOffsetsByProfile
+	}
+	if cfg.SmartControl.TargetTempByProfile == nil {
+		cfg.SmartControl.TargetTempByProfile = oldCfg.SmartControl.TargetTempByProfile
+	}
+	if cfg.SmartControl.LearningBiasByProfile == nil {
+		cfg.SmartControl.LearningBiasByProfile = oldCfg.SmartControl.LearningBiasByProfile
+	}
 	cfg.LightStrip, _ = normalizeLightStripConfig(cfg.LightStrip)
 	cfg.ThemeMode = types.NormalizeThemeMode(cfg.ThemeMode)
 	cfg.TempSource = types.NormalizeTempSource(cfg.TempSource)
