@@ -1896,12 +1896,6 @@ const FanCurve = memo(function FanCurve({ config, onConfigChange, isConnected, f
           )}
         </section>
 
-        {/* ── Tips ── */}
-        <div className="flex flex-wrap gap-2">
-          <span className="rounded-full border border-border/70 bg-background/60 px-3 py-1 text-[11px] text-muted-foreground backdrop-blur-lg">{t('fanCurve.hints.dragPoint')}</span>
-          {showCoupledCurve && <span className="rounded-full border border-border/70 bg-background/60 px-3 py-1 text-[11px] text-muted-foreground backdrop-blur-lg">{t('fanCurve.hints.curveLegend')}</span>}
-        </div>
-
         <section ref={historyDetailsRef} className="rounded-2xl border border-border/70 bg-card p-4 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
