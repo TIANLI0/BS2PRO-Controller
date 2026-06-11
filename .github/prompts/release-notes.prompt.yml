@@ -14,6 +14,9 @@ template: |
   User-visible changed files:
   {{changed_files}}
 
+  Source code diff context (only allowed extensions .go/.tsx/.ts/.cs/.csproj/.nsi):
+  {{code_context}}
+
   Requirements:
   1. Output bilingual Markdown in Simplified Chinese and English.
   2. Chinese must come first, followed immediately by the corresponding English.
@@ -28,3 +31,5 @@ template: |
   11. Only include changes that end users can directly perceive in behavior, UI, setup/install flow, performance, stability, compatibility, or error handling.
   12. Explicitly exclude internal-only work with no user-visible effect, such as CI/workflow updates, refactors without behavioral change, tests, logging/telemetry adjustments, dependency/version bumps, or protocol/plumbing internals.
   13. If no clearly user-visible change can be supported by the supplied data, state that this build mainly includes internal maintenance and avoid listing speculative items.
+  14. Analyze code diff context first, then write notes. Do not rely on commit title wording alone.
+  15. Do not mention files outside the allowed source extensions.

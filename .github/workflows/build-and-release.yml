@@ -16,7 +16,7 @@ on:
       - 'ota/**'
       - '**/*.md'
   schedule:
-    - cron: '30 12 * * *'
+    - cron: '30 16 * * *'
   workflow_dispatch:
     inputs:
       target_date:
@@ -303,6 +303,19 @@ jobs:
           $commitLines = @()
           $fileLines = @()
           $rawFileLines = @()
+          $aiScopedCommitLines = @()
+          $aiScopedFileLines = @()
+          $codeContextLines = @()
+          $rangeSpec = ''
+          $allowedSourceFilePattern = '(?i)\.(go|tsx|ts|cs|csproj|nsi)$'
+          $allowedPathspecs = @(
+            ':(glob)**/*.go',
+            ':(glob)**/*.ts',
+            ':(glob)**/*.tsx',
+            ':(glob)**/*.cs',
+            ':(glob)**/*.csproj',
+            ':(glob)**/*.nsi'
+          )
 
           if ($releaseType -eq 'stable') {
             $currentTag = $env:RELEASE_TAG
@@ -316,11 +329,13 @@ jobs:
               $compareSummary = "Formal release $currentTag; no earlier tag was found, so the notes should be based on the currently visible recent commits for this tag."
               $commitLines = @(git log $currentTag --pretty=format:"- %h %s (%an, %ad)" --date=short --max-count=60)
               $fileLines = @(git log $currentTag --name-only --pretty=format: --max-count=60 | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+              $rangeSpec = "$currentTag"
             } else {
               $range = "$previousTag..$currentTag"
               $compareSummary = "Formal release $currentTag; change range $range."
               $commitLines = @(git log $range --pretty=format:"- %h %s (%an, %ad)" --date=short --max-count=60)
               $fileLines = @(git log $range --name-only --pretty=format: --max-count=60 | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+              $rangeSpec = "$range"
             }
           } else {
             $branchRef = "origin/$($env:TARGET_BRANCH)"
@@ -329,6 +344,7 @@ jobs:
             $compareSummary = "Daily prerelease covering main branch commits from $windowStart to $windowEnd UTC, corresponding to $($env:RELEASE_DATE) in Asia/Shanghai."
             $commitLines = @(git log $branchRef --since="$windowStart" --until="$windowEnd" --pretty=format:"- %h %s (%an, %ad)" --date=short --max-count=60)
             $fileLines = @(git log $branchRef --since="$windowStart" --until="$windowEnd" --name-only --pretty=format: --max-count=60 | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+            $rangeSpec = "$branchRef --since=$windowStart --until=$windowEnd"
           }
 
           if (-not $commitLines -or $commitLines.Count -eq 0) {
@@ -399,11 +415,104 @@ jobs:
             $userVisibleFileLines = $userVisibleRawFiles | ForEach-Object { "- $_" }
           }
 
+          $aiScopedRawFiles = @(
+            $rawFileLines | Where-Object {
+              -not [string]::IsNullOrWhiteSpace($_) -and
+              ($_ -match $allowedSourceFilePattern)
+            } | Sort-Object -Unique
+          )
+
+          if (-not $aiScopedRawFiles -or $aiScopedRawFiles.Count -eq 0) {
+            $aiScopedFileLines = @('- No changed files matched allowed source extensions (.go/.tsx/.ts/.cs/.csproj/.nsi).')
+          } else {
+            $aiScopedFileLines = $aiScopedRawFiles | ForEach-Object { "- $_" }
+          }
+
+          $commitHasAllowedFiles = @{}
+          foreach ($line in $allCommitLines) {
+            $m = [System.Text.RegularExpressions.Regex]::Match($line, '^-\s+([0-9a-f]+)\s+')
+            if (-not $m.Success) {
+              continue
+            }
+
+            $shortHash = $m.Groups[1].Value
+            $changedInCommit = @(git show --pretty=format: --name-only $shortHash | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+            $allowedInCommit = @(
+              $changedInCommit | Where-Object {
+                $_ -match $allowedSourceFilePattern
+              }
+            )
+            $commitHasAllowedFiles[$shortHash] = ($allowedInCommit.Count -gt 0)
+          }
+
+          $aiScopedCommitLines = @(
+            $allCommitLines | Where-Object {
+              $m = [System.Text.RegularExpressions.Regex]::Match($_, '^-\s+([0-9a-f]+)\s+')
+              if (-not $m.Success) {
+                return $false
+              }
+              $shortHash = $m.Groups[1].Value
+              $commitHasAllowedFiles.ContainsKey($shortHash) -and [bool]$commitHasAllowedFiles[$shortHash]
+            }
+          )
+
+          if (-not $aiScopedCommitLines -or $aiScopedCommitLines.Count -eq 0) {
+            $aiScopedCommitLines = @('- No commits touched allowed source extensions in this release scope.')
+          }
+
+          $codeCommitHashes = @()
+          if ($releaseType -eq 'stable') {
+            if ([string]::IsNullOrWhiteSpace($rangeSpec)) {
+              $codeCommitHashes = @()
+            } else {
+              $codeCommitHashes = @(git log $rangeSpec --pretty=format:%H --max-count=40)
+            }
+          } else {
+            $branchRef = "origin/$($env:TARGET_BRANCH)"
+            $windowStart = $env:WINDOW_START
+            $windowEnd = $env:WINDOW_END
+            $codeCommitHashes = @(git log $branchRef --since="$windowStart" --until="$windowEnd" --pretty=format:%H --max-count=40)
+          }
+
+          $maxCodeContextChars = 28000
+          $codeContextCharCount = 0
+          foreach ($hash in $codeCommitHashes) {
+            if ([string]::IsNullOrWhiteSpace($hash)) {
+              continue
+            }
+
+            $patchLines = @(git show --no-color --unified=3 --pretty=format:"commit %H %s" $hash -- $allowedPathspecs)
+            if ($LASTEXITCODE -ne 0 -or -not $patchLines -or $patchLines.Count -eq 0) {
+              continue
+            }
+
+            $patchText = ($patchLines -join [Environment]::NewLine).Trim()
+            if ([string]::IsNullOrWhiteSpace($patchText)) {
+              continue
+            }
+
+            if (($codeContextCharCount + $patchText.Length) -gt $maxCodeContextChars) {
+              $codeContextLines += '- Code diff context was truncated to keep prompt size manageable.'
+              break
+            }
+
+            $codeContextLines += $patchText
+            $codeContextLines += ''
+            $codeContextCharCount += $patchText.Length
+          }
+
+          if (-not $codeContextLines -or $codeContextLines.Count -eq 0) {
+            $codeContextLines = @('- No diff hunks were available for allowed source extensions in this release scope.')
+          }
+
           $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
           [System.IO.File]::WriteAllLines((Join-Path $PWD 'build/release-context/commits.txt'), $commitLines, $utf8NoBom)
           [System.IO.File]::WriteAllLines((Join-Path $PWD 'build/release-context/files.txt'), $fileLines, $utf8NoBom)
           [System.IO.File]::WriteAllLines((Join-Path $PWD 'build/release-context/user-visible-commits.txt'), $userVisibleCommitLines, $utf8NoBom)
           [System.IO.File]::WriteAllLines((Join-Path $PWD 'build/release-context/user-visible-files.txt'), $userVisibleFileLines, $utf8NoBom)
+          [System.IO.File]::WriteAllLines((Join-Path $PWD 'build/release-context/ai-commits.txt'), $aiScopedCommitLines, $utf8NoBom)
+          [System.IO.File]::WriteAllLines((Join-Path $PWD 'build/release-context/ai-files.txt'), $aiScopedFileLines, $utf8NoBom)
+          [System.IO.File]::WriteAllLines((Join-Path $PWD 'build/release-context/code-context.txt'), $codeContextLines, $utf8NoBom)
 
           "compare_summary=$compareSummary" >> $env:GITHUB_OUTPUT
 
@@ -413,8 +522,8 @@ jobs:
         shell: pwsh
         env:
           DEEPSEEK_API_KEY: ${{ secrets[format('{0}', 'DEEPSEEK_API_KEY')] }}
-          DEEPSEEK_API_BASE_URL: ${{ vars[format('{0}', 'DEEPSEEK_API_BASE_URL')] || 'https://api.deepseek.com' }}
-          DEEPSEEK_MODEL: ${{ vars[format('{0}', 'DEEPSEEK_RELEASE_NOTES_MODEL')] || 'deepseek-v4-pro' }}
+          DEEPSEEK_API_BASE_URL: ${{ vars.DEEPSEEK_API_BASE_URL || 'https://api.deepseek.com' }}
+          DEEPSEEK_MODEL: ${{ vars.DEEPSEEK_RELEASE_NOTES_MODEL || 'deepseek-v4-pro' }}
           REPO_NAME: ${{ github.repository }}
           RELEASE_NAME: ${{ needs.prepare-release.outputs.release_name }}
           RELEASE_TAG: ${{ needs.prepare-release.outputs.release_tag }}
@@ -425,6 +534,48 @@ jobs:
           GITHUB_RUN_ID: ${{ github.run_id }}
         run: |
           $ErrorActionPreference = 'Stop'
+
+          function New-FallbackNotes {
+            param(
+              [string]$ReleaseName,
+              [string]$ReleaseTag,
+              [string]$ReleaseDate,
+              [string[]]$CommitLines,
+              [string[]]$FileLines
+            )
+
+            $safeCommits = @($CommitLines | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -First 8)
+            $safeFiles = @($FileLines | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -First 10)
+
+            if (-not $safeCommits -or $safeCommits.Count -eq 0) {
+              $safeCommits = @('- 基于当前可见提交，未提取到可直接确认的用户侧改动 / No clearly user-facing change could be confirmed from visible commits.')
+            }
+            if (-not $safeFiles -or $safeFiles.Count -eq 0) {
+              $safeFiles = @('- 未提取到符合范围的源码文件改动 / No in-scope source file changes were extracted.')
+            }
+
+            $lines = @(
+              "本次发布（$ReleaseName / $ReleaseTag）为基于可见提交信息的保守摘要，优先呈现用户可感知变化，细节可能继续调整。",
+              "This release ($ReleaseName / $ReleaseTag) is summarized conservatively from visible commits, focusing on user-perceivable changes; details may continue to evolve.",
+              '',
+              '## 亮点 / Highlights',
+              '- 以用户可见变更为主，未确认的内部细节不写入说明 / Focused on user-visible changes; unverified internal details are excluded.',
+              '',
+              '## 修复与改进 / Fixes and Improvements'
+            )
+
+            $lines += $safeCommits
+            $lines += @('', '## 涉及范围 / Scope')
+            $lines += $safeFiles
+            $lines += @(
+              '',
+              '## 使用提示 / Notes',
+              "- 日期范围按 Asia/Shanghai（UTC+8）口径统计（$ReleaseDate） / Date scope follows Asia/Shanghai (UTC+8) ($ReleaseDate).",
+              '- 若某项变更在可见提交中证据不足，则不会写入本次说明 / If evidence is insufficient in visible commits, that change is omitted from these notes.'
+            )
+
+            return (($lines -join [Environment]::NewLine).Trim() + [Environment]::NewLine)
+          }
 
           if ([string]::IsNullOrWhiteSpace($env:DEEPSEEK_API_KEY)) {
             throw 'Missing GitHub secret DEEPSEEK_API_KEY for release note generation.'
@@ -437,8 +588,9 @@ jobs:
           }
 
           $prompt = $templateMatch.Groups['body'].Value -replace '(?m)^  ', ''
-          $commitSummary = Get-Content 'build/release-context/user-visible-commits.txt' -Raw
-          $changedFiles = Get-Content 'build/release-context/user-visible-files.txt' -Raw
+          $commitSummary = Get-Content 'build/release-context/ai-commits.txt' -Raw
+          $changedFiles = Get-Content 'build/release-context/ai-files.txt' -Raw
+          $codeContext = Get-Content 'build/release-context/code-context.txt' -Raw
 
           $replacements = @{
             '{{repo_name}}' = $env:REPO_NAME
@@ -450,6 +602,7 @@ jobs:
             '{{release_guidance}}' = $env:RELEASE_GUIDANCE
             '{{commit_summary}}' = $commitSummary.Trim()
             '{{changed_files}}' = $changedFiles.Trim()
+            '{{code_context}}' = $codeContext.Trim()
           }
 
           foreach ($entry in $replacements.GetEnumerator()) {
@@ -483,11 +636,46 @@ jobs:
             Accept = 'application/json'
           }
 
-          $response = Invoke-RestMethod -Method Post -Uri $uri -Headers $headers -ContentType 'application/json' -Body $payload
-          $notes = $response.choices[0].message.content
+          $notes = ''
+          $maxAttempts = 3
+          $requiredHeadings = @(
+            '## 亮点 / Highlights',
+            '## 修复与改进 / Fixes and Improvements',
+            '## 涉及范围 / Scope',
+            '## 使用提示 / Notes'
+          )
+
+          for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+            try {
+              $response = Invoke-RestMethod -Method Post -Uri $uri -Headers $headers -ContentType 'application/json' -Body $payload
+              $candidate = "$($response.choices[0].message.content)".Trim()
+
+              if ([string]::IsNullOrWhiteSpace($candidate)) {
+                throw 'DeepSeek API returned empty release notes.'
+              }
+
+              foreach ($heading in $requiredHeadings) {
+                if ($candidate -notmatch [System.Text.RegularExpressions.Regex]::Escape($heading)) {
+                  throw "DeepSeek output missing required heading: $heading"
+                }
+              }
+
+              $notes = $candidate
+              break
+            }
+            catch {
+              Write-Warning "DeepSeek release notes attempt $attempt/$maxAttempts failed: $($_.Exception.Message)"
+              if ($attempt -lt $maxAttempts) {
+                Start-Sleep -Seconds (4 * $attempt)
+              }
+            }
+          }
 
           if ([string]::IsNullOrWhiteSpace($notes)) {
-            throw 'DeepSeek API returned empty release notes.'
+            Write-Warning 'DeepSeek failed after retries. Falling back to conservative local release notes.'
+            $fallbackCommitLines = @(Get-Content 'build/release-context/ai-commits.txt')
+            $fallbackFileLines = @(Get-Content 'build/release-context/ai-files.txt')
+            $notes = New-FallbackNotes -ReleaseName $env:RELEASE_NAME -ReleaseTag $env:RELEASE_TAG -ReleaseDate $env:RELEASE_DATE -CommitLines $fallbackCommitLines -FileLines $fallbackFileLines
           }
 
           $notesRelativePath = 'build/release-context/release-notes.md'
